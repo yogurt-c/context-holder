@@ -63,7 +63,7 @@ def store(cx: float, top: float, w: float, h: float) -> None:
                f'fill="{bg}" stroke="{accent}" stroke-width="2" filter="url(#shadow)"/>')
     out.append(f'<ellipse cx="{cx}" cy="{top}" rx="{rx}" ry="{ry}" fill="#fff" stroke="{accent}" stroke-width="2"/>')
     text(cx, top + 48, "위키 + 인덱스", size=18, weight=800, fill=ink, anchor="middle")
-    for i, line in enumerate(["Markdown 위키 (Git)", "SQLite 검색 인덱스", "GitHub private 백업"]):
+    for i, line in enumerate(["Markdown 위키 (Git)", "GitHub이 원본 · 기기 간 동기화", "검색 인덱스는 기기마다"]):
         text(cx, top + 78 + i * 22, line, size=13, fill="#343A40", anchor="middle")
     badge(left + 4, top - 14, 2)
 
@@ -100,7 +100,7 @@ actor(50, 300, 300, 230, "blog", "외부 소스", "빅테크 기술블로그", [
 ])
 actor(430, 270, 350, 290, "worker", "백그라운드 상주", "수집 · 정리 워커", [
     "매일 아침 자동 수집", "관련도 분류 → 불필요 기술 제외", "요약 + 기술 결정 기록 추출", "영상 글은 본문 요약 우선",
-], nums=(1, 5), chip="로컬 모델 + Claude 구독")
+], nums=(1, 5), chip="Claude 구독으로 분류 · 요약")
 store(970, 345, 220, 150)
 actor(1160, 130, 390, 240, "app", "사람이 보는 곳", "화면 (데스크톱 앱)", [
     "메뉴바 상주 · 수집 상태", "오늘의 브리프 (주요 이슈 Top 5)", "검색 · 결정 사례 비교", "Inbox · 관련없음 피드백",

@@ -113,7 +113,7 @@ out.append(f'<rect width="{W}" height="{H}" fill="#FFFFFF"/>')
 
 text(40, 50, "context-holder", size=28, weight=800, fill="#111")
 text(262, 50, "빅테크 기술 결정 사례 위키 · 하네스 엔지니어링 문맥 관리 아키텍처", size=17, weight=500, fill="#495057")
-text(40, 78, "전부 로컬: 메뉴바에 상주하는 데스크톱 앱이 엔진을 돌려 매일 수집 → 로컬 모델 분류 + Claude 구독 요약 → 위키 · 인덱스 → 앱 화면 · MCP · CLI",
+text(40, 78, "메뉴바에 상주하는 데스크톱 앱이 엔진을 돌려 매일 수집 → Claude 구독으로 분류 · 요약 → 위키 · 인덱스 → 앱 화면 · MCP · CLI",
      size=13, fill="#868E96")
 
 TOP, BOT = 100, 805
@@ -129,35 +129,34 @@ box(45, 505, 170, 140, "src", "수집 방식", ["RSS / Atom feed 우선", "HTML 
 box(45, 665, 170, 120, "src", "세션 영상 (M4)", ["네이버 클립 · YouTube", "슬라이드 (PDF 등)"])
 
 # ---------- 내 Mac ----------
-panel(255, TOP, 1245, BOT - TOP, "local", "내 Mac (전부 로컬)", nums=(1, 2, 3, 4, 5),
-      sub="API 키 · 서버 · CI 없음 · 위키 레포는 GitHub private에 백업", sub_dx=150)
+panel(255, TOP, 1245, BOT - TOP, "local", "각 기기 (모두 동등한 사본)", nums=(1, 2, 3, 4, 5),
+      sub="API 키 · 서버 · CI 없음 · 어느 기기든 수집 가능 · GitHub 레포가 원본", sub_dx=200)
 
 # 수집 워커
 subpanel(270, 160, 340, 630, "ing", "ctx 엔진 (Python) · 수집 워커")
 X_A, W_A = 285, 310
-box(X_A, 195, W_A, 101, "ing", "Scheduler", ["앱 시작 · 잠자기 해제 · 평일 09:30", "→ 오늘 미수집이면 수집", "완료 시 앱이 macOS 알림"])
+box(X_A, 195, W_A, 101, "ing", "Scheduler · 수집 잠금", ["앱 시작 · 잠자기 해제 · 평일 09:30", "pull → 오늘 기록 없으면 잠금 push", "push 성공한 기기만 수집 · 완료 알림"])
 box(X_A, 310, W_A, 82, "ing", "Fetcher", ["RSS/Atom 우선 → HTML fallback", "마지막 본 글 이후만 (따라잡기)"], nums=(1,))
 box(X_A, 406, W_A, 82, "ing", "Extract · Dedup", ["Readability → Markdown · 중복 제거", "영상 글 감지 → summary_only"], nums=(1,))
 box(X_A, 502, W_A, 101, "cur", "Relevance Classifier", [
-    "1차: profile.yaml 키워드", "2차: 로컬 모델 + feedback 예시", "≥0.7 저장 · 0.4~0.7 inbox",
+    "profile.yaml 주제 기준 (5.1)", "Claude 판정 + feedback 예시", "≥0.7 저장 · 0.4~0.7 inbox",
 ], nums=(5,))
 box(X_A, 617, W_A, 101, "cur", "Enricher", [
     "요약 · 영문 태그 · Decision Record", "evidence 원문 대조 (코드 검증)", "→ wiki/ 쓰기 · git commit",
 ], nums=(4,))
-text(X_A + 4, 765, "하루 10분 이내 · 모델은 작업 때만 로드", size=11.5, fill="#6C757D")
+text(X_A + 4, 765, "하루 수 분 이내 · 실패한 글은 pending으로 보관", size=11.5, fill="#6C757D")
 
 # 저장
 subpanel(630, 160, 320, 260, "sto", "저장")
 box(645, 195, 290, 101, "sto", "wiki/ (Git 레포)", [
-    "wiki/ decisions/ inbox/ archive/", "feedback/ · config/ · Obsidian vault", "git push → GitHub private (백업)",
+    "wiki/ decisions/ inbox/ archive/", "feedback/ · config/ · state/", "pull · push ⇄ GitHub (원본)",
 ], nums=(1,))
 box(645, 312, 290, 82, "sto", "index.db (SQLite)", ["Indexer: FTS5 trigram · 용어 사전", "decision > tags > 요약 가중치"], nums=(2,))
 
 # LLM Gateway
-subpanel(630, 440, 320, 350, "cur", "LLM Gateway · 설정으로 전환")
-box(645, 475, 290, 101, "cur", "로컬 모델 (Ollama)", ["Qwen3 8B Q4 (~5GB)", "관련도 분류 · 주간 Pruner", "keep_alive 0 → 끝나면 언로드"])
-box(645, 600, 290, 101, "srv", "Claude 구독 (claude -p)", ["Sonnet: 요약 · Decision Record", "하루 2~3건 · 별도 비용 없음", "한도 초과 → 로컬 모델로 대체"], nums=(4,))
-text(649, 765, "품질이 중요한 곳만 Claude, 나머지는 로컬", size=11.5, fill="#6C757D")
+subpanel(630, 440, 320, 350, "srv", "LLM · Claude 구독")
+box(645, 475, 290, 240, "srv", "Claude (claude -p)", ["분류: 그날 새 글을 묶어 1회", "요약 · Decision Record: 글마다 1회", "주간 Pruner: 요약 50건씩 묶음", "", "실패 (한도 · 로그인 만료 · 네트워크)", "→ status: pending 저장 후 재처리", "API 키 없음 · 구독 외 비용 없음"], nums=(4, 5))
+text(649, 765, "하루 2~3건 · 구독 사용량 영향 작음", size=11.5, fill="#6C757D")
 
 # 화면 · 인터페이스
 subpanel(970, 160, 515, 630, "srv", "데스크톱 앱 (Tauri) · 인터페이스")
@@ -215,12 +214,12 @@ for i, s in enumerate(["수집 · 위키 저장", "위키 인덱싱", "검색 ·
     text(90, BAND_Y + 100 + i * 27, s, size=12.5, fill="#343A40")
 
 BY, BH, BW = BAND_Y + 45, 130, 285
-box(290, BY, BW, BH, "sto", "GitHub private repo", ["위키 레포 백업 · 변경 이력", "다른 Mac은 clone 후 사용", "Actions · Secrets 사용 안 함"])
-box(595, BY, BW, BH, "ops", "로컬 리소스", ["모델은 작업 때만 로드 (8B 안팎)", "앱 셸은 Tauri (수십 MB)", "Whisper 등은 필요할 때 설치"])
+box(290, BY, BW, BH, "sto", "GitHub private repo (원본)", ["모든 기기가 pull · push로 동기화", "push 성공 = 오늘 수집 담당 (잠금)", "새 기기: clone → 전체 인덱싱"])
+box(595, BY, BW, BH, "ops", "운영 · 장애 대응", ["Claude 실패 → pending 후 재처리", "메뉴바에 '요약 대기 N건' 표시", "앱 셸은 Tauri (수십 MB)"])
 box(900, BY, BW, BH, "ing", "M4 확장", ["Media Worker: 슬라이드·자막·Whisper", "로컬 임베딩 bge-m3 (평가 후)", "네이버 클립 추출은 검증 전"])
 box(1205, BY, BW, BH, "con", "저작권 · 보안 (개인용)", ["위키 레포는 private", "전문 미저장 (요약 · 링크)", "구독 자동 사용은 약관 확인"])
 box(1510, BY, BW, BH, "ops", "Feedback Loop", ["웹의 '관련없음' → feedback/", "→ 다음 수집 Classifier 반영", "→ 주간 Pruner 재평가"], nums=(5,))
-text(920, BAND_Y + 212, "데이터 흐름: 외부 블로그 → ctx 엔진 (로컬 모델 · claude -p) → wiki/ (GitHub 백업) → index.db → 앱 화면 · MCP · CLI · Hook",
+text(920, BAND_Y + 212, "데이터 흐름: 외부 블로그 → ctx 엔진 (claude -p) → wiki/ ⇄ GitHub (원본) → index.db → 앱 화면 · MCP · CLI · Hook",
      size=12.5, weight=600, fill="#495057", anchor="middle")
 text(920, BAND_Y + 237, "실선 = 데이터 흐름 · 점선 = 피드백 · (M4) = 후순위", size=11.5, fill="#868E96", anchor="middle")
 
