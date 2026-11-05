@@ -1,0 +1,8 @@
+[project]
+name = "sidecar-spike"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pygit2>=1.15", "pyinstaller>=6.10"]
+
+[tool.uv]
+package = false
