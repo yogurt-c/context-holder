@@ -121,11 +121,10 @@ TOP, BOT = 100, 805
 # ---------- 외부 소스 ----------
 panel(30, TOP, 200, BOT - TOP, "src", "외부 소스")
 box(45, 150, 170, 330, "src", "빅테크 기술블로그", [
-    "Netflix TechBlog", "Uber Engineering", "Meta Engineering", "AWS Architecture",
-    "Google Cloud Blog", "Airbnb Tech", "LinkedIn Eng", "Discord / Slack Eng",
-    "Toss Tech", "우아한형제들", "Kakao Tech", "NAVER D2", "LINE Engineering", "…",
+    "NAVER D2", "Toss", "우아한형제들", "LINE (LY Corp)", "당근", "올리브영", "무신사",
+    "Kakao", "NHN Cloud", "Netflix", "GitHub", "Cloudflare", "Airbnb",
 ])
-box(45, 505, 170, 140, "src", "수집 방식", ["RSS / Atom feed 우선", "HTML (feed 없는 곳)", "D2: d2.atom (본문 포함)", "robots.txt 준수"])
+box(45, 505, 170, 140, "src", "수집 방식", ["RSS / Atom feed 우선", "요약만 있으면 원문 요청", "SPA 블로그는 본문 API", "5xx는 재시도"])
 box(45, 665, 170, 120, "src", "세션 영상 (M4)", ["네이버 클립 · YouTube", "슬라이드 (PDF 등)"])
 
 # ---------- 내 Mac ----------
@@ -136,22 +135,22 @@ panel(255, TOP, 1245, BOT - TOP, "local", "각 기기 (모두 동등한 사본)"
 subpanel(270, 160, 340, 630, "ing", "ctx 엔진 (Python) · 수집 워커")
 X_A, W_A = 285, 310
 box(X_A, 195, W_A, 101, "ing", "Scheduler · 수집 잠금", ["앱 시작 · 잠자기 해제 · 평일 09:30", "pull → 오늘 기록 없으면 잠금 push", "push 성공한 기기만 수집 · 완료 알림"])
-box(X_A, 310, W_A, 82, "ing", "Fetcher", ["RSS/Atom 우선 → HTML fallback", "마지막 본 글 이후만 (따라잡기)"], nums=(1,))
-box(X_A, 406, W_A, 82, "ing", "Extract · Dedup", ["Readability → Markdown · 중복 제거", "영상 글 감지 → summary_only"], nums=(1,))
+box(X_A, 310, W_A, 82, "ing", "Fetcher", ["RSS/Atom · ETag · 원문 · 본문 API", "마지막 본 글 이후만 (따라잡기)"], nums=(1,))
+box(X_A, 406, W_A, 82, "ing", "Extract · Dedup", ["trafilatura → Markdown · 중복 제거", "영상 글 감지 → summary_only"], nums=(1,))
 box(X_A, 502, W_A, 101, "cur", "Relevance Classifier", [
-    "profile.yaml 주제 기준 (5.1)", "Claude 판정 + feedback 예시", "≥0.7 저장 · 0.4~0.7 inbox",
+    "profile.yaml 주제 기준 (5.1)", "Claude 판정 + feedback 예시", "≥0.6 저장 · 0.3~0.6 inbox",
 ], nums=(5,))
 box(X_A, 617, W_A, 101, "cur", "Enricher", [
-    "요약 · 영문 태그 · Decision Record", "evidence 원문 대조 (코드 검증)", "→ wiki/ 쓰기 · git commit",
+    "요약 · 핵심 내용 · 태그 · Decision Record", "evidence 원문 대조 · 단락 벡터", "→ wiki/ · vectors/ 쓰기 · commit",
 ], nums=(4,))
 text(X_A + 4, 765, "하루 수 분 이내 · 실패한 글은 pending으로 보관", size=11.5, fill="#6C757D")
 
 # 저장
 subpanel(630, 160, 320, 260, "sto", "저장")
 box(645, 195, 290, 101, "sto", "wiki/ (Git 레포)", [
-    "wiki/ decisions/ inbox/ archive/", "feedback/ · config/ · state/", "pull · push ⇄ GitHub (원본)",
+    "wiki/ vectors/ decisions/ inbox/", "feedback/ · config/ · state/", "pull · push ⇄ GitHub (원본)",
 ], nums=(1,))
-box(645, 312, 290, 82, "sto", "index.db (SQLite)", ["Indexer: FTS5 trigram · 용어 사전", "decision > tags > 요약 가중치"], nums=(2,))
+box(645, 312, 290, 82, "sto", "index.db (SQLite)", ["FTS5 trigram + 다국어 임베딩 (RRF)", "원문 단락 벡터는 vectors/에서 읽기"], nums=(2,))
 
 # LLM Gateway
 subpanel(630, 440, 320, 350, "srv", "LLM · Claude 구독")
@@ -161,7 +160,7 @@ text(649, 765, "하루 2~3건 · 구독 사용량 영향 작음", size=11.5, fil
 # 화면 · 인터페이스
 subpanel(970, 160, 515, 630, "srv", "데스크톱 앱 (Tauri) · 인터페이스")
 box(985, 195, 485, 139, "srv", "context-holder.app — 메뉴바 + 메인 창", [
-    "메뉴바: 상태 색 · 지금 수집 · 일시정지 · ⌘⇧B / ⌘⇧K",
+    "메뉴바: 상태 아이콘 · 지금 수집 · 일시정지",
     "창: Today · Search · Decisions · Inbox · Sources",
     "창을 닫아도 메뉴바 상주 · 로그인 시 자동 실행",
     "엔진 sidecar 실행 · 감시 · 재시작",
@@ -216,7 +215,7 @@ for i, s in enumerate(["수집 · 위키 저장", "위키 인덱싱", "검색 ·
 BY, BH, BW = BAND_Y + 45, 130, 285
 box(290, BY, BW, BH, "sto", "GitHub private repo (원본)", ["모든 기기가 pull · push로 동기화", "push 성공 = 오늘 수집 담당 (잠금)", "새 기기: clone → 전체 인덱싱"])
 box(595, BY, BW, BH, "ops", "운영 · 장애 대응", ["Claude 실패 → pending 후 재처리", "메뉴바에 '요약 대기 N건' 표시", "앱 셸은 Tauri (수십 MB)"])
-box(900, BY, BW, BH, "ing", "M4 확장", ["Media Worker: 슬라이드·자막·Whisper", "로컬 임베딩 bge-m3 (평가 후)", "네이버 클립 추출은 검증 전"])
+box(900, BY, BW, BH, "ing", "M4 확장", ["Media Worker: 슬라이드·자막·Whisper", "네이버 클립 추출은 검증 전"])
 box(1205, BY, BW, BH, "con", "저작권 · 보안 (개인용)", ["위키 레포는 private", "전문 미저장 (요약 · 링크)", "구독 자동 사용은 약관 확인"])
 box(1510, BY, BW, BH, "ops", "Feedback Loop", ["웹의 '관련없음' → feedback/", "→ 다음 수집 Classifier 반영", "→ 주간 Pruner 재평가"], nums=(5,))
 text(920, BAND_Y + 212, "데이터 흐름: 외부 블로그 → ctx 엔진 (claude -p) → wiki/ ⇄ GitHub (원본) → index.db → 앱 화면 · MCP · CLI · Hook",

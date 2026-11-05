@@ -115,6 +115,16 @@ def _collect_source(
     return report, articles, fetched.etag
 
 
+def fetch_article(
+    client: httpx.Client, source: Source, url: str, title: str, published: datetime | None
+) -> Article:
+    """feed 없이 URL 하나로 글을 다시 가져온다 (요약 대기 글을 다시 처리할 때)."""
+    canonical = canonical_url(url)
+    entry = FeedEntry(source.id, canonical, title, published, html="")
+    markdown = _body(client, source, entry, canonical)
+    return Article(source.id, canonical, title, published, markdown, content_hash(markdown))
+
+
 def _body(client: httpx.Client, source: Source, entry: FeedEntry, url: str) -> str:
     feed_markdown = html_to_markdown(entry.html, url=url) if source.mode is Mode.FEED else ""
     if len(feed_markdown) >= MIN_FEED_BODY_CHARS:

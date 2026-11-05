@@ -139,7 +139,7 @@ GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해
                        → 시험 호출로 연결 확인. 연결 전에는 수집을 시작하지 않는다
 4. Claude Code 연동    MCP 서버 등록 + SessionStart hook 추가
                        ~/.claude 설정은 덮어쓰지 않고 병합, 변경 내용을 보여 주고 백업 후 적용
-5. 완료                바로 첫 수집 시작
+5. 완료                바로 첫 수집 시작. 검색 모델(다국어 임베딩)은 뒤에서 내려받는다
 ```
 
 사용자가 하는 일: 버튼 몇 번 + 브라우저 승인 최대 2번.
@@ -158,13 +158,15 @@ GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해
 ### 레포 구조 (`context-wiki`)
 
 ```
-wiki/{company}/{yyyy}/{slug}.md   # 요약 + Decision Record + 원문 링크 (전문 미저장)
+wiki/{company}/{yyyy}/{slug}.md   # 요약 + 핵심 내용 + Decision Record + 원문 링크 (전문 미저장)
+vectors/{model}/{article_id}.f16  # 원문 단락 벡터 (텍스트 없음, 1회 쓰기) + 같은 이름의 .json 메타
 decisions/{topic}.yaml            # 주제별 결정 사례 모음
 inbox/                            # 관련도 애매(0.3~0.6) 보류 글
 archive/                          # Pruner 정리분
 transcripts/{media_id}.txt        # 영상 대본 (M4)
 config/sources.yaml               # 소스 목록 · 수집 방식 · 회사 가중치
-config/profile.yaml               # 관심/제외 기술, 한↔영 용어 사전
+config/profile.yaml               # 수집 · 경계 · 제외 주제와 경계값
+config/search.yaml                # 모든 기기가 쓰는 검색 모델 id
 feedback/{yyyy-mm}-{host}.jsonl   # 관련없음 · 북마크 · suggest_source (기기별 파일)
 state/runs/{date}.json            # 그날 수집을 맡은 기기 · 상태 · 결과 (수집 잠금)
 state/seen/{yyyy-mm}.jsonl        # 본 글의 URL 해시 · 판정 · 점수 (중복 수집 방지)
@@ -200,8 +202,8 @@ LLM 호출은 한 인터페이스 뒤에 두고, 작업별로 백엔드를 설�
    - 0.3 ~ 0.6: `inbox/`
    - < 0.3: Drop (로그만)
    - 경계값은 M0 평가셋으로 보정했다 ([engine/eval](../engine/eval/README.md)).
-4. **Enricher**: 한국어 3줄 요약, 영문 정규화 태그, Decision Record를 추출하고 evidence를 검증한다.
-5. **Commit · Push · Index**: 위키와 `state/`에 쓰고 커밋 · push한 뒤 증분 인덱싱한다. push 거절 시 rebase 후 재시도.
+4. **Enricher**: 한국어 3줄 요약, 한국어 핵심 내용 5~10줄, 영문 정규화 태그, Decision Record를 만들고 evidence를 검증한다. 원문 단락을 검색 모델로 벡터화한다.
+5. **Commit · Push · Index**: 위키, `vectors/`, `state/`에 쓰고 커밋 · push한 뒤 증분 인덱싱한다. push 거절 시 rebase 후 재시도.
 
 목표 처리 시간: 하루 분량 10분 이내.
 
@@ -262,11 +264,23 @@ media:
 
 ## 6. 인덱싱
 
-- `index.db`는 SQLite FTS5다. 위키에서 언제든 다시 만들 수 있다(`ctx reindex`).
+검색은 **키워드 검색 + 다국어 임베딩 검색**을 함께 돌리고 RRF로 합친다. 한국어 질의로 영어 글을, 영어 질의로 한국어 글을 찾는다.
+
+| 대상 | 키워드 (FTS5) | 의미 (임베딩) | 어디서 만드나 |
+|---|---|---|---|
+| 제목, 요약, 핵심 내용, Decision Record, 태그 | O | O (필드 · 줄 단위) | 기기마다 위키에서 계산 |
+| 원문 단락 | X | O (단락 단위) | 수집할 때 계산해 `vectors/`에 저장 · 동기화 |
+
+- `index.db`는 SQLite FTS5다. 위키와 `vectors/`에서 언제든 다시 만들 수 있다(`ctx reindex`).
 - **한국어**: 기본 `unicode61` 토크나이저는 조사 때문에 검색이 잘 안 된다. `trigram` 토크나이저나 kiwipiepy 형태소 분석을 쓴다.
-- **한·영 교차 검색**: 한국어 요약과 영문 정규화 태그를 함께 저장하고, `profile.yaml` 용어 사전으로 동의어를 보강한다.
-- **필드 가중치**: decision > tags > summary.
-- **임베딩**: M1 MCP 평가에서 recall이 부족할 때만 로컬 다국어 임베딩(bge-m3 등)을 sqlite-vec로 추가한다.
+- **필드 가중치**: decision > tags > 핵심 내용 > summary.
+- **임베딩 모델**: 로컬 다국어 모델(후보 multilingual-e5-small, bge-m3)을 ONNX Runtime으로 돌린다. 앱 번들에 넣지 않고 첫 실행 때 내려받는다. 모델은 검색 평가셋 recall@5로 고른다.
+- **결과 표시**: 어느 필드나 원문 몇 번째 단락이 맞았는지 보여 준다. 원문 텍스트는 없으므로 단락은 번호와 원문 링크로만 안내한다.
+- **검색 모델 바꾸기** (설정 화면, `ctx reembed --model`):
+  1. 새 모델을 내려받고, 수집 잠금과 같은 방식으로 한 기기만 다시 인덱싱한다.
+  2. 글마다 원문을 다시 가져와 단락 벡터를 `vectors/{새 모델}/`에 쓰고 일정 건수마다 커밋 · push한다. 진행률과 실패 목록을 보여 주고, 멈추면 이어서 한다.
+  3. 끝나면 `config/search.yaml`을 새 모델로 바꾸고 이전 모델 폴더를 지운다. 다른 기기는 pull에서 변경을 감지해 모델을 받고 `index.db`를 다시 만든다.
+  - 원문을 다시 못 가져온 글은 단락 벡터 없이 위키 필드로만 검색되고 "원문 없음"으로 표시한다. 원문이 바뀐 글은 해시로 감지해 "원문 변경됨"으로 표시한다.
 
 ## 7. 화면 (데스크톱 앱 메인 창)
 
@@ -279,6 +293,7 @@ media:
 | **Decisions** | 주제별 결정 사례 모음. 같은 문제에 회사별로 무엇을 골랐는지 나란히 비교 |
 | **Inbox** | 보류 글을 저장 또는 관련없음으로 분류. 이 클릭이 곧 ⑤의 피드백 |
 | **Sources** | 소스별 최근 수집 성공 여부, 신규 글 수, 필터 통과율 |
+| **설정** | 수집 시각, 알림, 계정 연결, 검색 모델 바꾸기와 다시 인덱싱 진행률 (6장) |
 
 주요 동작:
 - 원문 열기, 북마크, 관련없음(→ `feedback/`)
@@ -344,7 +359,8 @@ media:
 - feedparser, trafilatura, httpx, APScheduler
 - FastAPI, Jinja2, HTMX
 - MCP Python SDK
-- SQLite FTS5, WAL 모드 (+ sqlite-vec는 선택)
+- SQLite FTS5, WAL 모드
+- 다국어 임베딩: ONNX Runtime + 로컬 모델(첫 실행 때 다운로드)
 - 내장 git: pygit2 (libgit2)
 - Claude Code CLI (`claude -p`). 없으면 앱이 공식 설치 프로그램으로 설치
 - GitHub OAuth App (Device Flow), macOS 키체인
@@ -357,10 +373,10 @@ media:
 | 단계 | 범위 | 완료 기준 |
 |---|---|---|
 | **M0 검증** | 평가셋 50개 수동 라벨링, `claude -p` 분류 정확도와 JSON 출력 안정성 확인 | 소스별 수집 방식 확정, 분류 정확도 기준선 확보 |
-| **M1 엔진 · 문맥** | 엔진(수집 · 분류 · 요약 · 인덱싱 · Git 동기화), `ctx` CLI, **MCP 서버**, SessionStart hook, MCP 질의 로그 | `ctx sync`로 매일 위키가 쌓이고 관련 글 precision 80% 이상. 평가셋 recall@5 70% 이상 |
+| **M1 엔진 · 문맥** | 엔진(수집 · 분류 · 요약 · 혼합 검색 인덱싱 · Git 동기화), `ctx` CLI, **MCP 서버**, SessionStart hook, MCP 질의 로그 | `ctx sync`로 매일 위키가 쌓이고 관련 글 precision 80% 이상. 평가셋 recall@5 70% 이상 |
 | **M2 앱** | 화면(Today · Search · Inbox), **Tauri 앱(메뉴바 · 자동 실행 · 알림 · 스케줄)**, **첫 실행 설정(GitHub · Claude 연결)**, 패키징, Decisions 화면 · 결정 주제 정규화 | 새 Mac에서 설치 후 일주일간 손대지 않아도 매일 아침 수집 완료 알림이 오고, 실제 기술 결정에서 사례 3건 이상 인용 |
 | **M3 정리** | 피드백의 Classifier 반영, Pruner, Sources 화면 | 관련없음 피드백이 다음 수집에 반영됨 |
-| **M4 확장** | 영상 보강(Media Worker), 로컬 임베딩 | 필요성이 확인된 것만 진행 |
+| **M4 확장** | 영상 보강(Media Worker) | 필요성이 확인된 것만 진행 |
 
 ## 13. 리스크
 
@@ -380,6 +396,7 @@ media:
 ## 14. 저작권 · 보안
 
 - 개인용이다. 위키 레포는 private으로 두고 공개하지 않는다.
-- 전문 대신 요약, Decision Record, 원문 링크를 저장한다.
+- 전문 대신 요약, 핵심 내용, Decision Record, 원문 링크를 저장한다.
+- 원문 단락은 검색용 벡터만 저장하고 텍스트는 저장하지 않는다.
 - 엔진 HTTP는 `127.0.0.1`에만 바인딩하고, 앱에만 전달한 토큰으로 요청을 확인한다.
 - API 키와 비밀값을 쓰지 않는다. `claude`는 기존 로그인 세션을 사용한다.

@@ -260,3 +260,65 @@ def test_eval_classify_reports_bad_labels(tmp_path):
 
     assert result.exit_code == 2
     assert "title" in result.output
+
+
+def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path):
+    import json
+
+    from context_holder import cli
+    from context_holder.collect import SourceReport
+    from context_holder.sync import SyncReport
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(home))
+    home.mkdir()
+    (home / "etag-cache.json").write_text('{"toss": "\\"old\\""}', encoding="utf-8")
+    seen = {}
+
+    def fake_run_sync(wiki, client, llm, now, days, etags=None):
+        seen.update(root=wiki.root, days=days, etags=dict(etags), model=llm.model)
+        return SyncReport(
+            sources=(SourceReport("toss", found=3, new=2),),
+            saved=1,
+            inboxed=1,
+            dropped=0,
+            pending_classify=0,
+            pending_enrich=1,
+            completed=2,
+            still_pending=0,
+            cost_usd=0.1,
+            etags={"toss": '"new"'},
+            stopped_reason="limit: 한도",
+        )
+
+    monkeypatch.setattr(cli, "run_sync", fake_run_sync)
+    wiki = tmp_path / "wiki"
+
+    result = runner.invoke(app, ["sync", "--wiki", str(wiki), "--days", "3", "--model", "haiku"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == {"root": wiki, "days": 3, "etags": {"toss": '"old"'}, "model": "haiku"}
+    assert "저장 1 · 보류 1 · 버림 0" in result.output
+    assert "새 글 0건" not in result.output
+    assert "요약 대기 1" in result.output and "이전 대기 완료 2" in result.output
+    assert "Claude 호출을 멈췄다: limit: 한도" in result.output
+    assert json.loads((home / "etag-cache.json").read_text()) == {"toss": '"new"'}
+
+
+def test_sync_defaults_to_wiki_in_home_and_first_run_window(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.sync import FIRST_SYNC_DAYS, SyncReport
+
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
+    seen = {}
+
+    def fake_run_sync(wiki, client, llm, now, days, etags=None):
+        seen.update(root=wiki.root, days=days)
+        return SyncReport((), 0, 0, 0, 0, 0, 0, 0, 0.0, {}, None)
+
+    monkeypatch.setattr(cli, "run_sync", fake_run_sync)
+
+    result = runner.invoke(app, ["sync"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == {"root": tmp_path / "wiki", "days": FIRST_SYNC_DAYS}

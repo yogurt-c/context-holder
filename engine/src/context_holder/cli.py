@@ -20,10 +20,13 @@ from context_holder.classify import (
     load_default_profile,
     load_profile,
 )
-from context_holder.collect import Article, CollectResult, collect
+from context_holder.collect import Article, CollectResult, SourceReport, collect
 from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
 from context_holder.llm import ClaudeCli
+from context_holder.paths import default_wiki, etag_cache
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
+from context_holder.sync import SyncReport, default_days, run_sync
+from context_holder.wiki import Wiki
 
 app = typer.Typer(
     name="ctx",
@@ -81,11 +84,15 @@ def collect_command(
 
 
 def _print_report(result: CollectResult) -> None:
+    _print_sources(result.reports)
+    typer.echo(f"\n새 글 {len(result.articles)}건")
+
+
+def _print_sources(reports: tuple[SourceReport, ...]) -> None:
     typer.echo(f"{'소스':<14}{'feed':>6}{'새 글':>6}{'건너뜀':>7}{'실패':>6}  비고")
-    for r in result.reports:
+    for r in reports:
         note = r.error or ("변경 없음" if r.not_modified else "")
         typer.echo(f"{r.source_id:<14}{r.found:>6}{r.new:>6}{r.skipped:>7}{r.failed:>6}  {note}")
-    typer.echo(f"\n새 글 {len(result.articles)}건")
 
 
 def _write_jsonl(result: CollectResult, out: Path) -> None:
@@ -276,3 +283,48 @@ def _print_eval_report(report: Report) -> None:
                 f"  정답 {BUCKET_LABEL[m.expected]} · 판정 {BUCKET_LABEL[m.got]} "
                 f"{m.score:.2f}  {m.title[:50]}{mark}"
             )
+
+
+@app.command("sync")
+def sync_command(
+    wiki_path: Path | None = typer.Option(
+        None, "--wiki", help="위키 레포 폴더. 없으면 ~/.context-holder/wiki."
+    ),
+    days: int | None = typer.Option(
+        None, min=1, help="최근 며칠의 글을 볼지. 없으면 처음 30일, 이후 7일."
+    ),
+    model: str = typer.Option("sonnet", help="분류 · 요약에 쓸 Claude 모델."),
+) -> None:
+    """요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다."""
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+    logging.getLogger("trafilatura").setLevel(logging.CRITICAL)
+    wiki = Wiki(wiki_path or default_wiki())
+    cache = etag_cache()
+    etags = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+
+    with httpx.Client() as client:
+        report = run_sync(
+            wiki,
+            client,
+            ClaudeCli(model=model),
+            now=datetime.now(UTC),
+            days=days or default_days(wiki),
+            etags=etags,
+        )
+
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(report.etags, ensure_ascii=False, indent=2), encoding="utf-8")
+    _print_sync(report)
+
+
+def _print_sync(report: SyncReport) -> None:
+    _print_sources(report.sources)
+    typer.echo("")
+    typer.echo(
+        f"저장 {report.saved} · 보류 {report.inboxed} · 버림 {report.dropped} · "
+        f"분류 대기 {report.pending_classify} · 요약 대기 {report.pending_enrich} · "
+        f"이전 대기 완료 {report.completed} · 남은 대기 {report.still_pending}  "
+        f"(사용량 환산 ${report.cost_usd:.3f})"
+    )
+    if report.stopped_reason:
+        typer.echo(f"Claude 호출을 멈췄다: {report.stopped_reason}. 다음 실행에서 이어서 한다.")

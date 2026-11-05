@@ -247,3 +247,17 @@ def test_navigation_only_page_is_a_failure_not_an_article(make_client):
 
     assert result.articles == ()
     assert result.reports[0].failed == 1
+
+
+def test_fetch_article_gets_one_article_by_url(make_client):
+    from context_holder.collect import fetch_article
+
+    client = make_client(
+        routes({"https://toss.tech/x": httpx.Response(200, text=article_page("글", LONG_BODY))})
+    )
+
+    a = fetch_article(client, FULL, "https://toss.tech/x?utm_source=rss", "글", None)
+
+    assert a.url == "https://toss.tech/x"
+    assert "캐시 무효화 전략" in a.markdown
+    assert a.content_hash
