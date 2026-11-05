@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder · Today (목업)</title>
+<style>
+  :root {
+    --paper: #F6F1E7;
+    --paper-deep: #EDE5D4;
+    --ink: #1B1A17;
+    --ink-soft: #5B564C;
+    --ink-faint: #8E877A;
+    --rule: #CFC5B0;
+    --accent: #B4441E;        /* 신문 붉은 잉크: 오늘 · 결정 강조 */
+    --decision: #1F4E5F;      /* 결정 사례: 청록 */
+    --ok: #3F6B3A;
+    --surface: #FFFDF8;
+    --serif: "Nanum Myeongjo", "AppleMyungjo", "Noto Serif KR", serif;
+    --sans: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    --mono: "JetBrains Mono", Menlo, monospace;
+    --radius: 3px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--paper);
+    display: grid; grid-template-columns: 220px 1fr; min-height: 100vh;
+    font-size: 14px; line-height: 1.55; word-break: keep-all;
+  }
+
+  /* ---------- 좌측 레일 ---------- */
+  nav.rail {
+    background: var(--ink); color: #E9E2D2; padding: 26px 18px;
+    display: flex; flex-direction: column; gap: 28px;
+  }
+  .brand { font-family: var(--serif); font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
+  .brand small { display: block; font-family: var(--sans); font-size: 11px; font-weight: 400; color: #A79F8D; letter-spacing: 0; margin-top: 2px; }
+  .rail ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .rail a {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #CFC7B5; text-decoration: none; padding: 8px 10px; border-radius: var(--radius); font-weight: 500;
+  }
+  .rail a.active { background: #2E2C27; color: #fff; box-shadow: inset 3px 0 0 var(--accent); }
+  .rail a:hover { background: #2A2823; }
+  .count { font-size: 11px; background: var(--accent); color: #fff; border-radius: 9px; padding: 0 7px; font-weight: 700; }
+  .sync { margin-top: auto; font-size: 12px; color: #A79F8D; border-top: 1px solid #3A3730; padding-top: 14px; }
+  .sync b { color: #E9E2D2; font-weight: 600; }
+  .sync .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #7FB069; margin-right: 6px; }
+  .sync dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin-top: 10px; }
+  .sync dd { text-align: right; color: #E9E2D2; font-variant-numeric: tabular-nums; }
+
+  /* ---------- 상단 검색 ---------- */
+  main { padding: 22px 40px 40px; }
+  .search {
+    display: flex; align-items: center; gap: 12px; background: var(--surface);
+    border: 1px solid var(--rule); border-radius: var(--radius); padding: 10px 14px;
+  }
+  .search input { flex: 1; border: 0; background: transparent; font: inherit; font-size: 15px; color: var(--ink); outline: none; }
+  .search input::placeholder { color: var(--ink-faint); }
+  kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; padding: 1px 6px; color: var(--ink-soft); background: var(--paper); }
+  .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 3px 10px; border: 1px solid var(--rule); border-radius: 20px; color: var(--ink-soft); background: transparent; }
+  .chip.on { background: var(--decision); color: #fff; border-color: var(--decision); }
+
+  /* ---------- 마스트헤드 ---------- */
+  .masthead { display: flex; align-items: flex-end; justify-content: space-between; margin: 30px 0 6px; }
+  .masthead h1 { font-family: var(--serif); font-size: 44px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
+  .masthead h1 em { font-style: normal; color: var(--accent); }
+  .masthead .meta { text-align: right; font-size: 12.5px; color: var(--ink-soft); }
+  .rule-double { border-top: 3px double var(--ink); margin-bottom: 22px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 36px; }
+
+  /* ---------- 리드 기사 ---------- */
+  .lead { padding-bottom: 22px; border-bottom: 1px solid var(--rule); }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.3px; color: var(--accent); display: flex; gap: 10px; align-items: center; }
+  .kicker .co { color: var(--ink); }
+  .score { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); font-weight: 400; }
+  .lead h2 { font-family: var(--serif); font-size: 30px; line-height: 1.25; letter-spacing: -0.8px; margin: 8px 0 12px; font-weight: 800; }
+  .lead .summary { font-size: 15px; color: #2F2D28; max-width: 62ch; }
+  .lead .summary li { margin-left: 18px; margin-bottom: 3px; }
+
+  .decision {
+    margin-top: 16px; background: var(--surface); border: 1px solid #BFD0D4; border-left: 4px solid var(--decision);
+    padding: 14px 18px; display: grid; grid-template-columns: 92px 1fr; gap: 6px 14px; font-size: 13.5px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 18px -12px rgba(31,78,95,0.35);
+  }
+  .decision .label { grid-column: 1 / -1; font-size: 11.5px; font-weight: 700; color: var(--decision); letter-spacing: 0.4px; display: flex; justify-content: space-between; }
+  .decision dt { color: var(--ink-faint); font-weight: 600; }
+  .decision dd { color: var(--ink); }
+  .opt { display: inline-block; padding: 0 8px; border: 1px solid var(--rule); border-radius: 3px; margin-right: 4px; font-size: 12.5px; }
+  .opt.chosen { background: var(--decision); color: #fff; border-color: var(--decision); }
+  .evidence { grid-column: 1 / -1; font-family: var(--serif); font-size: 13px; color: var(--ink-soft); border-top: 1px dashed var(--rule); padding-top: 8px; margin-top: 4px; }
+
+  .actions { display: flex; gap: 8px; margin-top: 14px; }
+  .btn { font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: var(--radius); border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; transition: transform 120ms ease, background 120ms ease; }
+  .btn:hover { transform: translateY(-1px); background: #fff; }
+  .btn:focus-visible { outline: 2px solid var(--decision); outline-offset: 2px; }
+  .btn.ghost { color: var(--ink-faint); background: transparent; }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- 보조 기사 목록 ---------- */
+  .briefs { list-style: none; counter-reset: n 1; }
+  .briefs li { display: grid; grid-template-columns: 34px 1fr auto; gap: 4px 14px; padding: 16px 0; border-bottom: 1px solid var(--rule); counter-increment: n; }
+  .briefs li::before { content: counter(n); font-family: var(--serif); font-size: 26px; font-weight: 800; color: var(--rule); line-height: 1; }
+  .briefs h3 { font-family: var(--serif); font-size: 18px; letter-spacing: -0.4px; line-height: 1.35; font-weight: 700; }
+  .briefs p { grid-column: 2; font-size: 13.5px; color: var(--ink-soft); }
+  .briefs .side { grid-row: 1 / span 2; grid-column: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .tag-decision { font-size: 11px; font-weight: 700; color: var(--decision); border: 1px solid #BFD0D4; padding: 0 7px; border-radius: 3px; background: #EEF4F5; }
+  .tag-video { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid #E5C2B4; padding: 0 7px; border-radius: 3px; background: #FBEEE8; }
+
+  /* ---------- 우측 사이드바 ---------- */
+  aside section { background: var(--surface); border: 1px solid var(--rule); padding: 16px 18px; margin-bottom: 18px; }
+  aside h4 { font-family: var(--serif); font-size: 16px; font-weight: 800; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  aside h4 span { font-family: var(--sans); font-size: 11.5px; font-weight: 500; color: var(--ink-faint); }
+  .topics { list-style: none; }
+  .topics li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; padding: 5px 0; font-size: 13px; }
+  .bar { grid-column: 1 / -1; height: 4px; background: var(--paper-deep); border-radius: 2px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--decision); }
+  .topics b { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); font-weight: 500; }
+  .inbox { list-style: none; }
+  .inbox li { padding: 8px 0; border-bottom: 1px dashed var(--rule); font-size: 13px; }
+  .inbox li:last-child { border-bottom: 0; }
+  .inbox .row { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+  .inbox .mini { font-size: 11.5px; padding: 1px 8px; }
+  .mcp { list-style: none; font-size: 12.5px; }
+  .mcp li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; }
+  .mcp code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .mcp .hit { font-family: var(--mono); font-size: 11.5px; color: var(--ok); }
+  .mcp .miss { font-family: var(--mono); font-size: 11.5px; color: var(--accent); font-weight: 700; }
+  .note { font-size: 11.5px; color: var(--ink-faint); margin-top: 8px; }
+
+  footer { margin-top: 30px; font-size: 11.5px; color: var(--ink-faint); text-align: center; }
+</style>
+</head>
+<body>
+  <nav class="rail" aria-label="주 메뉴">
+    <div class="brand">context-holder<small>빅테크 결정 사례 브리프</small></div>
+    <ul>
+      <li><a class="active" href="#">Today</a></li>
+      <li><a href="#">Search</a></li>
+      <li><a href="#">Decisions</a></li>
+      <li><a href="#">Inbox <span class="count">4</span></a></li>
+      <li><a href="#">Sources</a></li>
+    </ul>
+    <div class="sync" aria-label="수집 현황">
+      <div><span class="dot"></span><b>오늘 09:14 수집 완료</b></div>
+      <dl>
+        <dt>확인한 소스</dt><dd>14</dd>
+        <dt>신규 글</dt><dd>11</dd>
+        <dt>저장</dt><dd>5</dd>
+        <dt>보류 (inbox)</dt><dd>4</dd>
+        <dt>제외</dt><dd>2</dd>
+        <dt>Claude 사용</dt><dd>3건</dd>
+      </dl>
+    </div>
+  </nav>
+
+  <main>
+    <div class="search" role="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E877A" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" placeholder="사례 검색 — 예: Kafka 도입, outbox 패턴, 사이드카 운영" aria-label="위키 검색">
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="chips" aria-label="검색 필터">
+      <button class="chip on">결정 사례만</button>
+      <button class="chip">최근 30일</button>
+      <button class="chip">회사: 전체</button>
+      <button class="chip">태그: Kubernetes</button>
+      <button class="chip">태그: Data</button>
+    </div>
+
+    <header class="masthead">
+      <h1>11월 5일, <em>오늘의 브리프</em></h1>
+      <div class="meta">관련도 × 신선도 × 회사 가중치 순<br>저장 5건 중 상위 5건</div>
+    </header>
+    <div class="rule-double"></div>
+
+    <div class="layout">
+      <section aria-label="오늘의 주요 이슈">
+        <article class="lead">
+          <div class="kicker"><span class="co">NAVER D2</span><span>Kubernetes · 운영</span><span class="score">relevance 0.93</span></div>
+          <h2>사이드카의 선언적 관리: OpenKruise SidecarSet 도입과 운영</h2>
+          <ul class="summary">
+            <li>파드마다 수동으로 관리하던 사이드카를 SidecarSet으로 선언적으로 통합 관리한 경험.</li>
+            <li>사이드카만 교체하는 in-place 업데이트로 애플리케이션 재시작 없이 배포.</li>
+            <li>도입 후 남은 운영 과제와 점검 항목 정리.</li>
+          </ul>
+          <dl class="decision" aria-label="결정 기록">
+            <div class="label"><span>DECISION RECORD · 사이드카 관리 방식</span><span>confidence: high</span></div>
+            <dt>문제</dt><dd>서비스마다 사이드카 버전이 달라 일괄 업데이트와 장애 대응이 어려움</dd>
+            <dt>선택지</dt><dd><span class="opt">매니페스트 직접 관리</span><span class="opt">Admission Webhook 자체 구현</span><span class="opt chosen">OpenKruise SidecarSet</span></dd>
+            <dt>트레이드오프</dt><dd>재시작 없는 업데이트 ↔ CRD · 컨트롤러 운영 부담 증가</dd>
+            <p class="evidence">“…” 원문 근거 문장 2개 · 원문 대조 통과</p>
+          </dl>
+          <div class="actions">
+            <button class="btn">원문 열기</button>
+            <button class="btn">Claude에 문맥으로 보내기</button>
+            <button class="btn">북마크</button>
+            <button class="btn ghost">관련없음</button>
+          </div>
+        </article>
+
+        <ol class="briefs">
+          <li>
+            <h3>에이전트, 개념부터 같이 정리해봐요 — 워크플로우 · 하네스 · Context</h3>
+            <p>NAVER D2 · 세션 영상 글. 관련도가 높아 영상 보강 대상으로 표시됨.</p>
+            <div class="side"><span class="tag-video">영상 보강 대상</span><span class="score">0.91</span></div>
+          </li>
+          <li>
+            <h3>Python의 GC가 멀티프로세싱과 만나면 생기는 일</h3>
+            <p>NAVER D2 · fork 이후 GC가 copy-on-write를 깨뜨려 메모리가 늘어나는 원인과 대응.</p>
+            <div class="side"><span class="tag-decision">결정 사례</span><span class="score">0.88</span></div>
+          </li>
+          <li>
+            <h3>Hive는 잊으려 했지만, Spark는 기억하고 있었다</h3>
+            <p>NAVER D2 · 사라진 테이블 메타데이터를 Spark 캐시가 붙잡고 있던 장애 분석.</p>
+            <div class="side"><span class="score">0.81</span></div>
+          </li>
+          <li>
+            <h3>컨테이너처럼 쓰고, VM처럼 격리하기</h3>
+            <p>NAVER D2 · 세션 영상 글. 본문 요약 기반으로 등록됨 (영상 보강 대기).</p>
+            <div class="side"><span class="tag-video">영상 · summary_only</span><span class="score">0.79</span></div>
+          </li>
+        </ol>
+      </section>
+
+      <aside>
+        <section aria-label="결정 사례 주제">
+          <h4>결정 사례 주제 <span>누적</span></h4>
+          <ul class="topics">
+            <li>메시지 큐 선택<b>12</b><div class="bar"><i style="width:100%"></i></div></li>
+            <li>사이드카 · 서비스 메시<b>7</b><div class="bar"><i style="width:58%"></i></div></li>
+            <li>DB 샤딩 전략<b>6</b><div class="bar"><i style="width:50%"></i></div></li>
+            <li>배치 → 스트리밍 전환<b>4</b><div class="bar"><i style="width:33%"></i></div></li>
+          </ul>
+        </section>
+
+        <section aria-label="보류 글">
+          <h4>Inbox <span>관련도 0.4~0.7</span></h4>
+          <ul class="inbox">
+            <li>크림에서 통합 임베딩은 어떻게 쓰일까?
+              <div class="row"><span class="score">0.52 · 임베딩</span><span><button class="btn mini">저장</button> <button class="btn ghost mini">관련없음</button></span></div></li>
+            <li>FE News 26년 11월 소식
+              <div class="row"><span class="score">0.44 · 프론트엔드</span><span><button class="btn mini">저장</button> <button class="btn ghost mini">관련없음</button></span></div></li>
+          </ul>
+          <p class="note">관련없음 → 다음 수집부터 비슷한 글 자동 제외</p>
+        </section>
+
+        <section aria-label="Claude 검색 기록">
+          <h4>Claude가 찾아본 것 <span>MCP · 최근 7일</span></h4>
+          <ul class="mcp">
+            <li><code>find_decision_cases("outbox")</code><span class="hit">3건</span></li>
+            <li><code>search_wiki(["사이드카", "sidecar"])</code><span class="hit">5건</span></li>
+            <li><code>find_decision_cases("feature store")</code><span class="miss">0건</span></li>
+          </ul>
+          <p class="note">0건 주제 → 소스 추가 후보</p>
+        </section>
+      </aside>
+    </div>
+
+    <footer>목업 · 샘플 데이터 — 글 제목은 NAVER D2 실제 글, 요약·결정 기록·점수는 화면 예시용으로 작성한 내용</footer>
+  </main>
+</body>
+</html>

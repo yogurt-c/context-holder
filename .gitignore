@@ -1,0 +1,101 @@
+# ============================================================
+# context-holder .gitignore
+# 이 레포는 "코드 + 설계 문서"만 담는다.
+# 수집한 위키 데이터는 별도 private 레포(context-wiki)에 둔다.
+# ============================================================
+
+# ---------- 비밀값 · 개인 설정 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.mobileprovision
+/secrets/
+# Claude Code 개인 설정 (공유 설정 .claude/settings.json은 커밋)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ---------- 수집 데이터 · 위키 (별도 private 레포) ----------
+# 위키 레포를 이 폴더 안에 clone한 경우 (루트 기준으로만 무시: src/ 안의 같은 이름 코드 폴더는 보호)
+/context-wiki/
+/wiki/
+/transcripts/
+/feedback/
+/inbox/
+/archive/
+# 테스트용 수집 원문 캐시
+.cache/
+fixtures/raw/
+
+# ---------- 로컬 인덱스 · DB · 로그 ----------
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
+/logs/
+*.log
+mcp-queries.jsonl
+
+# ---------- 로컬 모델 · 미디어 (용량 큼) ----------
+*.gguf
+*.safetensors
+*.onnx
+/models/
+*.mp3
+*.m4a
+*.wav
+*.mp4
+*.webm
+*.m3u8
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ---------- Tauri · Rust ----------
+src-tauri/target/
+src-tauri/gen/schemas/
+# PyInstaller로 묶은 엔진 바이너리 (빌드 산출물)
+src-tauri/binaries/
+
+# ---------- Node (화면을 프론트엔드 빌드로 옮길 경우) ----------
+node_modules/
+.pnpm-store/
+.vite/
+
+# ---------- 생성 산출물 ----------
+# 다이어그램 SVG는 generate*.py로 언제든 재생성. README에 쓰는 PNG만 커밋
+docs/architecture/*.svg
+# Playwright · e2e 결과
+test-results/
+playwright-report/
+
+# ---------- IDE · OS ----------
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+._*
+.AppleDouble
+.Spotlight-V100
+.Trashes
+Thumbs.db
