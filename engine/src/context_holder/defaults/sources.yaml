@@ -1,0 +1,71 @@
+# 새 위키 레포의 config/sources.yaml 초깃값. 선정 기준은 README "수집 대상 블로그"와 plan 5.1.
+# mode: feed  = feed 본문 사용, 본문이 짧으면 원문 페이지를 가져온다
+#       fetch = feed에 요약만 있어 항상 원문 페이지를 가져온다
+sources:
+  - id: naver-d2
+    name: NAVER D2
+    region: domestic
+    feed: https://d2.naver.com/d2.atom
+    # 원문 페이지는 SPA라 본문이 없다. feed 본문이 짧을 때는 API에서 가져온다
+    body_api:
+      url: https://d2.naver.com/api/v1/contents/{id}
+      id: /(?:helloworld|news)/(\d+)
+      field: postHtml
+  - id: toss
+    name: Toss
+    region: domestic
+    feed: https://toss.tech/rss.xml
+  - id: woowahan
+    name: 우아한형제들
+    region: domestic
+    feed: https://techblog.woowahan.com/feed/
+  - id: line
+    name: LINE (LY Corp)
+    region: domestic
+    feed: https://techblog.lycorp.co.jp/ko/feed/index.xml
+    mode: fetch
+  - id: daangn
+    name: 당근
+    region: domestic
+    feed: https://medium.com/feed/daangn
+  - id: oliveyoung
+    name: 올리브영
+    region: domestic
+    feed: https://oliveyoung.tech/rss.xml
+    mode: fetch
+  - id: musinsa
+    name: 무신사
+    region: domestic
+    feed: https://medium.com/feed/musinsa-tech
+  - id: kakao
+    name: Kakao
+    region: domestic
+    feed: https://tech.kakao.com/feed/
+    mode: fetch
+    # 원문 페이지는 SPA라 본문이 없어 API에서 가져온다
+    body_api:
+      url: https://tech.kakao.com/api/v1/posts/{id}
+      id: /posts/(\d+)
+      field: content
+  - id: nhn-cloud
+    name: NHN Cloud
+    region: domestic
+    feed: https://meetup.nhncloud.com/rss
+  - id: netflix
+    name: Netflix
+    region: overseas
+    feed: https://netflixtechblog.com/feed
+  - id: github
+    name: GitHub
+    region: overseas
+    feed: https://github.blog/engineering/feed/
+  - id: cloudflare
+    name: Cloudflare
+    region: overseas
+    feed: https://blog.cloudflare.com/rss/
+    # 보안 공지 글 제외. M0에서 실제 글로 패턴을 보정한다
+    exclude_title: ["(?i)\\bCVE-\\d{4}", "(?i)security (advisory|bulletin)"]
+  - id: airbnb
+    name: Airbnb
+    region: overseas
+    feed: https://medium.com/feed/airbnb-engineering
