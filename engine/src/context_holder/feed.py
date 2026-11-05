@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
+from urllib.robotparser import RobotFileParser
 
 import feedparser
 import httpx
@@ -16,6 +18,12 @@ USER_AGENT = f"context-holder/{__version__} (+https://github.com/yogurt-c/contex
 TIMEOUT = httpx.Timeout(20.0)
 ATTEMPTS = 3  # 5xx나 네트워크 오류는 일시적인 경우가 많다 (Medium 504 등)
 RETRY_DELAY_SEC = 2.0
+MIN_INTERVAL_SEC = 1.0  # 같은 사이트에는 1초에 한 번만 요청한다
+RESPECT_ROBOTS = True
+ROBOTS_AGENT = "context-holder"
+
+_last_request: dict[str, float] = {}
+_robots: dict[str, RobotFileParser | None] = {}
 
 
 class FetchError(RuntimeError):
@@ -39,8 +47,11 @@ class FeedFetch:
 
 
 def get(client: httpx.Client, url: str, headers: dict[str, str] | None = None) -> httpx.Response:
-    """GET 요청. 5xx와 네트워크 오류는 잠깐 쉬고 다시 시도한다."""
+    """GET 요청. robots.txt를 지키고, 5xx와 네트워크 오류는 잠깐 쉬고 다시 시도한다."""
+    if RESPECT_ROBOTS and not _allowed(client, url):
+        raise FetchError(f"{url}: robots.txt가 막는 주소다")
     for attempt in range(1, ATTEMPTS + 1):
+        _wait_turn(url)
         try:
             response = client.get(
                 url,
@@ -56,6 +67,37 @@ def get(client: httpx.Client, url: str, headers: dict[str, str] | None = None) -
                 return response
         time.sleep(RETRY_DELAY_SEC * attempt)
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _wait_turn(url: str) -> None:
+    host = urlsplit(url).netloc
+    last = _last_request.get(host)
+    now = time.monotonic()
+    if last is not None and now - last < MIN_INTERVAL_SEC:
+        time.sleep(MIN_INTERVAL_SEC - (now - last))
+    _last_request[host] = time.monotonic()
+
+
+def _allowed(client: httpx.Client, url: str) -> bool:
+    parts = urlsplit(url)
+    host = parts.netloc
+    if host not in _robots:
+        _robots[host] = _read_robots(client, f"{parts.scheme}://{host}/robots.txt")
+    parser = _robots[host]
+    return parser is None or parser.can_fetch(ROBOTS_AGENT, url)
+
+
+def _read_robots(client: httpx.Client, robots_url: str) -> RobotFileParser | None:
+    """robots.txt가 없거나 읽지 못하면 None(모두 허용)."""
+    try:
+        response = client.get(robots_url, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    except httpx.HTTPError:
+        return None
+    if response.status_code != 200:
+        return None
+    parser = RobotFileParser()
+    parser.parse(response.text.splitlines())
+    return parser
 
 
 def fetch_feed(client: httpx.Client, source: Source, etag: str | None) -> FeedFetch:

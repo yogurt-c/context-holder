@@ -119,3 +119,64 @@ def test_does_not_retry_client_errors(make_client, monkeypatch):
     with pytest.raises(FetchError, match="404"):
         fetch_feed(make_client(handler), SOURCE, etag=None)
     assert len(calls) == 1
+
+
+def test_robots_txt_disallow_blocks_request(make_client, monkeypatch):
+    import context_holder.feed as feed_mod
+
+    monkeypatch.setattr(feed_mod, "RESPECT_ROBOTS", True)
+    monkeypatch.setattr(feed_mod, "_robots", {})
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /private/\n")
+        return httpx.Response(200, text="ok")
+
+    client = make_client(handler)
+
+    with pytest.raises(FetchError, match=r"robots\.txt"):
+        feed_mod.get(client, "https://blog.example.com/private/x")
+    assert feed_mod.get(client, "https://blog.example.com/public").status_code == 200
+    assert calls.count("/robots.txt") == 1  # 사이트마다 한 번만 읽는다
+
+
+def test_missing_robots_txt_allows_everything(make_client, monkeypatch):
+    import context_holder.feed as feed_mod
+
+    monkeypatch.setattr(feed_mod, "RESPECT_ROBOTS", True)
+    monkeypatch.setattr(feed_mod, "_robots", {})
+    client = make_client(lambda r: httpx.Response(404 if r.url.path == "/robots.txt" else 200))
+
+    assert feed_mod.get(client, "https://blog.example.com/a").status_code == 200
+
+
+def test_requests_to_same_host_are_spaced(make_client, monkeypatch):
+    import context_holder.feed as feed_mod
+
+    waits = []
+    monkeypatch.setattr(feed_mod.time, "sleep", waits.append)
+    monkeypatch.setattr(feed_mod, "_last_request", {})
+    clock = iter([100.0, 100.0, 100.2, 100.2, 200.0, 200.0])
+    monkeypatch.setattr(feed_mod.time, "monotonic", lambda: next(clock))
+    client = make_client(lambda r: httpx.Response(200))
+
+    feed_mod.get(client, "https://a.example/1")
+    feed_mod.get(client, "https://a.example/2")
+
+    assert waits and waits[0] == pytest.approx(0.8)
+
+
+def test_unreachable_robots_txt_allows(make_client, monkeypatch):
+    import context_holder.feed as feed_mod
+
+    monkeypatch.setattr(feed_mod, "RESPECT_ROBOTS", True)
+    monkeypatch.setattr(feed_mod, "_robots", {})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            raise httpx.ConnectError("down", request=request)
+        return httpx.Response(200)
+
+    assert feed_mod.get(make_client(handler), "https://blog.example.com/a").status_code == 200

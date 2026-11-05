@@ -41,5 +41,10 @@ def make_client() -> Callable[[Handler], httpx.Client]:
 
 
 @pytest.fixture(autouse=True)
-def no_retry_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+def no_network_politeness(monkeypatch: pytest.MonkeyPatch) -> None:
+    """테스트에서는 재시도 · 요청 간격 대기와 robots.txt 확인을 끈다.
+
+    요청 수를 세는 테스트가 있어서다.
+    """
     monkeypatch.setattr("context_holder.feed.time.sleep", lambda _: None)
+    monkeypatch.setattr("context_holder.feed.RESPECT_ROBOTS", False)

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -22,6 +23,14 @@ from context_holder.classify import (
 )
 from context_holder.collect import Article, CollectResult, SourceReport, collect
 from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
+from context_holder.init import (
+    InitSettings,
+    Progress,
+    load_state,
+    preview,
+    progress,
+    run_init,
+)
 from context_holder.llm import ClaudeCli
 from context_holder.paths import default_wiki, etag_cache
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
@@ -328,3 +337,93 @@ def _print_sync(report: SyncReport) -> None:
     )
     if report.stopped_reason:
         typer.echo(f"Claude 호출을 멈췄다: {report.stopped_reason}. 다음 실행에서 이어서 한다.")
+
+
+STATUS_LABEL = {
+    "save": "저장",
+    "inbox": "보류",
+    "drop": "버림",
+    "old": "오래됨",
+    "failed": "실패",
+    "seen": "이미 수집",
+}
+
+
+@app.command("init")
+def init_command(
+    wiki_path: Path | None = typer.Option(
+        None, "--wiki", help="위키 레포 폴더. 없으면 ~/.context-holder/wiki."
+    ),
+    per_source: int = typer.Option(50, "--per-source", min=1, help="소스마다 가져올 최대 글 수."),
+    days: int = typer.Option(365, min=1, help="이 기간보다 오래된 글은 가져오지 않는다."),
+    model: str = typer.Option("sonnet", help="분류 · 요약에 쓸 Claude 모델."),
+    status: bool = typer.Option(False, "--status", help="진행 상황만 보여 준다."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Claude 없이 소스별로 가져올 글 수만 본다."
+    ),
+) -> None:
+    """첫 실행: 소스마다 최근 글을 가져와 위키를 채운다. 멈추면 다시 실행해 이어서 한다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    if status:
+        _print_init_status(wiki)
+        return
+    settings = InitSettings(per_source=per_source, max_age_days=days)
+    if dry_run:
+        with httpx.Client() as client:
+            found = preview(client, wiki, now=datetime.now(UTC), settings=settings)
+        typer.echo(f"{'소스':<14}{'가져올 글':>8}{'날짜 앎':>8}  비고")
+        for source_id, (count, dated, error) in found.items():
+            typer.echo(f"{source_id:<14}{count:>8}{dated:>8}  {error or ''}")
+        typer.echo(f"\n합계 {sum(c for c, _, _ in found.values())}")
+        return
+
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+    logging.getLogger("trafilatura").setLevel(logging.CRITICAL)
+    before = progress(load_state(wiki)) if load_state(wiki) else None
+    baseline = before.total - before.remaining if before else 0
+    started = time.monotonic()
+
+    def on_progress(p: Progress) -> None:
+        processed = p.total - p.remaining
+        line = f"[{processed} / {p.total}] {_counts(p.counts)} · 남은 {p.remaining}"
+        done_now = processed - baseline
+        if p.remaining and done_now > 0:
+            eta = (time.monotonic() - started) / done_now * p.remaining
+            line += f" · 예상 {eta / 60:.0f}분"
+        typer.echo(line)
+
+    with httpx.Client() as client:
+        result = run_init(
+            wiki,
+            client,
+            ClaudeCli(model=model),
+            now=datetime.now(UTC),
+            settings=settings,
+            on_progress=on_progress,
+        )
+    if result.finished:
+        typer.echo("초기 수집을 마쳤다.")
+    elif result.stopped_reason:
+        typer.echo(f"Claude 호출을 멈췄다: {result.stopped_reason}. 다시 실행하면 이어서 한다.")
+
+
+def _counts(counts: dict[str, int]) -> str:
+    return " · ".join(f"{STATUS_LABEL[k]} {v}" for k, v in counts.items() if k in STATUS_LABEL)
+
+
+def _print_init_status(wiki: Wiki) -> None:
+    state = load_state(wiki)
+    if not state:
+        typer.echo("초기 수집을 아직 시작하지 않았다.")
+        return
+    p = progress(state)
+    head = "완료" if p.finished else "진행 중"
+    typer.echo(f"초기 수집 {head}: {p.total - p.remaining} / {p.total} · {_counts(p.counts)}")
+    typer.echo(f"\n{'소스':<14}{'목록':>5}{'남음':>5}{'저장':>5}{'보류':>5}{'버림':>5}  비고")
+    for source_id, row in p.by_source.items():
+        typer.echo(
+            f"{source_id:<14}{row['listed']:>5}{row['remaining']:>5}{row.get('save', 0):>5}"
+            f"{row.get('inbox', 0):>5}{row.get('drop', 0):>5}  {row['error'] or ''}"
+        )
+    if p.stopped_reason:
+        typer.echo(f"\n멈춘 이유: {p.stopped_reason}")

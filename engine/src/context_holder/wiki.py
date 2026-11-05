@@ -94,12 +94,15 @@ class Wiki:
         enrichment: Enrichment | None,
         collected: datetime,
         reason: str = "",
+        origin: str | None = None,
     ) -> Path:
         """저장 · 보류 글을 쓴다. enrichment가 없으면 요약 대기로 쓴다. 이미 있으면 그대로 둔다."""
         path = self._path_for(article, relevance.bucket, collected)
         if path.exists():
             return path
         meta = _meta(article.url, article.source_id, article.title, article.published, collected)
+        if origin:
+            meta["origin"] = origin  # init: 첫 실행에서 들어온 보류 글 (Inbox에서 따로 묶음)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(_render(meta, relevance, enrichment, reason), encoding="utf-8")
         return path
@@ -136,7 +139,8 @@ class Wiki:
     ) -> None:
         meta = _read_meta(pending.path)
         meta.setdefault("collected", collected.isoformat())
-        keep = {k: meta[k] for k in ("id", "title", "url", "source", "published", "collected")}
+        keys = ("id", "title", "url", "source", "published", "collected", "origin")
+        keep = {k: meta[k] for k in keys if k in meta}
         pending.path.write_text(_render(keep, pending.relevance, enrichment, ""), encoding="utf-8")
 
     def _path_for(self, article: Article, bucket: Bucket, collected: datetime) -> Path:

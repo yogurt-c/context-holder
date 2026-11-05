@@ -261,3 +261,99 @@ def test_fetch_article_gets_one_article_by_url(make_client):
     assert a.url == "https://toss.tech/x"
     assert "캐시 무효화 전략" in a.markdown
     assert a.content_hash
+
+
+def test_fetch_article_reads_title_and_date_from_page(make_client):
+    from context_holder.collect import fetch_article
+
+    page = (
+        '<html><head><meta property="og:title" content="SNAP: LLM 비용 &amp; 지연"></head>'
+        f"<body><article><p>2026년 10월 27일</p><p>{LONG_BODY}</p></article></body></html>"
+    )
+    toss = Source(
+        "toss",
+        "Toss",
+        "domestic",
+        "https://toss.tech/rss.xml",
+        Mode.FEED,
+        date_pattern=r"(\d{4})년 (\d{1,2})월 (\d{1,2})일",
+    )
+    client = make_client(routes({"https://toss.tech/article/snap": httpx.Response(200, text=page)}))
+
+    a = fetch_article(client, toss, "https://toss.tech/article/snap")
+
+    assert a.title == "SNAP: LLM 비용 & 지연"
+    assert a.published == datetime(2026, 10, 27, tzinfo=UTC)
+
+
+def test_fetch_article_falls_back_to_published_time_meta_and_title_tag(make_client):
+    from context_holder.collect import fetch_article
+
+    page = (
+        "<html><head><title>DNS builds</title>"
+        '<meta property="article:published_time" content="2026-11-02T14:00:00.000Z"></head>'
+        f"<body><article><p>{LONG_BODY}</p></article></body></html>"
+    )
+    client = make_client(routes({"https://toss.tech/x": httpx.Response(200, text=page)}))
+
+    a = fetch_article(client, FULL, "https://toss.tech/x")
+
+    assert a.title == "DNS builds"
+    assert a.published == datetime(2026, 11, 2, 14, 0, tzinfo=UTC)
+
+
+def test_fetch_article_reads_title_and_date_from_body_api(make_client):
+    from context_holder.collect import fetch_article
+    from context_holder.sources import BodyApi
+
+    kakao = Source(
+        "kakao",
+        "Kakao",
+        "domestic",
+        "https://tech.kakao.com/feed/",
+        Mode.FETCH,
+        body_api=BodyApi(
+            "https://tech.kakao.com/api/v1/posts/{id}",
+            r"/posts/(\d+)",
+            "content",
+            title_field="title",
+            date_field="releaseDate",
+        ),
+    )
+    client = make_client(
+        routes(
+            {
+                "https://tech.kakao.com/api/v1/posts/700": httpx.Response(
+                    200,
+                    json={
+                        "content": f"<p>{LONG_BODY}</p>",
+                        "title": "옛 글",
+                        "releaseDate": "2025.04.24",
+                    },
+                )
+            }
+        )
+    )
+
+    a = fetch_article(client, kakao, "https://tech.kakao.com/posts/700")
+
+    assert (a.title, a.published) == ("옛 글", datetime(2025, 4, 24, tzinfo=UTC))
+
+
+def test_known_title_and_date_win_over_page(make_client):
+    from context_holder.collect import fetch_article
+
+    client = make_client(
+        routes(
+            {
+                "https://toss.tech/x": httpx.Response(
+                    200, text=article_page("페이지 제목", LONG_BODY)
+                )
+            }
+        )
+    )
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+
+    a = fetch_article(client, FULL, "https://toss.tech/x", title="목록 제목", published=when)
+
+    assert (a.title, a.published) == ("목록 제목", when)

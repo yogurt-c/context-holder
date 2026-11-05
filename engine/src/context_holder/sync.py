@@ -11,19 +11,15 @@ from datetime import datetime, timedelta
 import httpx
 
 from context_holder.classify import Bucket, StructuredLlm, classify
-from context_holder.collect import Article, SourceReport, collect, fetch_article
-from context_holder.enrich import enrich
+from context_holder.collect import SourceReport, collect, fetch_article
 from context_holder.feed import FetchError
-from context_holder.llm import ErrorKind, LlmError
+from context_holder.pipeline import Budget
 from context_holder.wiki import Wiki
 
 log = logging.getLogger(__name__)
 
 FIRST_SYNC_DAYS = 30  # 처음에는 한 달치를 모아 첫 브리프를 채운다
 DAILY_SYNC_DAYS = 7  # 며칠 수집을 못 해도 따라잡을 수 있게 넉넉히 본다
-
-# 이 오류가 나면 이번 실행에서는 Claude를 더 부르지 않는다
-STOP_KINDS = frozenset({ErrorKind.AUTH, ErrorKind.LIMIT, ErrorKind.NOT_INSTALLED})
 
 
 @dataclass(frozen=True)
@@ -56,7 +52,7 @@ def run_sync(
     wiki.ensure_config()
     sources = {s.id: s for s in wiki.sources()}
     profile = wiki.profile()
-    state = _State()
+    state = Budget()
 
     completed, still_pending = _retry_pending(wiki, client, llm, sources, now, state)
 
@@ -74,19 +70,15 @@ def run_sync(
         decisions, pending_classify = (), len(collected.articles)
     else:
         result = classify(llm, collected.articles, profile)
-        state.cost += result.cost_usd
+        state.note_classify(result)
         decisions, pending_classify = result.decisions, len(result.pending)
-        stop = next(
-            (p.reason for p in result.pending if p.reason.split(":")[0] in STOP_KINDS), None
-        )
-        state.stopped = state.stopped or stop
 
     pending_enrich = 0
     for decision in decisions:
         if decision.bucket is Bucket.DROP:
             continue
         article = by_url[decision.url]
-        enrichment, reason = _try_enrich(llm, article, state)
+        enrichment, reason = state.try_enrich(llm, article)
         wiki.write_article(article, decision, enrichment, collected=now, reason=reason)
         pending_enrich += enrichment is None
     wiki.record_seen(decisions, when=now)
@@ -107,26 +99,6 @@ def run_sync(
     )
 
 
-class _State:
-    def __init__(self) -> None:
-        self.cost = 0.0
-        self.stopped: str | None = None
-
-
-def _try_enrich(llm: StructuredLlm, article: Article, state: _State):
-    if state.stopped:
-        return None, state.stopped
-    try:
-        enrichment = enrich(llm, article)
-    except LlmError as e:
-        log.warning("요약 실패 %s: %s", article.url, e)
-        if e.kind in STOP_KINDS:
-            state.stopped = str(e)
-        return None, str(e)
-    state.cost += enrichment.cost_usd
-    return enrichment, ""
-
-
 def _retry_pending(wiki, client, llm, sources, now, state) -> tuple[int, int]:
     completed = still = 0
     for pending in wiki.pending():
@@ -140,7 +112,7 @@ def _retry_pending(wiki, client, llm, sources, now, state) -> tuple[int, int]:
             log.warning("요약 대기 글 원문 실패 %s: %s", pending.url, e)
             still += 1
             continue
-        enrichment, _ = _try_enrich(llm, article, state)
+        enrichment, _ = state.try_enrich(llm, article)
         if enrichment is None:
             still += 1
             continue

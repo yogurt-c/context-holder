@@ -322,3 +322,97 @@ def test_sync_defaults_to_wiki_in_home_and_first_run_window(monkeypatch, tmp_pat
 
     assert result.exit_code == 0, result.output
     assert seen == {"root": tmp_path / "wiki", "days": FIRST_SYNC_DAYS}
+
+
+def _init_state(tmp_path):
+    from context_holder.init import save_state
+    from context_holder.wiki import Wiki
+
+    wiki = Wiki(tmp_path / "wiki")
+    save_state(
+        wiki,
+        {
+            "per_source": 50,
+            "max_age_days": 365,
+            "started": "2026-11-05T00:00:00+00:00",
+            "listed": {
+                "toss": {"count": 3, "error": None},
+                "kakao": {"count": 0, "error": "HTTP 500"},
+            },
+            "items": [
+                {"url": "a", "source": "toss", "status": "done", "bucket": "save"},
+                {"url": "b", "source": "toss", "status": "done", "bucket": "drop"},
+                {"url": "c", "source": "toss", "status": "queued"},
+            ],
+            "stopped": "limit: 한도",
+        },
+    )
+    return wiki
+
+
+def test_init_status_shows_progress_by_source(tmp_path):
+    _init_state(tmp_path)
+
+    result = runner.invoke(app, ["init", "--wiki", str(tmp_path / "wiki"), "--status"])
+
+    assert result.exit_code == 0, result.output
+    assert "2 / 3" in result.output
+    assert "toss" in result.output and "HTTP 500" in result.output
+    assert "멈춘 이유: limit: 한도" in result.output
+
+
+def test_init_runs_and_prints_progress(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.init import InitResult, Progress
+
+    seen = {}
+
+    def fake_run_init(wiki, client, llm, now, settings, on_progress):
+        seen.update(per_source=settings.per_source, days=settings.max_age_days, model=llm.model)
+        on_progress(Progress(total=40, remaining=20, counts={"save": 12, "drop": 8}))
+        return InitResult(False, 12, 0, 8, "limit: 한도", 0.4)
+
+    monkeypatch.setattr(cli, "run_init", fake_run_init)
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
+
+    result = runner.invoke(app, ["init", "--per-source", "30", "--days", "180", "--model", "haiku"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == {"per_source": 30, "days": 180, "model": "haiku"}
+    assert "20 / 40" in result.output and "저장 12" in result.output and "남은 20" in result.output
+    assert "멈췄다: limit: 한도" in result.output
+
+
+def test_init_reports_completion(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.init import InitResult
+
+    monkeypatch.setattr(cli, "run_init", lambda *a, **k: InitResult(True, 0, 0, 0, None, 0.0))
+
+    result = runner.invoke(app, ["init", "--wiki", str(tmp_path / "w")])
+
+    assert result.exit_code == 0, result.output
+    assert "초기 수집을 마쳤다" in result.output
+
+
+def test_init_status_without_state(tmp_path):
+    result = runner.invoke(app, ["init", "--wiki", str(tmp_path / "w"), "--status"])
+
+    assert result.exit_code == 0
+    assert "아직 시작하지 않았다" in result.output
+
+
+def test_init_dry_run_prints_counts(monkeypatch, tmp_path):
+    from context_holder import cli
+
+    monkeypatch.setattr(
+        cli,
+        "preview",
+        lambda client, wiki, now, settings: {"toss": (50, 0, None), "kakao": (0, 0, "HTTP 500")},
+    )
+
+    result = runner.invoke(app, ["init", "--wiki", str(tmp_path / "w"), "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "toss" in result.output and "50" in result.output
+    assert "HTTP 500" in result.output and "합계 50" in result.output

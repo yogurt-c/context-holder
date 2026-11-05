@@ -157,3 +157,63 @@ def test_default_sources_use_body_api_for_spa_blogs():
     assert by_id["naver-d2"].body_api.url_for("https://d2.naver.com/news/0907869") == (
         "https://d2.naver.com/api/v1/contents/0907869"
     )
+
+
+def test_archive_and_date_pattern_are_parsed(tmp_path: Path):
+    path = write(
+        tmp_path,
+        """
+sources:
+  - id: toss
+    name: Toss
+    region: domestic
+    feed: https://toss.tech/rss.xml
+    date_pattern: "(\\\\d{4})년 (\\\\d{1,2})월 (\\\\d{1,2})일"
+    archive:
+      kind: html
+      url: https://toss.tech/?page={page}
+      link: /article/[a-z0-9-]+
+      link_base: https://toss.tech
+  - id: kakao
+    name: Kakao
+    region: domestic
+    feed: https://tech.kakao.com/feed/
+    body_api:
+      url: "https://k/{id}"
+      id: "/posts/(\\\\d+)"
+      field: content
+      title: title
+      date: releaseDate
+    archive: {kind: sitemap, url: "https://tech.kakao.com/sitemap.xml", link: "https://k/posts/(\\\\d+)"}
+""",
+    )
+
+    toss, kakao = load_sources(path)
+
+    assert toss.archive.kind == "html" and toss.archive.first_page == 1
+    assert toss.date_pattern.startswith("(")
+    assert kakao.body_api.date_field == "releaseDate" and kakao.body_api.title_field == "title"
+
+
+@pytest.mark.parametrize(
+    ("archive", "message"),
+    [
+        ("{kind: rss}", "archive.kind"),
+        ("{kind: json, url: 'https://a?p={page}', items: x}", "archive.link"),
+        ("{kind: html, url: 'https://a', link: x}", "\\{page\\}"),
+        ("{kind: sitemap, url: 'https://a', link: '('}", "정규식"),
+    ],
+)
+def test_rejects_invalid_archive(tmp_path: Path, archive: str, message: str):
+    body = (
+        "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', "
+        f"archive: {archive}}}\n"
+    )
+    with pytest.raises(SourceConfigError, match=message):
+        load_sources(write(tmp_path, body))
+
+
+def test_rejects_non_string_date_pattern(tmp_path: Path):
+    body = "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', date_pattern: 3}\n"
+    with pytest.raises(SourceConfigError, match="date_pattern"):
+        load_sources(write(tmp_path, body))

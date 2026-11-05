@@ -1,6 +1,8 @@
 # 새 위키 레포의 config/sources.yaml 초깃값. 선정 기준은 README "수집 대상 블로그"와 plan 5.1.
 # mode: feed  = feed 본문 사용, 본문이 짧으면 원문 페이지를 가져온다
 #       fetch = feed에 요약만 있어 항상 원문 페이지를 가져온다
+# archive: 첫 실행(ctx init) 때 feed보다 오래된 글 목록을 얻는 방법. 없으면 feed만 쓴다.
+#   Medium(당근, 무신사, Airbnb, Netflix)과 Cloudflare는 아카이브를 막거나 목록이 없어 feed만 쓴다.
 sources:
   - id: naver-d2
     name: NAVER D2
@@ -11,14 +13,30 @@ sources:
       url: https://d2.naver.com/api/v1/contents/{id}
       id: /(?:helloworld|news)/(\d+)
       field: postHtml
+    archive:
+      kind: json
+      url: https://d2.naver.com/api/v1/contents?page={page}&size=20
+      first_page: 0
+      items: content
+      link: url
+      link_base: https://d2.naver.com
+      title: postTitle
+      date: postPublishedAt
   - id: toss
     name: Toss
     region: domestic
     feed: https://toss.tech/rss.xml
+    date_pattern: '(\d{4})년 (\d{1,2})월 (\d{1,2})일'
+    archive:
+      kind: html
+      url: https://toss.tech/?page={page}
+      link: /article/[a-z0-9-]+
+      link_base: https://toss.tech
   - id: woowahan
     name: 우아한형제들
     region: domestic
     feed: https://techblog.woowahan.com/feed/
+    archive: {kind: wp_paged}
   - id: line
     name: LINE (LY Corp)
     region: domestic
@@ -47,10 +65,23 @@ sources:
       url: https://tech.kakao.com/api/v1/posts/{id}
       id: /posts/(\d+)
       field: content
+      title: title
+      date: releaseDate
+    archive:
+      kind: sitemap
+      url: https://tech.kakao.com/sitemap.xml
+      link: 'https://tech\.kakao\.com/posts/(\d+)'
   - id: nhn-cloud
     name: NHN Cloud
     region: domestic
     feed: https://meetup.nhncloud.com/rss
+    archive:
+      kind: json
+      url: https://meetup.nhncloud.com/tcblog/v1.0/posts?pageNo={page}&rowsPerPage=20
+      items: posts
+      link: https://meetup.nhncloud.com/posts/{postId}
+      title: postPerLang.title
+      date: publishTime
   - id: netflix
     name: Netflix
     region: overseas
@@ -59,6 +90,7 @@ sources:
     name: GitHub
     region: overseas
     feed: https://github.blog/engineering/feed/
+    archive: {kind: wp_paged}
   - id: cloudflare
     name: Cloudflare
     region: overseas

@@ -12,6 +12,7 @@ uv run ruff check . && uv run ruff format --check .
 
 | 명령 | 하는 일 |
 |---|---|
+| `ctx init` | 첫 실행: 소스마다 최근 50개(1년 이내)를 가져와 위키를 채운다. `--status`, `--dry-run` |
 | `ctx sync` | 요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다 |
 | `ctx collect` | 소스에서 새 글만 모아 소스별 결과를 본다. `--out`으로 JSONL 저장 |
 | `ctx classify` | 모은 글의 관련도를 판정한다 |
