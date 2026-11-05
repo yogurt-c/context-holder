@@ -10,7 +10,16 @@ import httpx
 import typer
 
 from context_holder import __version__
-from context_holder.collect import CollectResult, collect
+from context_holder.classify import (
+    Bucket,
+    ClassifyResult,
+    ProfileError,
+    classify,
+    load_default_profile,
+    load_profile,
+)
+from context_holder.collect import Article, CollectResult, collect
+from context_holder.llm import ClaudeCli
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 
 app = typer.Typer(
@@ -82,4 +91,80 @@ def _write_jsonl(result: CollectResult, out: Path) -> None:
         for article in result.articles:
             row = asdict(article)
             row["published"] = article.published.isoformat() if article.published else None
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+BUCKET_LABEL = {Bucket.SAVE: "저장", Bucket.INBOX: "보류", Bucket.DROP: "버림"}
+
+
+@app.command("classify")
+def classify_command(
+    articles_path: Path = typer.Argument(
+        ..., exists=True, dir_okay=False, help="ctx collect --out으로 저장한 JSONL."
+    ),
+    profile_path: Path | None = typer.Option(
+        None, "--profile", help="profile.yaml 경로. 없으면 기본 기준."
+    ),
+    model: str = typer.Option("sonnet", help="분류에 쓸 Claude 모델."),
+    out: Path | None = typer.Option(None, help="판정 결과를 JSONL로 저장할 파일."),
+) -> None:
+    """모은 글의 관련도를 Claude로 매겨 저장 · 보류 · 버림으로 나눈다."""
+    try:
+        profile = load_profile(profile_path) if profile_path else load_default_profile()
+    except ProfileError as e:
+        typer.echo(f"설정 오류: {e}", err=True)
+        raise typer.Exit(code=2) from e
+
+    articles = _read_articles(articles_path)
+    result = classify(ClaudeCli(model=model), articles, profile)
+    _print_decisions(result, articles)
+    if out:
+        _write_decisions(result, articles, out)
+        typer.echo(f"\n판정 결과를 {out}에 저장했다.")
+
+
+def _read_articles(path: Path) -> list[Article]:
+    articles = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        published = datetime.fromisoformat(row["published"]) if row.get("published") else None
+        articles.append(Article(**{**row, "published": published}))
+    return articles
+
+
+def _print_decisions(result: ClassifyResult, articles: list[Article]) -> None:
+    titles = {a.url: (a.source_id, a.title) for a in articles}
+    for d in sorted(result.decisions, key=lambda d: -d.score):
+        source, title = titles[d.url]
+        typer.echo(f"{d.score:.2f}  {BUCKET_LABEL[d.bucket]}  {source:<12} {title[:60]}")
+    for p in result.pending:
+        source, title = titles[p.url]
+        typer.echo(f"  -   대기  {source:<12} {title[:60]}  ({p.reason})")
+    counts = {b: sum(d.bucket is b for d in result.decisions) for b in Bucket}
+    typer.echo(
+        f"\n저장 {counts[Bucket.SAVE]} · 보류 {counts[Bucket.INBOX]} · "
+        f"버림 {counts[Bucket.DROP]} · 대기 {len(result.pending)}  "
+        f"(사용량 환산 ${result.cost_usd:.3f})"
+    )
+
+
+def _write_decisions(result: ClassifyResult, articles: list[Article], out: Path) -> None:
+    titles = {a.url: (a.source_id, a.title) for a in articles}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for d in result.decisions:
+            source, title = titles[d.url]
+            row = {**asdict(d), "source_id": source, "title": title}
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        for p in result.pending:
+            source, title = titles[p.url]
+            row = {
+                "url": p.url,
+                "bucket": "pending",
+                "reason": p.reason,
+                "source_id": source,
+                "title": title,
+            }
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
