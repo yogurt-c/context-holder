@@ -13,12 +13,15 @@ from context_holder import __version__
 from context_holder.classify import (
     Bucket,
     ClassifyResult,
+    Decision,
+    Profile,
     ProfileError,
     classify,
     load_default_profile,
     load_profile,
 )
 from context_holder.collect import Article, CollectResult, collect
+from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
 from context_holder.llm import ClaudeCli
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 
@@ -109,12 +112,7 @@ def classify_command(
     out: Path | None = typer.Option(None, help="판정 결과를 JSONL로 저장할 파일."),
 ) -> None:
     """모은 글의 관련도를 Claude로 매겨 저장 · 보류 · 버림으로 나눈다."""
-    try:
-        profile = load_profile(profile_path) if profile_path else load_default_profile()
-    except ProfileError as e:
-        typer.echo(f"설정 오류: {e}", err=True)
-        raise typer.Exit(code=2) from e
-
+    profile = _profile_or_exit(profile_path)
     articles = _read_articles(articles_path)
     result = classify(ClaudeCli(model=model), articles, profile)
     _print_decisions(result, articles)
@@ -168,3 +166,113 @@ def _write_decisions(result: ClassifyResult, articles: list[Article], out: Path)
                 "title": title,
             }
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _profile_or_exit(path: Path | None) -> Profile:
+    try:
+        return load_profile(path) if path else load_default_profile()
+    except ProfileError as e:
+        typer.echo(f"설정 오류: {e}", err=True)
+        raise typer.Exit(code=2) from e
+
+
+@app.command("eval-classify")
+def eval_classify_command(
+    labels_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="평가셋 JSONL."),
+    articles_path: Path | None = typer.Option(
+        None,
+        "--articles",
+        exists=True,
+        dir_okay=False,
+        help="ctx collect --out 파일. 새로 분류한다.",
+    ),
+    decisions_path: Path | None = typer.Option(
+        None,
+        "--decisions",
+        exists=True,
+        dir_okay=False,
+        help="ctx classify --out 파일. 다시 분류하지 않는다.",
+    ),
+    profile_path: Path | None = typer.Option(None, "--profile", help="profile.yaml 경로."),
+    model: str = typer.Option("sonnet", help="분류에 쓸 Claude 모델."),
+) -> None:
+    """평가셋 라벨과 분류기 판정을 비교해 정밀도, 놓친 글, 추천 경계값을 보여 준다."""
+    try:
+        labels = load_labels(labels_path)
+    except LabelError as e:
+        typer.echo(f"평가셋 오류: {e}", err=True)
+        raise typer.Exit(code=2) from e
+
+    if decisions_path:
+        decisions = _read_decisions(decisions_path)
+    elif articles_path:
+        wanted = {lb.url for lb in labels}
+        articles = [a for a in _read_articles(articles_path) if a.url in wanted]
+        missing = wanted - {a.url for a in articles}
+        if missing:
+            typer.echo(
+                f"본문이 없는 라벨 {len(missing)}건. 먼저 ctx collect로 받아 두세요.", err=True
+            )
+            raise typer.Exit(code=2)
+        order = {lb.url: i for i, lb in enumerate(labels)}
+        articles.sort(key=lambda a: order[a.url])
+        result = classify(ClaudeCli(model=model), articles, _profile_or_exit(profile_path))
+        decisions = list(result.decisions)
+    else:
+        typer.echo("--articles 또는 --decisions 중 하나가 필요하다.", err=True)
+        raise typer.Exit(code=2)
+
+    _print_eval_report(evaluate(labels, decisions))
+    best = sweep_thresholds(labels, decisions)
+    precision = f"{best.save_precision:.0%}" if best.save_precision is not None else "-"
+    typer.echo(
+        f"\n추천 경계값: 보류 {best.inbox_at:.2f}, 저장 {best.save_at:.2f} "
+        f"(일치율 {best.exact:.0%}, 저장 정밀도 {precision}, 놓친 글 {best.missed})"
+    )
+
+
+def _read_decisions(path: Path) -> list[Decision]:
+    decisions = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("bucket") == "pending":
+            continue
+        decisions.append(
+            Decision(
+                url=row["url"],
+                score=float(row["score"]),
+                bucket=Bucket(row["bucket"]),
+                topic=row.get("topic", ""),
+                plus=tuple(row.get("plus", [])),
+                minus=tuple(row.get("minus", [])),
+            )
+        )
+    return decisions
+
+
+def _pct(value: float | None) -> str:
+    return "-" if value is None else f"{value:.0%}"
+
+
+def _print_eval_report(report: Report) -> None:
+    typer.echo(
+        f"평가 {report.total}건 · 일치율 {_pct(report.exact)} · "
+        f"저장 정밀도 {_pct(report.save_precision)} · 저장 재현율 {_pct(report.save_recall)} · "
+        f"놓친 글 {len(report.missed)} · 판정 없음 {len(report.unjudged)}"
+    )
+    typer.echo("\n정답 \\ 판정     저장  보류  버림")
+    for expected in Bucket:
+        row = report.confusion[expected]
+        typer.echo(
+            f"{BUCKET_LABEL[expected]:<12}{row[Bucket.SAVE]:>5}{row[Bucket.INBOX]:>6}{row[Bucket.DROP]:>6}"
+        )
+    if report.mismatches:
+        typer.echo("\n어긋난 글")
+        for m in sorted(report.mismatches, key=lambda m: (m.expected, -m.score)):
+            mark = "  ← 놓침" if m in report.missed else ""
+            typer.echo(
+                f"  정답 {BUCKET_LABEL[m.expected]} · 판정 {BUCKET_LABEL[m.got]} "
+                f"{m.score:.2f}  {m.title[:50]}{mark}"
+            )

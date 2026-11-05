@@ -140,3 +140,123 @@ def test_classify_reports_bad_profile(tmp_path):
 
     assert result.exit_code == 2
     assert "include" in result.output
+
+
+def _write_jsonl(path, rows):
+    import json
+
+    # 빈 줄이 섞여 있어도 읽어야 한다
+    path.write_text("\n\n".join(json.dumps(r, ensure_ascii=False) for r in rows), encoding="utf-8")
+    return path
+
+
+def _labels(tmp_path):
+    return _write_jsonl(
+        tmp_path / "labels.jsonl",
+        [
+            {"url": "https://a/1", "title": "글 1", "source_id": "s", "label": "save"},
+            {"url": "https://a/2", "title": "글 2", "source_id": "s", "label": "save"},
+            {"url": "https://a/3", "title": "글 3", "source_id": "s", "label": "drop"},
+        ],
+    )
+
+
+def test_eval_classify_scores_existing_decisions(tmp_path):
+    decisions = _write_jsonl(
+        tmp_path / "decisions.jsonl",
+        [
+            {
+                "url": "https://a/1",
+                "score": 0.9,
+                "bucket": "save",
+                "topic": "",
+                "plus": [],
+                "minus": [],
+            },
+            {
+                "url": "https://a/2",
+                "score": 0.2,
+                "bucket": "drop",
+                "topic": "",
+                "plus": [],
+                "minus": [],
+            },
+            {"url": "https://a/3", "bucket": "pending", "reason": "auth"},
+        ],
+    )
+
+    result = runner.invoke(
+        app, ["eval-classify", str(_labels(tmp_path)), "--decisions", str(decisions)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "저장 정밀도 100%" in result.output
+    assert "놓친 글 1" in result.output and "글 2" in result.output
+    assert "판정 없음 1" in result.output
+    assert "추천 경계값" in result.output
+
+
+def test_eval_classify_runs_classifier_on_collected_articles(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.classify import Bucket, ClassifyResult, Decision
+
+    articles = _write_jsonl(
+        tmp_path / "articles.jsonl",
+        [
+            {
+                "source_id": "s",
+                "url": f"https://a/{i}",
+                "title": f"글 {i}",
+                "published": None,
+                "markdown": "본문",
+                "content_hash": f"h{i}",
+            }
+            for i in (1, 2, 3, 4)
+        ],
+    )
+    seen = {}
+
+    def fake_classify(llm, arts, profile, **_):
+        seen["urls"] = [a.url for a in arts]
+        return ClassifyResult(
+            decisions=tuple(Decision(a.url, 0.9, Bucket.SAVE, "", (), ()) for a in arts),
+            pending=(),
+            cost_usd=0.0,
+        )
+
+    monkeypatch.setattr(cli, "classify", fake_classify)
+
+    result = runner.invoke(
+        app, ["eval-classify", str(_labels(tmp_path)), "--articles", str(articles)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen["urls"] == ["https://a/1", "https://a/2", "https://a/3"]  # 라벨 있는 글만
+    assert "저장 정밀도 67%" in result.output
+
+
+def test_eval_classify_needs_articles_or_decisions(tmp_path):
+    result = runner.invoke(app, ["eval-classify", str(_labels(tmp_path))])
+
+    assert result.exit_code == 2
+    assert "--articles" in result.output
+
+
+def test_eval_classify_reports_missing_articles(tmp_path):
+    articles = _write_jsonl(tmp_path / "articles.jsonl", [])
+
+    result = runner.invoke(
+        app, ["eval-classify", str(_labels(tmp_path)), "--articles", str(articles)]
+    )
+
+    assert result.exit_code == 2
+    assert "본문이 없는 라벨 3건" in result.output
+
+
+def test_eval_classify_reports_bad_labels(tmp_path):
+    bad = _write_jsonl(tmp_path / "labels.jsonl", [{"url": "https://a/1"}])
+
+    result = runner.invoke(app, ["eval-classify", str(bad), "--decisions", str(bad)])
+
+    assert result.exit_code == 2
+    assert "title" in result.output

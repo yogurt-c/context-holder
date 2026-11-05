@@ -159,4 +159,23 @@ def test_exclude_is_optional(tmp_path: Path):
     profile = load_profile(path)
 
     assert profile.exclude == ()
-    assert (profile.save_at, profile.inbox_at) == (0.7, 0.4)
+    assert (profile.save_at, profile.inbox_at) == (0.6, 0.3)
+
+
+def test_borderline_topics_are_sent_as_inbox_guidance(tmp_path: Path):
+    path = tmp_path / "profile.yaml"
+    path.write_text(
+        """
+include: [{topic: 백엔드, about: 서버}]
+borderline: [{topic: ML 파이프라인, about: 학습 데이터 생성 중심 글}]
+""",
+        encoding="utf-8",
+    )
+    profile = load_profile(path)
+    llm = FakeLlm([{"items": [item("1", 0.5)]}])
+
+    classify(llm, [article(1)], profile)
+
+    _, system = llm.prompts[0]
+    assert profile.borderline[0].topic == "ML 파이프라인"
+    assert "경계 주제" in system and "학습 데이터 생성 중심 글" in system

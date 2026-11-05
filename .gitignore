@@ -107,3 +107,6 @@ Thumbs.db
 /.agents/
 /.claude/skills/
 /skills-lock.json
+
+# 검토용 임시 파일
+/.tmp/

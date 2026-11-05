@@ -14,6 +14,9 @@ from context_holder.llm import LlmError, LlmResult
 
 EXCERPT_CHARS = 1200  # 분류에는 본문 앞부분만 보낸다
 BATCH_SIZE = 20
+# 기본 경계값. M0 평가셋으로 보정한 값 (engine/eval/README.md)
+DEFAULT_SAVE_AT = 0.6
+DEFAULT_INBOX_AT = 0.3
 
 
 class Bucket(StrEnum):
@@ -36,8 +39,9 @@ class Topic:
 class Profile:
     include: tuple[Topic, ...]
     exclude: tuple[Topic, ...]
-    save_at: float = 0.7
-    inbox_at: float = 0.4
+    borderline: tuple[Topic, ...] = ()  # 사람이 판단할 경계 주제 (보류 점수)
+    save_at: float = DEFAULT_SAVE_AT
+    inbox_at: float = DEFAULT_INBOX_AT
 
     def bucket_for(self, score: float) -> Bucket:
         if score >= self.save_at:
@@ -157,6 +161,12 @@ def _read_items(
 def _system_prompt(profile: Profile) -> str:
     include = "\n".join(f"- {t.topic}: {t.about}" for t in profile.include)
     exclude = "\n".join(f"- {t.topic}: {t.about}" for t in profile.exclude)
+    borderline = ""
+    if profile.borderline:
+        lines = "\n".join(f"- {t.topic}: {t.about}" for t in profile.borderline)
+        borderline = (
+            f"\n경계 주제 (보류 점수 {profile.inbox_at}~{profile.save_at}를 준다):\n{lines}\n"
+        )
     return f"""너는 백엔드 · 프론트엔드 · AI 엔지니어가 읽을 기술 블로그 글을 고르는 분류기다.
 각 글이 아래 수집 기준에 얼마나 맞는지 0~1 점수로 매긴다.
 
@@ -165,7 +175,7 @@ def _system_prompt(profile: Profile) -> str:
 
 제외 기준:
 {exclude}
-
+{borderline}
 판정 원칙:
 - AI · ML 글이라고 통째로 거르지 않는다.
   AI를 엔지니어링에 쓰는 글은 수집하고, 모델 자체를 만드는 글은 제외한다.
@@ -212,12 +222,13 @@ def parse_profile(data: Any, origin: str) -> Profile:
     if not include:
         raise ProfileError(f"{origin}: include에 주제가 하나 이상 필요하다")
     thresholds = data.get("thresholds") or {}
-    save_at = float(thresholds.get("save", 0.7))
-    inbox_at = float(thresholds.get("inbox", 0.4))
+    save_at = float(thresholds.get("save", DEFAULT_SAVE_AT))
+    inbox_at = float(thresholds.get("inbox", DEFAULT_INBOX_AT))
     if not 0 <= inbox_at < save_at <= 1:
         raise ProfileError(f"{origin}: thresholds는 0 ≤ inbox < save ≤ 1 이어야 한다")
     exclude = _topics(data.get("exclude"), origin, "exclude")
-    return Profile(include=include, exclude=exclude, save_at=save_at, inbox_at=inbox_at)
+    borderline = _topics(data.get("borderline"), origin, "borderline")
+    return Profile(include, exclude, borderline, save_at=save_at, inbox_at=inbox_at)
 
 
 def _topics(raw: Any, origin: str, key: str) -> tuple[Topic, ...]:

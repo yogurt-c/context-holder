@@ -27,10 +27,10 @@
   .why { margin-top: 24px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-paper); padding: 16px 16px; }
   .why h3 { font-size: 12px; font-weight: 700; color: var(--ink-faint); display: flex; justify-content: space-between; }
   .gauge { position: relative; height: 8px; margin: 16px 0 24px; border-radius: 4px;
-    background: linear-gradient(90deg, var(--error-tint) 0 40%, var(--busy-tint) 40% 70%, var(--ok-tint) 70% 100%); border: 1px solid var(--rule-soft); }
+    background: linear-gradient(90deg, var(--error-tint) 0 30%, var(--busy-tint) 30% 60%, var(--ok-tint) 60% 100%); border: 1px solid var(--rule-soft); }
   .gauge .tick { position: absolute; top: 12px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); transform: translateX(-50%); }
   .gauge .needle { position: absolute; top: -5px; width: 3px; height: 16px; background: var(--ink); border-radius: 2px; transform: translateX(-50%); }
-  .gauge .needle::after { content: "0.61"; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); }
+  .gauge .needle::after { content: "0.52"; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); }
   .criteria { list-style: none; display: grid; gap: 8px; font-size: 13.5px; }
   .criteria li { display: flex; gap: 8px; align-items: baseline; }
   .criteria .sign { font-family: var(--mono); font-weight: 700; width: 14px; }
@@ -65,7 +65,7 @@
     </div>
   </aside>
     <main class="content">
-      <div class="toolbar"><span class="title">Inbox</span><span class="sub">관련도 0.4~0.7, 판단이 필요한 글</span>
+      <div class="toolbar"><span class="title">Inbox</span><span class="sub">관련도 0.3~0.6, 판단이 필요한 글</span>
         <div class="spacer"></div><button class="btn sm ghost">모두 관련없음</button></div>
       <div class="panes stack-narrow">
         <section class="queue" aria-label="보류 글 목록">
@@ -73,7 +73,7 @@
           <ol class="row-list">
             <li class="done"><div class="meta meta-row"><span>Toss</span><span>11월 5일</span></div><p class="title">디자인 시스템 컬러 토큰 개편기</p><span class="verdict drop">관련없음 처리</span></li>
             <li class="done"><div class="meta meta-row"><span>GitHub</span><span>11월 5일</span></div><p class="title">How we scaled code search indexing</p><span class="verdict keep">저장됨</span></li>
-            <li class="sel"><div class="meta meta-row"><span>우아한형제들</span><span>11월 5일</span></div><p class="title">LLM 응답 캐시로 추론 비용 줄이기</p><span class="score-pill">0.61</span></li>
+            <li class="sel"><div class="meta meta-row"><span>우아한형제들</span><span>11월 5일</span></div><p class="title">LLM 응답 캐시로 추론 비용 줄이기</p><span class="score-pill">0.52</span></li>
             <li><div class="meta meta-row"><span>LINE</span><span>11월 4일</span></div><p class="title">사내 추천 모델을 위한 임베딩 학습 파이프라인</p><span class="score-pill">0.48</span></li>
             <li><div class="meta meta-row"><span>NHN Cloud</span><span>11월 4일</span></div><p class="title">FE News 26년 11월 소식</p><span class="score-pill">0.44</span></li>
             <li><div class="meta meta-row"><span>Cloudflare</span><span>11월 4일</span></div><p class="title">Rust로 다시 쓴 프록시의 메모리 사용량</p><span class="score-pill">0.42</span></li>
@@ -91,14 +91,14 @@
 
           <div class="why">
             <h3><span>왜 보류됐나</span><span>Claude 분류, 기준 profile.yaml</span></h3>
-            <div class="gauge" aria-label="관련도 0.61">
-              <span class="needle" style="left:61%"></span>
-              <span class="tick" style="left:40%">0.4 보류</span><span class="tick" style="left:70%">0.7 저장</span>
+            <div class="gauge" aria-label="관련도 0.52">
+              <span class="needle" style="left:52%"></span>
+              <span class="tick" style="left:30%">0.3 보류</span><span class="tick" style="left:60%">0.6 저장</span>
             </div>
             <ul class="criteria">
               <li><span class="sign plus">+</span>LLM 비용과 서빙: 캐시로 호출 수를 줄인 설계 결정<span class="src">수집 기준 5.1</span></li>
               <li><span class="sign plus">+</span>캐시 무효화 전략: 이벤트 기반 만료<span class="src">수집 기준 5.1</span></li>
-              <li><span class="sign minus">−</span>임베딩 모델 학습 비중이 큼<span class="src">제외 기준, ML 모델링</span></li>
+              <li><span class="sign minus">−</span>임베딩 모델 선택과 학습 비중이 큼<span class="src">경계 주제, ML 파이프라인</span></li>
             </ul>
           </div>
 

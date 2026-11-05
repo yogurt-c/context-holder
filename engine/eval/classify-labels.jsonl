@@ -1,0 +1,50 @@
+{"url": "https://d2.naver.com/news/7193556", "title": "D2Coding 폰트 1.4.0 릴리즈 소식을 전합니다.", "source_id": "naver-d2", "label": "drop"}
+{"url": "https://medium.com/airbnb-engineering/castle-training-natural-language-search-before-the-first-real-query-3818ef8b4828", "title": "CASTLE: training natural language search before the first real query", "source_id": "airbnb", "label": "inbox", "memo": "ML 모델 학습용 데이터 합성 중심 글. 백엔드/인프라 관점이 적다면 버림/보류 판단"}
+{"url": "https://meetup.nhncloud.com/posts/425", "title": "AI 번역의 시대2: 오착(誤錯)", "source_id": "nhn-cloud", "label": "inbox"}
+{"url": "https://toss.tech/article/ai-platform-foundation", "title": "서비스 개발에 집중할 수 있는 AI 플랫폼 만들기", "source_id": "toss", "label": "save"}
+{"url": "https://d2.naver.com/helloworld/5037598", "title": "worklog-system 주간보고 자동화 구축 경험기", "source_id": "naver-d2", "label": "inbox"}
+{"url": "https://netflixtechblog.com/measuring-the-impact-of-personalized-recommendations-4c26be3a4d96", "title": "Measuring the Impact of Personalized Recommendations", "source_id": "netflix", "label": "save", "memo": "이것도 검색 백엔드 엔지니어링에 쓰기 좋을것같아."}
+{"url": "https://techblog.musinsa.com/%EB%B9%A0%EB%A5%B8-%EA%B8%B0%EA%B8%B0%EA%B0%80-%EC%99%9C-%EA%B8%B0%EB%8B%A4%EB%A0%A4%EC%95%BC-%ED%95%98%EC%A7%80-a0533ee53dd2", "title": "빠른 기기가 왜 기다려야 하지?", "source_id": "musinsa", "label": "save"}
+{"url": "https://netflixtechblog.com/datajunction-as-netflixs-answer-to-the-missing-piece-of-the-modern-data-stack-92af926b40a5", "title": "DataJunction as Netflix’s answer to the missing piece of the modern data stack", "source_id": "netflix", "label": "save"}
+{"url": "https://d2.naver.com/news/8711937", "title": "FE News 26년 10월 소식을 전해드립니다.", "source_id": "naver-d2", "label": "drop"}
+{"url": "https://medium.com/daangn/%EB%AA%A8%EB%8D%B8%EB%A7%8C-%EB%B0%94%EA%BF%A8%EB%8A%94%EB%8D%B0-llm-%EB%B9%84%EC%9A%A9%EC%9D%B4-3%EB%B0%B0%EA%B0%80-%EB%90%9C-%EC%9D%B4%EC%9C%A0-5ae60ab5108b", "title": "모델만 바꿨는데 LLM 비용이 3배가 된 이유", "source_id": "daangn", "label": "save"}
+{"url": "https://medium.com/airbnb-engineering/beyond-synthetic-testing-capturing-and-replaying-real-database-workloads-at-airbnb-cea7ee9b1ab2", "title": "Beyond synthetic testing: Capturing and replaying real database workloads at Airbnb", "source_id": "airbnb", "label": "save"}
+{"url": "https://meetup.nhncloud.com/posts/424", "title": "AI 학습부터 GPU 운영까지 한 곳에서, GPU Live", "source_id": "nhn-cloud", "label": "drop"}
+{"url": "https://netflixtechblog.com/timeseries-tiered-storage-journey-kafka-flink-streams-to-native-cassandra-cold-reads-e59d597c9d60", "title": "TimeSeries Tiered Storage Journey: Kafka/Flink Streams to Native Cassandra Cold Reads", "source_id": "netflix", "label": "save"}
+{"url": "https://blog.cloudflare.com/dns-targeted-zone-builds", "title": "How we halved DNS build delay and cut memory use by 85%", "source_id": "cloudflare", "label": "save"}
+{"url": "https://toss.tech/article/rpg-savings", "title": "디자이너의 아이디어가 금융상품이 되기까지", "source_id": "toss", "label": "drop"}
+{"url": "https://github.blog/engineering/architecture-optimization/building-git-infrastructure-for-agent-scale-development", "title": "Building Git infrastructure for agent-scale development", "source_id": "github", "label": "save"}
+{"url": "https://d2.naver.com/news/0907869", "title": "모두가 함께 성장하는 기술 축제, NAVER Engineering Day 10년의 여정", "source_id": "naver-d2", "label": "drop"}
+{"url": "https://techblog.lycorp.co.jp/ko/flava-mcp-hub-ai-infrastructure", "title": "Flava MCP Hub가 걸어온 길: AI 시대를 위한 배관 공사", "source_id": "line", "label": "save"}
+{"url": "https://blog.cloudflare.com/post-quantum-geo-key-manager", "title": "Bringing post-quantum cryptography to geographically fenced key management", "source_id": "cloudflare", "label": "inbox"}
+{"url": "https://d2.naver.com/helloworld/7770448", "title": "2026년과 이후 JavaScript의 동향 - WebAssembly", "source_id": "naver-d2", "label": "inbox"}
+{"url": "https://medium.com/daangn/aurora-mysql-%EC%9D%B8%EB%8D%B1%EC%8A%A4-ddl%EC%9D%B4-reader-%EB%B2%84%ED%8D%BC%ED%92%80%EC%9D%84-%EB%B9%84%EC%9A%B4%EB%8B%A4-16c6328dea50", "title": "Aurora MySQL 인덱스 DDL이 Reader 버퍼풀을 비운다?", "source_id": "daangn", "label": "save"}
+{"url": "https://oliveyoung.tech/2026-10-20/oy-conference-2026-notice", "title": "올리브영의 첫 테크 컨퍼런스, define:OMNI 2026이 열립니다", "source_id": "oliveyoung", "label": "drop"}
+{"url": "https://medium.com/daangn/%EA%B5%AD%EB%82%B4-%EC%B5%9C%EC%B4%88-%EA%B4%91%EA%B3%A0-mcp%EB%A5%BC-%EC%B6%9C%EC%8B%9C%ED%95%98%EB%A9%B0-%EA%B0%9C%EB%B0%9C%EC%9E%90%EC%9D%98-%EC%97%AD%ED%95%A0%EC%9D%80-%EC%96%B4%EB%94%94%EA%B9%8C%EC%A7%80-%EB%84%93%EC%96%B4%EC%A1%8C%EC%9D%84%EA%B9%8C-8dea7fe41c07", "title": "국내 최초 광고 MCP를 출시하며, 개발자의 역할은 어디까지 넓어졌을까?", "source_id": "daangn", "label": "save"}
+{"url": "https://blog.cloudflare.com/personal-agents-visibility-control", "title": "See the agents, set the terms: new visibility and control for personal agents", "source_id": "cloudflare", "label": "inbox"}
+{"url": "https://oliveyoung.tech/2026-10-29/%EC%98%AC%EB%A6%AC%EB%B8%8C%EC%98%81-pm%EC%9D%B4-ai%EC%99%80-%ED%95%A8%EA%BB%98-%EC%9D%BC%ED%95%98%EB%8A%94-%EB%B0%A9%EC%8B%9D", "title": "더 중요한 고민에 집중하는 올리브영 PM이 AI로 일하는 방식", "source_id": "oliveyoung", "label": "drop"}
+{"url": "https://blog.cloudflare.com/obsessive-inference-optimization", "title": "Cutting our inference bill by 68% by being obsessive about optimization", "source_id": "cloudflare", "label": "save"}
+{"url": "https://tech.kakao.com/posts/843", "title": "문자를 보냈다는데 왜 안 오죠? 길 잃은 국제 MO 메시지 구출 작전", "source_id": "kakao", "label": "save"}
+{"url": "https://techblog.woowahan.com/27810", "title": "아이폰 카메라로 B마트 상품을 찾는다고?", "source_id": "woowahan", "label": "save"}
+{"url": "https://d2.naver.com/helloworld/1443473", "title": "2026년과 이후 JavaScript의 동향 - 브라우저 밖의 JavaScript", "source_id": "naver-d2", "label": "inbox"}
+{"url": "https://techblog.musinsa.com/%EC%98%88%EC%B8%A1%EC%9D%84-%EB%84%98%EC%96%B4-%EA%B2%B0%EC%A0%95%EA%B3%BC-%EB%B0%9C%EA%B2%AC%EC%9C%BC%EB%A1%9C-deciml%EA%B3%BC-nexa%EB%A5%BC-%EB%A7%8C%EB%93%A0-%EC%9D%B4%EC%9C%A0-9313debb2a4f", "title": "예측을 넘어 결정과 발견으로: DeciML과 NeXA를 만든 이유", "source_id": "musinsa", "label": "inbox", "memo": "개인화 ML 플랫폼 글이나 ML 파이프라인 색채가 강해 일반 백엔드 기준 경계"}
+{"url": "https://github.blog/engineering/platform-security/staying-evergreen-how-we-automated-secure-access-and-repo-hygiene-in-a-shared-org", "title": "Staying Evergreen: How we automated secure access and repo hygiene in a shared org", "source_id": "github", "label": "save"}
+{"url": "https://techblog.lycorp.co.jp/ko/ai-e2e-test-automation", "title": "AI로 E2E 회귀 테스트 자동화하기: ‘딸깍’을 파이프라인으로 바꾸기까지", "source_id": "line", "label": "save"}
+{"url": "https://meetup.nhncloud.com/posts/426", "title": "나는 하네스 깎는 노인이 되었다 시리즈 2: 안녕, 실버불릿", "source_id": "nhn-cloud", "label": "save"}
+{"url": "https://toss.tech/article/dataops-log-definition-skill", "title": "머릿속에 있던 로그 정의 기준을 모두의 AI 스킬로 만들기", "source_id": "toss", "label": "save"}
+{"url": "https://blog.cloudflare.com/clairic-extraction-model", "title": "Introducing Clairic, a new System One class of extraction models", "source_id": "cloudflare", "label": "drop"}
+{"url": "https://tech.kakao.com/posts/840", "title": "글로벌 최고 수준의 자체 비전 인코더, Kanana-2-vision-encoder 개발기", "source_id": "kakao", "label": "drop"}
+{"url": "https://d2.naver.com/helloworld/2675915", "title": "2026년과 이후 JavaScript의 동향 - JavaScript(ECMAScript)", "source_id": "naver-d2", "label": "inbox"}
+{"url": "https://techblog.musinsa.com/%EB%8C%80ai%EC%8B%9C%EB%8C%80%EC%97%90-%EC%9D%BC%ED%95%98%EB%8A%94-%EB%B0%A9%EC%8B%9D%EC%9D%98-%EB%B3%80%ED%99%94%EC%97%90-%EB%8C%80%ED%95%9C-%EA%B3%A0%EC%B0%B0-6d11e0b1fead", "title": "대AI시대에 일하는 방식의 변화에 대한 고찰", "source_id": "musinsa", "label": "inbox"}
+{"url": "https://blog.cloudflare.com/emudhra-patching", "title": "4 real? Tracking exploitation and patching of eMudhra’s weak keys", "source_id": "cloudflare", "label": "drop"}
+{"url": "https://blog.cloudflare.com/typescript-rust-port", "title": "Introducing tsrs: A port of TypeScript to Rust", "source_id": "cloudflare", "label": "inbox"}
+{"url": "https://github.blog/engineering/architecture-optimization/from-2500-requests-to-24-rebuilding-star-history-without-the-stargazers", "title": "From 2,500 requests to 24: Rebuilding star history without the stargazers", "source_id": "github", "label": "save"}
+{"url": "https://d2.naver.com/helloworld/2265641", "title": "컨테이너처럼 쓰고, VM처럼 격리하기", "source_id": "naver-d2", "label": "save"}
+{"url": "https://techblog.woowahan.com/27864", "title": "critical-script, 배달의민족 웹뷰 로딩 성능을 30% 개선한 인라인 스크립트 로딩 전략 이야기", "source_id": "woowahan", "label": "save"}
+{"url": "https://blog.cloudflare.com/zero-wire", "title": "Introducing Zero Wire, a hub for investigating critical Internet vulnerabilities", "source_id": "cloudflare", "label": "drop"}
+{"url": "https://netflixtechblog.com/multi-ratio-video-resizing-for-mobile-feed-and-marketing-2e6b42810f49", "title": "Multi‑Ratio Video Resizing for Mobile Feed and Marketing", "source_id": "netflix", "label": "drop"}
+{"url": "https://d2.naver.com/helloworld/4452165", "title": "Python의 멀티프로세싱과 Airflow의 task 동작 방식 - Python과 Airflow, 그리고 관련된 문제 해결기 1편", "source_id": "naver-d2", "label": "save"}
+{"url": "https://netflixtechblog.com/behind-the-scenes-evolving-netflixs-ads-event-pipeline-for-live-part-ii-826ebf9ad9fb", "title": "Behind the Scenes: Evolving Netflix’s Ads Event Pipeline for Live — Part II", "source_id": "netflix", "label": "save"}
+{"url": "https://tech.kakao.com/posts/845", "title": "옮기는 것보다 증명이 어렵다", "source_id": "kakao", "label": "save"}
+{"url": "https://tech.kakao.com/posts/842", "title": "카카오 AI 돛 Summit 26 다시보기 공개 — AI 인프라부터 서비스 적용, 개발과 창업까지", "source_id": "kakao", "label": "drop"}
+{"url": "https://netflixtechblog.com/integrating-netflixs-foundation-model-into-personalization-applications-cf176b5860eb", "title": "Integrating Netflix’s Foundation Model into Personalization applications", "source_id": "netflix", "label": "save", "memo": "2·6번 기준: 임베딩 통합 방식과 비용 트레이드오프"}

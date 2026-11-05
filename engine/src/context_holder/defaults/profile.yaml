@@ -1,8 +1,8 @@
-# 새 위키 레포의 config/profile.yaml 초깃값. 관련도 기준은 plan 5.1.
-# include · exclude는 키워드가 아니라 주제 단위로 적는다.
+# 새 위키 레포의 config/profile.yaml 초깃값. 관련도 기준은 plan 5.1, 보정 근거는 engine/eval/README.md.
+# include · exclude · borderline은 키워드가 아니라 주제 단위로 적는다.
 thresholds:
-  save: 0.7   # 이 이상이면 위키에 저장
-  inbox: 0.4  # 이 이상이면 Inbox에 보류, 미만이면 버림
+  save: 0.6   # 이 이상이면 위키에 저장 (M0 평가셋으로 보정)
+  inbox: 0.3  # 이 이상이면 Inbox에 보류, 미만이면 버림
 
 include:
   - topic: 백엔드 · 인프라 · 데이터
@@ -11,12 +11,20 @@ include:
     about: 웹 성능, 렌더링, 상태 관리, 빌드와 패키지 관리, 웹뷰, 디자인 시스템 구현
   - topic: AI 엔지니어링
     about: LLM 비용 최적화, 서빙 인프라, 에이전트 · MCP · 하네스, 컨텍스트 설계, AI로 테스트와 개발 자동화, LLM 평가 체계
+  - topic: 검색 · 추천 시스템 엔지니어링
+    about: 추천 · 검색 효과 측정과 실험 설계, 임베딩 · 모델을 서비스에 통합하는 방식과 비용, 검색 · 추천 서빙
   - topic: 개발 생산성 · 운영
     about: 테스트 전략, CI/CD, 관측성, 보안 아키텍처, 사내 플랫폼 설계
 
+borderline:
+  - topic: ML 파이프라인 · 플랫폼
+    about: 학습 데이터 생성이나 합성 중심 글, 개인화 ML 플랫폼처럼 ML 파이프라인 색채가 강한 글
+  - topic: 기술 동향 정리
+    about: 결정 사례 없이 언어 · 플랫폼 동향을 정리한 글
+
 exclude:
   - topic: ML 모델링
-    about: 임베딩 학습, 추천 · 랭킹 모델 구조, 비전 · 음성 모델 개발, 논문 구현
+    about: 모델 아키텍처 설계, 비전 · 음성 모델 개발, 논문 구현
   - topic: 엔지니어링 외
     about: 디자인 작업 자체, 행사 홍보, 채용 공고, 조직문화, 회사 소식, 제품 출시 공지
   - topic: 보안 공지
