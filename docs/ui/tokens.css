@@ -1,0 +1,119 @@
+/* Hallmark · checked: 2026-11-05 · genre: editorial (inferred) · shape: app screen
+ * floor: 0 FAIL (before 160) · fixed: 7a, 19, 26b, 27, 33, 34, 38iii, 40, 47a, 48, 49a, 54, 63, 67, 75, F3, F21, F23 · structural: printed in the handoff
+ * built: the project · redesign: polish · v2.0.0 */
+/* Hallmark · dropped shell.js · the sidebar was injected by script; it is now static markup in each page so it shows with scripting off (Floor 7) */
+/* Hallmark · waive 39b · btn.sm appears only as an inline row action beside a 32px or larger primary · it is the macOS small control size in a dense desktop tool */
+/* Hallmark · dismissed F25 · a desktop-only Tauri app with a 1100px minimum window; no phone layout exists */
+/* Hallmark · waive 71 · on design-system.html the measured gap under each h2 is the 56px colour chip and type specimen, not whitespace · the heads sit 8px above their content */
+/* Hallmark · dismissed 23 · the Today display head is set whole in the today red on purpose: it is the one screen that owns that colour, and 38iii is met */
+/* Hallmark · answered F19 · four weights are Pretendard roles: 400 body, 500 controls, 600 labels, 700 heads and counts */
+
+/* context-holder 디자인 토큰.
+ * 시안과 실제 엔진 화면(Jinja 템플릿)이 같은 파일을 쓴다.
+ * 앱 번들에서는 폰트를 로컬 파일로 넣고 아래 원격 주소를 바꾼다.
+ */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+
+:root {
+  /* 종이 · 잉크 */
+  --paper: #F7F3EA;
+  --paper-deep: #EFE8DA;
+  --surface: #FFFDF8;
+  --surface-hover: #FFFEFB;
+  --ink: #1C1B18;
+  --ink-hover: #33312C;
+  --ink-body: #2F2D28;
+  --ink-soft: #57524A;
+  --ink-faint: #6E675B;      /* 4.5:1 이상 (paper · surface · chrome 위) */
+  --rule: #DDD4C2;
+  --rule-strong: #CBBFA8;
+  --rule-soft: #EAE3D4;
+  --on-ink: #FFFDF8;         /* 진한 배경 위 글자 */
+  --on-ink-soft: #CFC8BA;
+  --on-ink-line: #4A4740;
+
+  /* 창 틀 (macOS 사이드바 vibrancy 근사) */
+  --chrome: #ECE8E0;
+  --chrome-top: #EFEBE3;
+  --chrome-line: #D8D2C6;
+  --chrome-ink: #3A3833;
+  --chrome-selected: rgba(28, 27, 24, 0.075);
+  --chrome-hover: rgba(28, 27, 24, 0.045);
+  --chrome-card: rgba(255, 253, 248, 0.6);
+
+  /* 의미 색 */
+  --today: #B4441E;          /* 붉은 잉크: 오늘 · 영상 */
+  --today-tint: #FBEEE7;
+  --today-line: #EBC9BA;
+  --decision: #1F5A6B;       /* 청록: 결정 사례 */
+  --decision-tint: #EAF2F3;
+  --decision-line: #BED4D9;
+  --decision-ink: #15414E;
+  --decision-mid: #6E9BA6;
+  --decision-soft: #B9CDD1;
+  --on-decision-soft: #CFE2E6;
+  --ok: #3D7A3A;             /* 상태: 완료 */
+  --ok-tint: #EAF3E7;
+  --ok-line: #C7DEC2;
+  --busy: #A8740B;           /* 상태: 수집 중 · 대기 (채움) */
+  --busy-ink: #8A5F08;       /* 상태: 수집 중 · 대기 (글자) */
+  --busy-deep: #6B4A06;
+  --busy-tint: #FBF3DF;
+  --busy-line: #EBD7A6;
+  --error: #C42B2B;          /* 상태: 오류 (항상 아이콘 · 문구와 함께) */
+  --error-deep: #7A1D1D;
+  --error-tint: #FCECEA;
+  --error-row: #FDF5F3;
+  --error-line: #F0C3BF;
+  --mark: #FFE7A3;
+  --strike: rgba(110, 103, 91, 0.6);           /* 검색 하이라이트 */
+
+  /* 시안 바탕 (앱에는 없음) */
+  --backdrop: #E4DDD0;
+  --caption: #4B463D;
+
+  /* 글꼴 */
+  /* 제목도 본문과 같은 산세리프. 토스 기술 블로그(Toss Product Sans)처럼 굵고 촘촘하게 쓴다 */
+  --display: "Pretendard Variable", "Pretendard", "SF Pro KR", -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --mono: "JetBrains Mono", Menlo, monospace;
+
+  /* 글자 크기: 읽는 화면은 크게, 다루는 화면은 촘촘하게 */
+  --fs-display: 44px;
+  --fs-h1: 30px;
+  --fs-h2: 22px;
+  --fs-h3: 18px;
+  --fs-read: 15px;
+  --fs-body: 14px;
+  --fs-small: 12.5px;
+  --fs-micro: 11px;
+
+  /* 간격 (4px 단위) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* 모서리: 종이는 거의 각지게, 조작 요소는 macOS처럼 둥글게 */
+  --r-paper: 3px;
+  --r-control: 6px;
+  --r-window: 12px;
+
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.04), 0 10px 22px -16px rgba(31, 90, 107, 0.45);
+  --shadow-panel: 0 18px 40px -24px rgba(40, 30, 10, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.04);
+
+  --dur-micro: 120ms;
+  --dur-short: 200ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-micro: 0ms; --dur-short: 0ms; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

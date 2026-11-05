@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: 디자인 시스템</title>
+<meta name="description" content="context-holder 데스크톱 앱의 색, 글꼴, 간격, 컴포넌트 규칙.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  body { background: var(--paper); }
+  .sheet { padding: 40px 56px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px 48px; }
+  header.top { grid-column: 1 / -1; }
+  header.top h1 { font-family: var(--display); font-size: var(--fs-display); font-weight: 700; letter-spacing: -1.6px; line-height: 1.1; }
+  header.top p { color: var(--ink-soft); margin-top: 8px; font-size: var(--fs-read); max-width: 72ch; }
+  header.top .rule-double { margin-top: 16px; margin-bottom: 0; }
+  section h2 { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-bottom: 8px; }
+  section h3 { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 8px; }
+  .sheet { max-width: 1440px; margin: 0 auto; }
+  .full { grid-column: 1 / -1; }
+
+  .swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .sw { border: 1px solid var(--rule); border-radius: var(--r-paper); overflow: hidden; background: var(--surface); }
+  .sw .c { height: 54px; }
+  .sw .l { padding: 8px 8px; font-size: 11.5px; line-height: 1.35; }
+  .sw .l b { display: block; font-size: 12px; }
+  .sw .l code { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+
+  .type-row { display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
+  .type-row .k { font-size: 11.5px; color: var(--ink-faint); line-height: 1.4; }
+  .type-row .k code { font-family: var(--mono); font-size: 11px; display: block; }
+
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0 16px; }
+  .principles { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .principles li { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-paper); padding: 16px 16px; font-size: 13px; color: var(--ink-soft); }
+  .principles li b { display: block; font-family: var(--display); font-size: 16px; color: var(--ink); margin-bottom: 4px; }
+  .space { display: flex; align-items: flex-end; gap: 16px; }
+  .space div { background: var(--decision-tint); border: 1px solid var(--decision-line); }
+  .space span { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); text-align: center; margin-top: 4px; }
+  @media (max-width: 60rem) { .sheet { grid-template-columns: minmax(0, 1fr); padding: 24px 16px; } .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); } .principles { grid-template-columns: minmax(0, 1fr); } .type-row { grid-template-columns: minmax(0, 1fr); } .space { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="top">
+    <h1>context-holder 디자인 시스템</h1>
+    <p>읽는 화면은 신문, 다루는 화면은 도구. 종이와 잉크 두 가지 바탕에 의미 색 두 개(오늘, 결정)만 얹는다. 상태 색은 상태를 알릴 때만 쓰고, 항상 아이콘이나 문구와 같이 쓴다.</p>
+    <div class="rule-double"></div>
+  </header>
+
+  <section class="full">
+    <h2>원칙</h2>
+    <ul class="principles">
+      <li><b>읽기와 다루기를 나눈다</b>Today와 Decisions는 크고 굵은 제목과 넓은 여백. Search, Inbox, Sources는 산세리프와 촘촘한 리스트.</li>
+      <li><b>색은 뜻이 있을 때만</b>붉은 잉크는 오늘과 영상, 청록은 결정 사례. 그 외 강조는 굵기와 크기로 한다.</li>
+      <li><b>화면마다 주된 행동 하나</b>Today는 읽기, Inbox는 분류, Decisions는 비교. 버튼 강조는 그 행동 하나에만 준다.</li>
+    </ul>
+  </section>
+
+  <section class="full">
+    <h2>색</h2>
+    <div class="swatches">
+      <div class="sw"><div class="c" style="background:var(--paper)"></div><div class="l"><b>Paper</b><code>--paper #F7F3EA</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--paper-deep)"></div><div class="l"><b>Paper deep</b><code>--paper-deep #EFE8DA</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--surface)"></div><div class="l"><b>Surface</b><code>--surface #FFFDF8</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--chrome)"></div><div class="l"><b>Chrome</b><code>--chrome #ECE8E0</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--rule)"></div><div class="l"><b>Rule</b><code>--rule #DDD4C2</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--ink)"></div><div class="l"><b>Ink</b><code>--ink #1C1B18</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--today)"></div><div class="l"><b>Today, 붉은 잉크</b><code>--today #B4441E</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--decision)"></div><div class="l"><b>Decision, 청록</b><code>--decision #1F5A6B</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--ok)"></div><div class="l"><b>완료</b><code>--ok #3D7A3A</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--busy)"></div><div class="l"><b>수집 중, 대기</b><code>--busy #A8740B</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--error)"></div><div class="l"><b>오류</b><code>--error #C42B2B</code></div></div>
+      <div class="sw"><div class="c" style="background:var(--mark)"></div><div class="l"><b>하이라이트</b><code>--mark #FFE7A3</code></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>글꼴</h2>
+    <div class="type-row"><span class="k">Display 44<code>Pretendard 700</code></span><span class="display-face" style="font-size:44px;font-weight:700;letter-spacing:-1.6px;line-height:1.1">오늘의 브리프</span></div>
+    <div class="type-row"><span class="k">H1 30<code>Pretendard 700</code></span><span class="display-face" style="font-size:30px;font-weight:700;letter-spacing:-.9px">사이드카의 선언적 관리</span></div>
+    <div class="type-row"><span class="k">H3 18<code>Pretendard 600</code></span><span class="display-face" style="font-size:18px;font-weight:600">Python의 GC가 멀티프로세싱과 만나면</span></div>
+    <div class="type-row"><span class="k">Read 15<code>Pretendard 400</code></span><span style="font-size:15px">사이드카만 교체하는 in-place 업데이트로 재시작 없이 배포한다.</span></div>
+    <div class="type-row"><span class="k">Body 14, Small 12.5<code>Pretendard 400~700</code></span><span>목록과 조작 요소 <span style="font-size:12.5px;color:var(--ink-soft)">보조 설명 12.5</span></span></div>
+    <div class="type-row"><span class="k">Mono 11~12<code>JetBrains Mono</code></span><code style="font-family:var(--mono);font-size:12px">find_decision_cases("outbox") 0.93</code></div>
+  </section>
+
+  <section>
+    <h2>간격과 모서리</h2>
+    <div class="space">
+      <div><div style="width:4px;height:4px"></div><span>4</span></div>
+      <div><div style="width:8px;height:8px"></div><span>8</span></div>
+      <div><div style="width:12px;height:12px"></div><span>12</span></div>
+      <div><div style="width:16px;height:16px"></div><span>16</span></div>
+      <div><div style="width:24px;height:24px"></div><span>24</span></div>
+      <div><div style="width:32px;height:32px"></div><span>32</span></div>
+      <div><div style="width:48px;height:48px"></div><span>48</span></div>
+    </div>
+    <p class="note" style="margin:16px 0 16px">종이 요소(카드, 배지)는 3px, 조작 요소(버튼, 입력)는 6px, 창은 12px.</p>
+
+    <h3>버튼</h3>
+    <div class="demo">
+      <button class="btn primary">원문 열기</button>
+      <button class="btn decision">Claude에 문맥으로 보내기</button>
+      <button class="btn">북마크</button>
+      <button class="btn ghost">관련없음</button>
+      <button class="btn sm">작은 버튼</button>
+    </div>
+    <h3>배지와 칩</h3>
+    <div class="demo">
+      <span class="badge decision">결정 사례</span><span class="badge video">영상</span><span class="badge pending">요약 대기</span>
+      <span class="badge ok">연결됨</span><span class="badge error">실패</span><span class="badge plain">feed 전문</span>
+      <span class="chip on">결정 사례만</span><span class="chip">최근 30일</span>
+    </div>
+    <h3>상태</h3>
+    <div class="demo" style="gap:16px;font-size:13px">
+      <span class="note">점은 실시간 상태에만 쓴다: 사이드바 수집 카드, 기기 목록, 실패한 소스 행.</span><span><span class="dot error" aria-label="오류"></span> 오류 예시</span>
+      <span>confidence <span class="confidence"><i class="on"></i><i class="on"></i><i></i></span></span>
+    </div>
+  </section>
+
+  <section class="full">
+    <h2>결정 기록 카드</h2>
+    <dl class="decision-card" style="max-width:820px">
+      <div class="label">결정 기록: 이벤트 발행 일관성<span class="conf">신뢰도 중간<span class="confidence" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></span></span></div>
+      <dt>문제</dt><dd>주문 저장 후 발행 전 장애로 이벤트 유실</dd>
+      <dt>선택지</dt><dd><span class="opt">2PC</span><span class="opt">발행 후 재시도</span><span class="opt chosen">Outbox + CDC</span></dd>
+      <dt>트레이드오프</dt><dd>유실 없음 ↔ 릴레이 운영과 지연</dd>
+      <p class="evidence">원문 근거 문장 2개, 원문 대조 통과</p>
+    </dl>
+  </section>
+</div>
+</body>
+</html>

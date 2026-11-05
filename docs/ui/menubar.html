@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: 메뉴바와 알림 명세</title>
+<meta name="description" content="context-holder 메뉴바 아이콘 상태, 네이티브 메뉴 항목, macOS 알림 규칙 명세.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .sheet { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6) 40px; }
+  .sheet > header { grid-column: 1 / -1; }
+  .sheet h1 { font-family: var(--display); font-size: var(--fs-h1); font-weight: 700; letter-spacing: -0.9px; }
+  .sheet > header p { color: var(--ink-soft); margin-top: var(--sp-2); max-width: 70ch; }
+  .card { background: var(--paper); border-radius: var(--r-window); box-shadow: var(--shadow-panel); padding: var(--sp-5); }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; margin-bottom: var(--sp-1); }
+  .card .d { font-size: 13px; color: var(--ink-soft); margin-bottom: var(--sp-4); max-width: 70ch; }
+
+  .states { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); }
+  .state { font-size: 12.5px; color: var(--ink-soft); }
+  .state .pair { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--rule); margin-bottom: var(--sp-2); }
+  .state .pair div { flex: 1; height: 56px; display: grid; place-items: center; }
+  .state .pair .light { background: var(--paper-deep); color: var(--ink); }
+  .state .pair .dark { background: var(--ink); color: var(--paper); }
+  .state b { display: block; color: var(--ink); font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-faint); padding: 0 var(--sp-3) var(--sp-2) 0; border-bottom: 1px solid var(--rule); }
+  td { padding: var(--sp-2) var(--sp-3) var(--sp-2) 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  tr.sep td { border-bottom: 1px solid var(--rule); }
+  td .note { display: block; margin-top: 2px; }
+  .lead-title { font-family: var(--display); font-weight: 600; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="frame"><rect x="2.5" y="3" width="13" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></g>
+    <g id="glyph"><use href="#frame"/><path d="M5.5 6.6h7M5.5 9h7M5.5 11.4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></g>
+  </defs>
+</svg>
+<div class="board">
+  <div class="sheet">
+    <header>
+      <h1>메뉴바와 알림</h1>
+      <p>메뉴와 알림은 macOS가 그린다. 앱은 아이콘, 메뉴 항목, 알림 문구만 정한다.</p>
+    </header>
+
+    <section class="card wide" aria-labelledby="icon-h">
+      <h2 id="icon-h">메뉴바 아이콘</h2>
+      <p class="d">단색 template 이미지라 라이트와 다크 메뉴바에 자동으로 맞는다. 상태는 모양으로 구분하고, 색은 오류 점 하나만 쓴다.</p>
+      <div class="states">
+        <div class="state"><div class="pair"><div class="light"><svg aria-label="평상시 아이콘" width="20" height="20" viewBox="0 0 18 18"><use href="#glyph"/></svg></div><div class="dark"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18"><use href="#glyph"/></svg></div></div><b>평상시</b>수집 완료, 대기</div>
+        <div class="state"><div class="pair"><div class="light"><svg aria-label="수집 중 아이콘" width="20" height="20" viewBox="0 0 18 18"><g opacity=".45"><use href="#glyph"/></g><path d="M9 2.2a6.8 6.8 0 0 1 6.8 6.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="dark"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18"><g opacity=".45"><use href="#glyph"/></g><path d="M9 2.2a6.8 6.8 0 0 1 6.8 6.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div></div><b>수집 중</b>흐려지고 호가 돈다. 움직임 줄이기 설정이면 호만 멈춰 있다</div>
+        <div class="state"><div class="pair"><div class="light"><svg aria-label="오류 아이콘" width="20" height="20" viewBox="0 0 18 18"><use href="#glyph"/><circle cx="15" cy="3.5" r="3" fill="var(--error)"/></svg></div><div class="dark"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18"><use href="#glyph"/><circle cx="15" cy="3.5" r="3" fill="var(--error)"/></svg></div></div><b>오류</b>빨간 점, 이유는 메뉴 첫 줄에</div>
+        <div class="state"><div class="pair"><div class="light"><svg aria-label="일시정지 아이콘" width="20" height="20" viewBox="0 0 18 18"><g opacity=".45"><use href="#frame"/></g><path d="M7.3 6.8v4.4M10.7 6.8v4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="dark"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18"><g opacity=".45"><use href="#frame"/></g><path d="M7.3 6.8v4.4M10.7 6.8v4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div></div><b>일시정지</b>흐린 틀 안에 정지 표시</div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="menu-h">
+      <h2 id="menu-h">메뉴 항목</h2>
+      <p class="d">아이콘을 누르면 열리는 네이티브 메뉴(NSMenu). 위에서 아래 순서 그대로.</p>
+      <table>
+        <thead><tr><th>항목</th></tr></thead>
+        <tbody>
+          <tr><td>오늘 09:14 수집 완료, 신규 5건<span class="note">상태 줄, 누를 수 없음. 둘째 줄: 이 기기에서 수집, 다음 수집 내일 08:00</span></td></tr>
+          <tr class="sep"><td><span class="lead-title">사이드카의 선언적 관리: OpenKruise SidecarSet 도입과 운영</span><span class="note">오늘의 리드. 누르면 브리프의 그 글로 간다</span></td></tr>
+          <tr><td>오늘의 브리프 열기</td></tr>
+          <tr><td>검색</td></tr>
+          <tr class="sep"><td>Inbox 정리 (4)</td></tr>
+          <tr><td>지금 수집</td></tr>
+          <tr><td>수집 일시정지<span class="note">하위 메뉴: 1시간, 오늘 하루, 다시 켤 때까지</span></td></tr>
+          <tr class="sep"><td>요약 대기 2건<span class="note">있을 때만 보임, 누를 수 없음</span></td></tr>
+          <tr><td>설정</td></tr>
+          <tr><td>context-holder 종료</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" aria-labelledby="noti-h">
+      <h2 id="noti-h">알림</h2>
+      <p class="d">하루 최대 2번. 조용히 끝난 일은 알리지 않는다.</p>
+      <table>
+        <thead><tr><th>상황</th><th>문구</th></tr></thead>
+        <tbody>
+          <tr><td>수집 완료</td><td><b>오늘의 브리프, 신규 5건</b><span class="note">리드 제목 외 4건. 결정 사례 2건. 신규 저장이 1건 이상일 때만</span></td></tr>
+          <tr><td>Claude 연결 끊김</td><td><b>Claude 연결이 끊겼어요</b><span class="note">새 글 3건은 분류와 요약을 미뤘어요. 눌러서 다시 연결하세요</span></td></tr>
+          <tr><td>소스 절반 이상 실패</td><td><b>소스 7곳에서 수집하지 못했어요</b><span class="note">네트워크나 차단 문제일 수 있어요. 눌러서 확인하세요</span></td></tr>
+          <tr><td>3일 연속 수집 못함</td><td><b>3일째 수집하지 못했어요</b><span class="note">모든 기기가 꺼져 있었거나 일시정지 상태였어요</span></td></tr>
+          <tr><td>신규 없음</td><td><span class="note">알리지 않음. 메뉴 상태 줄에만 표시</span></td></tr>
+          <tr><td>다른 기기가 수집</td><td><span class="note">알리지 않음. 받아온 뒤 메뉴 상태 줄 갱신</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+  <p class="board-note">시안. 수치와 제목은 예시다.</p>
+</div>
+</body>
+</html>

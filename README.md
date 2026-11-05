@@ -67,4 +67,4 @@ git과 Python은 앱에 들어 있어 따로 설치할 필요가 없다.
 
 - [계획](docs/plan.md)
 - [상세 아키텍처](docs/architecture/architecture.png)
-- [화면 시안](docs/ui/mockup-today.png)
+- [화면 시안](docs/ui/screens/) · [디자인 시스템](docs/ui/screens/design-system.png)

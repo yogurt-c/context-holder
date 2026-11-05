@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: 첫 실행 설정 시안</title>
+<meta name="description" content="context-holder 첫 실행 설정 3단계 시안. GitHub 로그인, Claude 연결, 첫 수집.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .board { display: flex; flex-direction: column; gap: var(--sp-5); }
+  .prereq { display: flex; justify-content: center; gap: var(--sp-5); font-size: 12.5px; color: var(--caption); }
+  .prereq li { list-style: none; display: inline-flex; gap: var(--sp-1); }
+  .prereq li svg { color: var(--ok); align-self: center; }
+  .prereq .muted { color: var(--ink-soft); }
+  .flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-6); align-items: start; list-style: none; }
+  .cap { display: flex; gap: var(--sp-2); align-items: center; }
+  .cap b { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-size: 12px; }
+
+  .step { background: var(--paper); border-radius: var(--r-window); box-shadow: var(--shadow-panel); height: 620px; display: flex; flex-direction: column; overflow: hidden; padding: var(--sp-5) 36px var(--sp-6); }
+  .steps { align-self: flex-end; display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+  .steps i { width: 24px; height: 4px; border-radius: 2px; background: var(--rule); }
+  .steps i.on { background: var(--ink); }
+  .step h2 { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -0.7px; line-height: 1.3; }
+  .step .lede { font-size: 13.5px; color: var(--ink-soft); margin: var(--sp-2) 0 var(--sp-5); }
+  .code { display: block; font-family: var(--mono); font-size: 34px; font-weight: 700; letter-spacing: 6px; text-align: center; padding: var(--sp-4) 0; background: var(--surface); border: 1px dashed var(--rule); border-radius: var(--r-control); }
+  .code-note { text-align: center; font-size: 12px; color: var(--ink-faint); margin-top: var(--sp-2); }
+  .wait { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); font-size: 13px; color: var(--busy-ink); margin-top: var(--sp-4); }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--busy-tint); border-top-color: var(--busy); }
+  .bottom { margin-top: auto; display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bottom .btn { justify-content: center; }
+  .tiny { font-size: 12px; color: var(--ink-faint); text-align: center; }
+
+  .checklist { list-style: none; display: grid; gap: var(--sp-1); }
+  .checklist li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 2px var(--sp-3); padding: var(--sp-3); border-radius: var(--r-control); border: 1px solid transparent; }
+  .checklist li.cur { background: var(--surface); border-color: var(--rule); }
+  .checklist .ic { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; grid-row: 1 / span 2; }
+  .checklist .ic.done { background: var(--ok); color: var(--on-ink); }
+  .checklist .ic.run { border: 2px solid var(--busy-tint); border-top-color: var(--busy); }
+  .checklist .ic.todo { border: 1.5px solid var(--rule); color: var(--ink-faint); }
+  .checklist b { font-size: 14px; font-weight: 600; }
+  .checklist small { font-size: 12px; color: var(--ink-faint); }
+  .checklist .bar { margin-top: var(--sp-2); grid-column: 2; }
+
+  .toggles { list-style: none; border: 1px solid var(--rule); border-radius: var(--r-control); background: var(--surface); margin-top: var(--sp-4); }
+  .toggles li { display: flex; align-items: center; gap: var(--sp-3); min-height: 44px; padding: 0 var(--sp-4); font-size: 13px; border-top: 1px solid var(--rule-soft); }
+  .toggles li:first-child { border-top: 0; }
+  .toggles small { font-size: 12px; color: var(--ink-faint); }
+  .sw { margin-left: auto; width: 32px; height: 20px; border-radius: 10px; background: var(--ok); position: relative; flex: none; border: 0; cursor: pointer; }
+  .sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-ink); box-shadow: var(--shadow-control); }
+  .time { margin-left: auto; font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); border-radius: var(--r-control); padding: 0 var(--sp-2); min-height: 32px; background: var(--paper); }
+  .first-run { padding: var(--sp-3) var(--sp-4); border-radius: var(--r-control); background: var(--busy-tint); border: 1px solid var(--busy-line); font-size: 12.5px; color: var(--busy-deep); }
+  .first-run .row { display: flex; justify-content: space-between; }
+  .first-run .bar { margin-top: var(--sp-2); }
+</style>
+</head>
+<body>
+<div class="board">
+  <ul class="prereq" aria-label="준비물">
+    <li><b>준비물</b></li>
+    <li><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 6 3 3 5-6"/></svg>macOS</li>
+    <li><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 6 3 3 5-6"/></svg>GitHub 계정</li>
+    <li><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 6 3 3 5-6"/></svg>Claude Pro/Max 구독</li>
+    <li class="muted">git과 Python은 앱에 들어 있다</li>
+  </ul>
+  <ol class="flow">
+    <li>
+      <p class="cap"><b>1</b>GitHub 로그인과 위키 레포 준비</p>
+      <section class="step" aria-labelledby="s1">
+        <div class="steps" aria-label="3단계 중 1단계"><i class="on"></i><i></i><i></i></div>
+        <h2 id="s1">위키를 둘 GitHub 계정을 연결해요</h2>
+        <p class="lede">수집한 글은 내 계정의 private 레포 <code style="font-family:var(--mono);font-size:12px">context-wiki</code>에 저장돼요. 레포가 없으면 새로 만들어요.</p>
+        <code class="code">WDJB-MJHT</code>
+        <p class="code-note">브라우저에서 이 코드를 입력하고 승인하세요</p>
+        <div class="wait" role="status"><span class="spinner" aria-hidden="true"></span>승인 기다리는 중</div>
+        <div class="bottom">
+          <button class="btn lg primary">코드 복사하고 브라우저 열기</button>
+          <p class="tiny">권한은 레포 읽기와 쓰기. 토큰은 macOS 키체인에만 저장해요</p>
+        </div>
+      </section>
+    </li>
+
+    <li>
+      <p class="cap"><b>2</b>Claude 연결</p>
+      <section class="step" aria-labelledby="s2">
+        <div class="steps" aria-label="3단계 중 2단계"><i class="on"></i><i class="on"></i><i></i></div>
+        <h2 id="s2">요약과 분류에 쓸 Claude를 연결해요</h2>
+        <p class="lede">Claude Pro/Max 구독으로 동작해요. API 키는 필요 없어요.</p>
+        <ul class="checklist">
+          <li><span class="ic done" aria-hidden="true">✓</span><b>GitHub 연결됨</b><small>yogurt-c 계정, context-wiki 새로 만듦</small></li>
+          <li class="cur"><span class="ic run" aria-hidden="true"></span><b>Claude Code 설치 중</b><small>공식 설치 프로그램, 약 30초</small><span class="bar busy"><i style="width:62%"></i></span></li>
+          <li><span class="ic todo" aria-hidden="true">3</span><b>Claude 로그인</b><small>브라우저에서 한 번 승인</small></li>
+          <li><span class="ic todo" aria-hidden="true">4</span><b>Claude Code에 위키 검색 연결</b><small>MCP와 세션 시작 브리프. 기존 설정은 백업해요</small></li>
+        </ul>
+        <div class="bottom">
+          <button class="btn lg" disabled>설치가 끝나면 로그인할 수 있어요</button>
+          <p class="tiny">이미 Claude Code에 로그인되어 있으면 이 단계는 건너뛰어요</p>
+        </div>
+      </section>
+    </li>
+
+    <li>
+      <p class="cap"><b>3</b>완료와 첫 수집</p>
+      <section class="step" aria-labelledby="s3">
+        <div class="steps" aria-label="3단계 중 3단계"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        <h2 id="s3">준비됐어요.<br>첫 수집을 시작할게요</h2>
+        <p class="lede">최근 30일 글을 가져와 오늘의 브리프를 만들어요. 몇 분 걸려요.</p>
+        <div class="first-run" role="status">
+          <div class="row brand-row"><span class="brand-row"><b>수집 중:</b> <span class="co-brand">NAVER D2</span></span><span class="num">4 / 13</span></div>
+          <div class="bar busy"><i style="width:31%"></i></div>
+        </div>
+        <ul class="toggles">
+          <li>로그인할 때 자동 실행<button class="sw" role="switch" aria-checked="true" aria-label="로그인할 때 자동 실행"></button></li>
+          <li>매일 수집 <small>꺼져 있었다면 켤 때 수집</small><button class="time" aria-label="매일 수집 시각">08:00</button></li>
+          <li>수집 완료 알림<button class="sw" role="switch" aria-checked="true" aria-label="수집 완료 알림"></button></li>
+        </ul>
+        <div class="bottom">
+          <button class="btn lg primary">메뉴바로 보내기</button>
+          <p class="tiny">창을 닫아도 메뉴바에서 계속 수집하고, 끝나면 알려 드려요</p>
+        </div>
+      </section>
+    </li>
+  </ol>
+  <p class="board-note">시안. 기기 코드와 계정 이름은 예시다.</p>
+</div>
+</body>
+</html>

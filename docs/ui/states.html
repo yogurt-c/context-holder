@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: 상태별 화면 시안</title>
+<meta name="description" content="context-holder의 신규 없음, 수집 중, 오류, Claude 연결 끊김 상태 화면 시안.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); list-style: none; }
+  .pane { background: var(--paper); border-radius: var(--r-window); box-shadow: var(--shadow-panel); height: 420px; padding: var(--sp-5) var(--sp-6); overflow: hidden; }
+  .pane .head { font-family: var(--display); font-size: var(--fs-h1); font-weight: 700; letter-spacing: -1px; }
+  .pane .rule-double { margin: var(--sp-2) 0 var(--sp-4); }
+
+  .empty { padding: var(--sp-3) 0 var(--sp-4); }
+  .empty p { font-size: 14px; color: var(--ink-soft); }
+  .empty p b { color: var(--ink); }
+  .week li { display: grid; grid-template-columns: 60px minmax(0, 1fr) auto; gap: var(--sp-3); padding: var(--sp-2) 0; font-size: 13.5px; align-items: baseline; }
+  .week .d { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+  .week .t { font-family: var(--display); font-weight: 600; }
+
+  .progress-list li { display: grid; grid-template-columns: 20px 128px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center; padding: var(--sp-2) 0; font-size: 13px; }
+  .progress-list .s { font-size: 12px; color: var(--ink-faint); text-align: right; }
+  .ck { color: var(--ok); }
+  .sp { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--busy-tint); border-top-color: var(--busy); display: inline-block; }
+  .wait { width: 8px; height: 8px; border-radius: 50%; background: var(--rule); display: inline-block; margin-left: 2px; }
+  .phase { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); list-style: none; }
+  .phase li { flex: 1; font-size: 12px; text-align: center; padding: var(--sp-1) 0; border-radius: var(--r-paper); background: var(--paper-deep); color: var(--ink-faint); }
+  .phase li.done { background: var(--ok-tint); color: var(--ok); font-weight: 600; }
+  .phase li.now { background: var(--busy-ink); color: var(--on-ink); font-weight: 600; }
+
+  .stack { display: grid; gap: var(--sp-3); }
+  .muted-list { opacity: .55; margin-top: var(--sp-4); list-style: none; }
+  .muted-list li { padding: var(--sp-2) 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
+  .pending li { padding: var(--sp-3) 0; }
+  .pending .title { font-family: var(--display); font-size: 17px; font-weight: 600; margin-top: var(--sp-1); }
+  .pending .meta-row .badge { margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="board">
+  <ul class="grid">
+    <li>
+      <p class="cap">신규 없음 <span>Today 화면. 빈 화면 대신 최근 7일 상위 글</span></p>
+      <section class="pane" aria-label="신규 없음">
+        <h2 class="head">오늘의 브리프</h2>
+        <div class="rule-double"></div>
+        <div class="empty"><p><b>오늘은 새로 저장할 글이 없어요.</b> 13곳을 확인했고 신규 2건은 모두 기준에 맞지 않았어요.</p></div>
+        <p class="note">최근 7일 상위 글</p>
+        <ol class="row-list week">
+          <li><span class="d">11.05</span><span class="t">사이드카의 선언적 관리: OpenKruise SidecarSet</span><span class="badge decision">결정 사례</span></li>
+          <li><span class="d">11.06</span><span class="t">정산 시스템의 이벤트 발행 보장, 폴링에서 CDC로</span><span class="badge decision">결정 사례</span></li>
+          <li><span class="d">11.04</span><span class="t">에이전트, 개념부터 같이 정리해봐요</span><span class="badge video">영상</span></li>
+        </ol>
+      </section>
+    </li>
+
+    <li>
+      <p class="cap">수집 중 <span>이 기기가 오늘 수집을 맡음</span></p>
+      <section class="pane" aria-label="수집 중">
+        <div class="banner busy" role="status" style="margin-bottom:16px"><span class="sp" aria-hidden="true"></span><span class="grow"><b>수집 중 7 / 13.</b> 09:02에 시작했어요. 화면은 계속 써도 돼요.</span><button class="btn sm">일시정지</button></div>
+        <ol class="phase" aria-label="진행 단계"><li class="done">가져오기</li><li class="now" aria-current="step">분류</li><li>요약</li><li>저장과 push</li></ol>
+        <ul class="row-list progress-list">
+          <li class="brand-row"><span class="ck" aria-label="완료">✓</span><span class="co-brand">NAVER D2</span><span class="bar"><i style="width:100%"></i></span><span class="s">신규 2</span></li>
+          <li><span class="ck" aria-label="완료">✓</span>Toss<span class="bar"><i style="width:100%"></i></span><span class="s">신규 1</span></li>
+          <li><span class="ck" aria-label="완료">✓</span>우아한형제들<span class="bar"><i style="width:100%"></i></span><span class="s">신규 0</span></li>
+          <li><span class="sp" aria-label="진행 중"></span>LINE<span class="bar busy"><i style="width:45%"></i></span><span class="s">본문 요청 중</span></li>
+          <li><span class="wait" aria-label="대기"></span>당근<span class="bar"><i style="width:0"></i></span><span class="s">대기</span></li>
+          <li><span class="wait" aria-label="대기"></span>올리브영<span class="bar"><i style="width:0"></i></span><span class="s">대기</span></li>
+        </ul>
+      </section>
+    </li>
+
+    <li>
+      <p class="cap">다른 기기가 수집 중, 오류 <span>원인과 다음 행동을 함께</span></p>
+      <section class="pane" aria-label="다른 기기 수집과 오류">
+        <div class="stack">
+          <div class="banner info" role="status"><span class="dot idle" aria-hidden="true"></span><span class="grow"><b>회사 iMac이 오늘 수집 중.</b> 09:02에 시작했어요. 끝나면 자동으로 받아와요.</span></div>
+          <div class="banner error" role="alert"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg><span class="grow"><b>GitHub에 올리지 못했어요.</b> 네트워크 연결을 확인하세요. 수집한 글은 이 기기에 보관 중이에요.</span><button class="btn sm">다시 시도</button></div>
+          <div class="banner error" role="alert"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg><span class="grow"><b>3일째 수집하지 못했어요.</b> 모든 기기가 꺼져 있었거나 일시정지 상태였어요.</span><button class="btn sm primary">지금 수집</button></div>
+        </div>
+        <ol class="muted-list">
+          <li>어제 브리프: 사이드카의 선언적 관리</li>
+          <li>어제 브리프: Python의 GC가 멀티프로세싱과 만나면</li>
+        </ol>
+      </section>
+    </li>
+
+    <li>
+      <p class="cap">Claude 연결 끊김, 요약 대기 <span>가져오기는 계속하고 분류와 요약만 미룸</span></p>
+      <section class="pane" aria-label="Claude 연결 끊김">
+        <div class="banner busy" role="status" style="margin-bottom:16px"><span class="dot busy" aria-hidden="true"></span><span class="grow"><b>Claude 로그인이 만료됐어요.</b> 새 글 3건은 가져만 두고 분류와 요약은 미뤘어요.</span><button class="btn sm primary">다시 연결</button></div>
+        <ol class="row-list pending">
+          <li>
+            <div class="meta-row"><span class="co-brand">GitHub</span><span>11월 5일</span><span class="badge pending">요약 대기</span></div>
+            <p class="title">How we scaled code search indexing</p>
+            <p class="note">원문 첫 문단만 보여 줘요. 연결되면 분류, 요약, 결정 기록을 만들어요.</p>
+          </li>
+          <li>
+            <div class="meta-row"><span class="co-brand">Toss</span><span>11월 5일</span><span class="badge pending">요약 대기</span></div>
+            <p class="title">정산 시스템의 이벤트 발행 보장, 폴링에서 CDC로</p>
+            <p class="note">원문 첫 문단만 보여 줘요.</p>
+          </li>
+        </ol>
+      </section>
+    </li>
+  </ul>
+  <p class="board-note">시안, 샘플 데이터. 제목 일부는 가상의 글이다.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: Search 시안</title>
+<meta name="description" content="context-holder 데스크톱 앱의 Search 화면 시안. 필터, 결과, 미리보기 3단 구성.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .query-bar { padding: 16px 24px 12px; border-bottom: 1px solid var(--rule-soft); }
+  .query-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--ink-faint); }
+  .query-meta .syn { display: inline-flex; gap: 4px; }
+  .query-meta .syn span { font-family: var(--mono); font-size: 11px; background: var(--paper-deep); border-radius: 3px; padding: 0 4px; color: var(--ink-soft); }
+  .panes { display: grid; grid-template-columns: 200px minmax(0, 1fr) 460px; flex: 1; min-height: 0; }
+
+  .filters { padding: 16px 16px 16px 24px; border-right: 1px solid var(--rule-soft); font-size: 13px; }
+  .filters h3 { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: var(--sp-6) 0 var(--sp-2); }
+  .filters h3:first-child { margin-top: 0; }
+  .check { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--ink-soft); }
+  .check i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--rule-strong); background: var(--surface); flex: none; position: relative; }
+  .check.on i { background: var(--decision); border-color: var(--decision); }
+  .check.on i::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--on-ink); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
+  .check.on { color: var(--ink); font-weight: 500; }
+  .check b { margin-left: auto; font-weight: 400; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+  .seg { display: flex; border: 1px solid var(--rule); border-radius: var(--r-control); overflow: hidden; }
+  .seg span { flex: 1; text-align: center; font-size: 12px; padding: 4px 0; color: var(--ink-soft); }
+  .seg span + span { border-left: 1px solid var(--rule); }
+  .seg span.on { background: var(--ink); color: var(--on-ink); }
+
+  .results { overflow: hidden; }
+  .results li { padding: 16px 20px; cursor: default; border-left: 3px solid transparent; }
+  .results li.sel { background: var(--surface); border-left-color: var(--decision); }
+  .results .meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-faint); }
+  .results .meta .badge { margin-left: auto; }
+  .results h3 { font-family: var(--display); font-size: 16px; font-weight: 600; line-height: 1.4; letter-spacing: -0.3px; margin: 4px 0 4px; }
+  .results p { font-size: 13px; color: var(--ink-soft); }
+
+  .preview { border-left: 1px solid var(--rule-soft); background: var(--surface); padding: 24px 24px; overflow: hidden; }
+  .preview h2 { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; line-height: 1.32; letter-spacing: -0.6px; margin: 8px 0 8px; }
+  .preview .summary { padding-left: 16px; font-size: 14px; color: var(--ink-body); margin-bottom: 16px; }
+  .preview .decision-card { grid-template-columns: 74px 1fr; box-shadow: none; }
+  .preview .tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+  .preview .tags span { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0 8px; }
+  .preview .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .related { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule-soft); font-size: 13px; }
+  .related h3 { font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); margin-bottom: 8px; }
+  .related li { list-style: none; padding: 4px 0; display: flex; gap: 8px; }
+  .related li .co-brand { min-width: 72px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>
+    <nav class="nav" aria-label="주 메뉴">
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h4"/></svg><span>Today</span></a>
+      <a href="#" class="active" aria-current="page"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg><span>Search</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M3 14h10M3.5 5h9" stroke-linecap="round"/><path d="M3.5 5 1.8 9.5h3.4zM12.5 5l-1.7 4.5h3.4z" stroke-linejoin="round"/></svg><span>Decisions</span><span class="tail">38</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9.5 4 3h8l2 6.5V13H2z" stroke-linejoin="round"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg><span>Inbox</span><span class="count" aria-label="4건">4</span></a>
+      <div class="nav-label">관리</div>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3a10 10 0 0 1 10 10M3 7a6 6 0 0 1 6 6" stroke-linecap="round"/><circle cx="3.6" cy="12.4" r="1.2" fill="currentColor" stroke="none"/></svg><span>Sources</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke-linecap="round"/></svg><span>설정</span></a>
+    </nav>
+    <div class="sync-card" aria-label="수집 현황">
+      <div class="head"><span class="dot "></span>오늘 09:14 수집 완료</div>
+      <dl><dt>신규</dt><dd>11</dd><dt>저장</dt><dd>5</dd><dt>보류</dt><dd>4</dd><dt>제외</dt><dd>2</dd></dl>
+      <div class="foot">이 기기에서 수집<br>다음 수집 내일 08:00</div>
+    </div>
+  </aside>
+    <main class="content">
+      <div class="toolbar"><span class="title">Search</span><span class="sub"><span>글 412건</span><span>결정 사례 38건</span></span></div>
+      <div class="query-bar">
+        <div class="search-field lg" role="search">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          <span class="q">outbox 패턴<span class="caret"></span></span>
+        </div>
+        <div class="query-meta">
+          <span>결과 5건, 0.02초</span><span>함께 찾은 말</span>
+          <span class="syn"><span>transactional outbox</span><span>아웃박스</span><span>CDC</span></span>
+        </div>
+      </div>
+      <div class="panes stack-narrow">
+        <div class="filters" aria-label="검색 필터">
+          <h3>종류</h3>
+          <div class="seg"><span>전체</span><span class="on">결정 사례</span></div>
+          <h3>기간</h3>
+          <div class="check"><i></i>최근 30일</div>
+          <div class="check on"><i></i>최근 1년</div>
+          <div class="check"><i></i>전체</div>
+          <h3>회사</h3>
+          <div class="check on"><i></i>우아한형제들<b>2</b></div>
+          <div class="check on"><i></i>Toss<b>2</b></div>
+          <div class="check on"><i></i>당근<b>1</b></div>
+          <div class="check on"><i></i>Netflix<b>1</b></div>
+          <div class="check on"><i></i>Kakao<b>1</b></div>
+          <h3>태그</h3>
+          <div class="check on"><i></i>messaging<b>6</b></div>
+          <div class="check"><i></i>database<b>4</b></div>
+          <div class="check"><i></i>cdc<b>3</b></div>
+        </div>
+
+        <ol class="row-list results" aria-label="검색 결과">
+          <li class="sel">
+            <div class="meta"><span class="co-brand">우아한형제들</span><span>2026.09</span><span class="badge decision">결정 사례</span></div>
+            <h3>주문 이벤트 유실을 막기 위한 <mark>Transactional Outbox</mark> 도입기</h3>
+            <p>DB 커밋과 메시지 발행을 한 트랜잭션처럼 묶으려고 <mark>outbox</mark> 테이블과 CDC 릴레이를 붙였다.</p>
+          </li>
+          <li>
+            <div class="meta"><span class="co-brand">Toss</span><span>2026.06</span><span class="badge decision">결정 사례</span></div>
+            <h3>정산 시스템의 이벤트 발행 보장, 폴링에서 CDC로</h3>
+            <p>폴링 방식 <mark>아웃박스</mark>의 지연과 DB 부하 문제로 Debezium 기반 CDC로 바꾼 과정.</p>
+          </li>
+          <li>
+            <div class="meta"><span class="co-brand">당근</span><span>2026.03</span><span class="badge decision">결정 사례</span></div>
+            <h3>채팅 메시지 순서와 중복을 함께 다루는 법</h3>
+            <p>멱등 키와 <mark>outbox</mark> 순번으로 소비자 쪽 중복 처리를 단순화했다.</p>
+          </li>
+          <li>
+            <div class="meta"><span class="co-brand">Netflix</span><span>2025.12</span><span class="badge decision">결정 사례</span></div>
+            <h3>Keeping many stores in sync without dual writes</h3>
+            <p>여러 저장소 동기화에 이중 쓰기 대신 <mark>CDC</mark> 기반 이벤트 스트림을 택한 배경.</p>
+          </li>
+          <li>
+            <div class="meta"><span class="co-brand">Kakao</span><span>2025.11</span><span class="badge decision">결정 사례</span></div>
+            <h3>메시지 발행 실패를 재시도하지 않기로 한 이유</h3>
+            <p><mark>outbox</mark> 대신 이벤트 소싱으로 상태 자체를 이벤트로 남긴 사례.</p>
+          </li>
+        </ol>
+
+        <article class="preview" aria-label="미리보기">
+          <div class="kicker"><span class="co-brand">우아한형제들</span><span>메시징, 일관성</span><span class="score">2026.09.18</span></div>
+          <h2>주문 이벤트 유실을 막기 위한 Transactional Outbox 도입기</h2>
+          <ul class="summary">
+            <li>주문 저장 후 메시지 발행 전에 장애가 나면 이벤트가 사라졌다.</li>
+            <li>같은 트랜잭션에 outbox 행을 쓰고 CDC 릴레이가 Kafka로 옮긴다.</li>
+            <li>소비자는 이벤트 ID로 멱등 처리해 중복 발행을 견딘다.</li>
+          </ul>
+          <dl class="decision-card" aria-label="결정 기록">
+            <div class="label">결정 기록: 이벤트 발행 일관성<span class="conf">신뢰도 중간<span class="confidence" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></span></span></div>
+            <dt>선택지</dt><dd><span class="opt">2PC</span><span class="opt">발행 후 재시도</span><span class="opt chosen">Outbox + CDC</span></dd>
+            <dt>트레이드오프</dt><dd>유실 없음 ↔ 릴레이 운영과 지연 수백 ms</dd>
+            <dt>결과</dt><dd>이벤트 유실 0건 (도입 후 3개월)</dd>
+          </dl>
+          <div class="tags"><span>outbox</span><span>cdc</span><span>kafka</span><span>idempotency</span></div>
+          <div class="actions">
+            <button class="btn primary">원문 열기</button>
+            <button class="btn decision">Claude에 문맥으로 보내기</button>
+            <button class="btn">주제 비교 보기</button>
+          </div>
+          <div class="related">
+            <h3>같은 주제의 다른 결정</h3>
+            <ul>
+              <li><span class="co-brand">Toss</span>폴링 아웃박스 → CDC 전환</li>
+              <li><span class="co-brand">Kakao</span>이벤트 소싱으로 우회</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </main>
+</div>
+<p class="sample-note">시안, 샘플 데이터. 검색 결과의 회사, 제목, 내용은 가상의 예시다.</p>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: Inbox 시안</title>
+<meta name="description" content="context-holder 데스크톱 앱의 Inbox 화면 시안. 관련도가 애매한 글을 저장하거나 관련없음으로 분류한다.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .panes { display: grid; grid-template-columns: 420px minmax(0, 1fr); flex: 1; min-height: 0; }
+  .queue { border-right: 1px solid var(--rule-soft); overflow: hidden; }
+  .queue .progress { padding: 12px 20px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-faint); border-bottom: 1px solid var(--rule-soft); }
+  .queue .progress .bar { flex: 1; }
+  .queue li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 12px 20px; border-left: 3px solid transparent; }
+  .queue li.sel { background: var(--surface); border-left-color: var(--today); }
+  .queue li.done { opacity: .45; }
+  .queue .meta { font-size: 12px; color: var(--ink-faint); }
+  .queue .title { font-size: 14px; font-weight: 600; line-height: 1.45; grid-column: 1; }
+  .queue .score-pill { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--busy-ink); background: var(--busy-tint); border-radius: 10px; padding: 1px 8px; }
+  .queue .verdict { grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; }
+  .queue .verdict.keep { color: var(--ok); }
+  .queue .verdict.drop { color: var(--ink-faint); }
+
+  .detail { padding: 24px 36px; overflow: hidden; display: flex; flex-direction: column; }
+  .detail h2 { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -0.7px; line-height: 1.3; margin: 8px 0 12px; }
+  .detail .summary { padding-left: 16px; font-size: var(--fs-read); color: var(--ink-body); max-width: 66ch; }
+  .why { margin-top: 24px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-paper); padding: 16px 16px; }
+  .why h3 { font-size: 12px; font-weight: 700; color: var(--ink-faint); display: flex; justify-content: space-between; }
+  .gauge { position: relative; height: 8px; margin: 16px 0 24px; border-radius: 4px;
+    background: linear-gradient(90deg, var(--error-tint) 0 40%, var(--busy-tint) 40% 70%, var(--ok-tint) 70% 100%); border: 1px solid var(--rule-soft); }
+  .gauge .tick { position: absolute; top: 12px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); transform: translateX(-50%); }
+  .gauge .needle { position: absolute; top: -5px; width: 3px; height: 16px; background: var(--ink); border-radius: 2px; transform: translateX(-50%); }
+  .gauge .needle::after { content: "0.61"; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); }
+  .criteria { list-style: none; display: grid; gap: 8px; font-size: 13.5px; }
+  .criteria li { display: flex; gap: 8px; align-items: baseline; }
+  .criteria .sign { font-family: var(--mono); font-weight: 700; width: 14px; }
+  .criteria .plus { color: var(--ok); }
+  .criteria .minus { color: var(--error); }
+  .criteria .src { margin-left: auto; font-size: 11.5px; color: var(--ink-faint); }
+
+  .decide { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; padding-top: 16px; }
+  .decide .btn { height: 44px; justify-content: center; font-size: 14px; font-weight: 600; }
+  .decide .keep { background: var(--ok); border-color: var(--ok); color: var(--on-ink); }
+  .decide .drop:hover { color: var(--error); border-color: var(--error-line); background: var(--error-tint); }
+  .learn { margin-top: 8px; font-size: 12px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>
+    <nav class="nav" aria-label="주 메뉴">
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h4"/></svg><span>Today</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg><span>Search</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M3 14h10M3.5 5h9" stroke-linecap="round"/><path d="M3.5 5 1.8 9.5h3.4zM12.5 5l-1.7 4.5h3.4z" stroke-linejoin="round"/></svg><span>Decisions</span><span class="tail">38</span></a>
+      <a href="#" class="active" aria-current="page"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9.5 4 3h8l2 6.5V13H2z" stroke-linejoin="round"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg><span>Inbox</span><span class="count" aria-label="4건">4</span></a>
+      <div class="nav-label">관리</div>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3a10 10 0 0 1 10 10M3 7a6 6 0 0 1 6 6" stroke-linecap="round"/><circle cx="3.6" cy="12.4" r="1.2" fill="currentColor" stroke="none"/></svg><span>Sources</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke-linecap="round"/></svg><span>설정</span></a>
+    </nav>
+    <div class="sync-card" aria-label="수집 현황">
+      <div class="head"><span class="dot "></span>오늘 09:14 수집 완료</div>
+      <dl><dt>신규</dt><dd>11</dd><dt>저장</dt><dd>5</dd><dt>보류</dt><dd>4</dd><dt>제외</dt><dd>2</dd></dl>
+      <div class="foot">이 기기에서 수집<br>다음 수집 내일 08:00</div>
+    </div>
+  </aside>
+    <main class="content">
+      <div class="toolbar"><span class="title">Inbox</span><span class="sub">관련도 0.4~0.7, 판단이 필요한 글</span>
+        <div class="spacer"></div><button class="btn sm ghost">모두 관련없음</button></div>
+      <div class="panes stack-narrow">
+        <section class="queue" aria-label="보류 글 목록">
+          <div class="progress"><span>오늘 6건 중 2건 정리</span><span class="bar"><i style="width:33%"></i></span><span>4건 남음</span></div>
+          <ol class="row-list">
+            <li class="done"><div class="meta meta-row"><span>Toss</span><span>11월 5일</span></div><p class="title">디자인 시스템 컬러 토큰 개편기</p><span class="verdict drop">관련없음 처리</span></li>
+            <li class="done"><div class="meta meta-row"><span>GitHub</span><span>11월 5일</span></div><p class="title">How we scaled code search indexing</p><span class="verdict keep">저장됨</span></li>
+            <li class="sel"><div class="meta meta-row"><span>우아한형제들</span><span>11월 5일</span></div><p class="title">LLM 응답 캐시로 추론 비용 줄이기</p><span class="score-pill">0.61</span></li>
+            <li><div class="meta meta-row"><span>LINE</span><span>11월 4일</span></div><p class="title">사내 추천 모델을 위한 임베딩 학습 파이프라인</p><span class="score-pill">0.48</span></li>
+            <li><div class="meta meta-row"><span>NHN Cloud</span><span>11월 4일</span></div><p class="title">FE News 26년 11월 소식</p><span class="score-pill">0.44</span></li>
+            <li><div class="meta meta-row"><span>Cloudflare</span><span>11월 4일</span></div><p class="title">Rust로 다시 쓴 프록시의 메모리 사용량</p><span class="score-pill">0.42</span></li>
+          </ol>
+        </section>
+
+        <article class="detail" aria-label="선택한 글">
+          <div class="kicker"><span class="co-brand">우아한형제들</span><span>AI 엔지니어링</span><span class="score">2026.11.05</span></div>
+          <h2>LLM 응답 캐시로 추론 비용 줄이기</h2>
+          <ul class="summary">
+            <li>상담 챗봇 질의의 상당수가 비슷한 질문이라 의미 기반 캐시를 앞단에 뒀다.</li>
+            <li>캐시 키는 질의 임베딩 유사도, 만료는 원본 문서 변경 이벤트로 처리한다.</li>
+            <li>임베딩 모델 선택과 파인튜닝 과정이 글의 절반을 차지한다.</li>
+          </ul>
+
+          <div class="why">
+            <h3><span>왜 보류됐나</span><span>Claude 분류, 기준 profile.yaml</span></h3>
+            <div class="gauge" aria-label="관련도 0.61">
+              <span class="needle" style="left:61%"></span>
+              <span class="tick" style="left:40%">0.4 보류</span><span class="tick" style="left:70%">0.7 저장</span>
+            </div>
+            <ul class="criteria">
+              <li><span class="sign plus">+</span>LLM 비용과 서빙: 캐시로 호출 수를 줄인 설계 결정<span class="src">수집 기준 5.1</span></li>
+              <li><span class="sign plus">+</span>캐시 무효화 전략: 이벤트 기반 만료<span class="src">수집 기준 5.1</span></li>
+              <li><span class="sign minus">−</span>임베딩 모델 학습 비중이 큼<span class="src">제외 기준, ML 모델링</span></li>
+            </ul>
+          </div>
+
+          <div class="decide">
+            <button class="btn keep">저장</button>
+            <button class="btn drop">관련없음</button>
+            <button class="btn">나중에</button>
+          </div>
+          <p class="learn">관련없음으로 고른 글은 다음 분류 때 "제외 예시"로 Claude에 같이 전달된다. 이번 달 6건 반영됨.</p>
+        </article>
+      </div>
+    </main>
+</div>
+<p class="sample-note">시안, 샘플 데이터. 글 제목, 요약, 점수는 가상의 예시다.</p>
+</body>
+</html>

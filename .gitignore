@@ -99,3 +99,11 @@ playwright-report/
 .Spotlight-V100
 .Trashes
 Thumbs.db
+
+# Hallmark 디자인 검사 산출물
+/.hallmark/
+
+# 로컬에 설치한 에이전트 스킬 (npx skills add)
+/.agents/
+/.claude/skills/
+/skills-lock.json

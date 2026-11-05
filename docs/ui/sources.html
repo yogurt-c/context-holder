@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: Sources 시안</title>
+<meta name="description" content="context-holder 데스크톱 앱의 Sources 화면 시안. 소스별 수집 상태와 기기 동기화, Claude 연결 상태.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; padding: 20px 24px; flex: 1; min-height: 0; }
+  .banner { margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); padding: 0 8px 8px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  tbody td { padding: 8px 8px; border-bottom: 1px solid var(--rule-soft); vertical-align: middle; white-space: nowrap; }
+  tbody tr:hover td { background: var(--surface); }
+  tbody tr.err td { background: var(--error-row); }
+  td.co-cell { display: flex; min-height: 40px; align-items: center; gap: 8px; font-weight: 600; }
+  td.co-cell small { font-weight: 400; color: var(--ink-faint); font-size: 11.5px; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  td .when { color: var(--ink-soft); }
+  td .msg { color: var(--error); font-size: 12px; }
+  .spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; vertical-align: middle; }
+  .spark i { width: 4px; background: var(--decision-soft); border-radius: 1px; }
+  .pass { display: flex; align-items: center; gap: 8px; }
+  .pass .bar { width: 64px; }
+  .pass span { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); width: 32px; text-align: right; }
+  .more { color: var(--ink-faint); font-size: 16px; background: none; border: 0; border-radius: var(--r-control); width: 28px; height: 28px; cursor: pointer; }
+  .more:hover { background: var(--paper-deep); color: var(--ink); }
+  .group td { padding-top: 16px; font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); border-bottom: 1px solid var(--rule); background: transparent !important; }
+
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .kv { display: grid; grid-template-columns: 92px 1fr; gap: 8px 8px; font-size: 12.5px; }
+  .kv dt { color: var(--ink-faint); }
+  .kv code { font-family: var(--mono); font-size: 11.5px; }
+  .device { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; border-top: 1px dashed var(--rule-soft); }
+  .device:first-of-type { border-top: 0; }
+  .device .t { margin-left: auto; font-size: 12px; color: var(--ink-faint); }
+  .device .you { font-size: 11px; font-weight: 700; color: var(--decision); background: var(--decision-tint); border-radius: 3px; padding: 0 4px; }
+  .suggest li { list-style: none; padding: 8px 0; border-top: 1px dashed var(--rule-soft); font-size: 13px; }
+  .suggest li:first-child { border-top: 0; }
+  .suggest .why { font-size: 11.5px; color: var(--ink-faint); margin: 2px 0 8px; }
+  .suggest code { font-family: var(--mono); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>
+    <nav class="nav" aria-label="주 메뉴">
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h4"/></svg><span>Today</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg><span>Search</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M3 14h10M3.5 5h9" stroke-linecap="round"/><path d="M3.5 5 1.8 9.5h3.4zM12.5 5l-1.7 4.5h3.4z" stroke-linejoin="round"/></svg><span>Decisions</span><span class="tail">38</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9.5 4 3h8l2 6.5V13H2z" stroke-linejoin="round"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg><span>Inbox</span><span class="count" aria-label="4건">4</span></a>
+      <div class="nav-label">관리</div>
+      <a href="#" class="active" aria-current="page"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3a10 10 0 0 1 10 10M3 7a6 6 0 0 1 6 6" stroke-linecap="round"/><circle cx="3.6" cy="12.4" r="1.2" fill="currentColor" stroke="none"/></svg><span>Sources</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke-linecap="round"/></svg><span>설정</span></a>
+    </nav>
+    <div class="sync-card" aria-label="수집 현황">
+      <div class="head"><span class="dot error"></span>소스 2곳 실패</div>
+      <dl><dt>신규</dt><dd>9</dd><dt>저장</dt><dd>4</dd><dt>보류</dt><dd>3</dd><dt>요약 대기</dt><dd>2</dd></dl>
+      <div class="foot">09:14 완료, 일부 실패</div>
+    </div>
+  </aside>
+    <main class="content">
+      <div class="toolbar"><span class="title">Sources</span><span class="sub"><span>13곳</span><span>국내 9</span><span>해외 4</span></span>
+        <div class="spacer"></div><button class="btn sm">sources.yaml 열기</button><button class="btn sm primary">소스 추가</button></div>
+      <div class="page stack-narrow">
+        <section>
+          <div class="banner error">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg>
+            <span class="grow"><b>소스 2곳 수집 실패.</b> Kakao 본문 요청이 2회 연속 403, 올리브영 feed 시간 초과. 다른 소스는 정상 저장됐다.</span>
+            <button class="btn sm">다시 시도</button>
+          </div>
+          <div class="table-scroll"><table aria-label="소스 목록">
+            <thead><tr><th>회사</th><th>방식</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th><th></th></tr></thead>
+            <tbody>
+              <tr class="group"><td colspan="7">국내</td></tr>
+              <tr><td class="co-cell">NAVER D2 <small>d2.atom</small></td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">9</td><td><span class="spark"><i style="height:6px"></i><i style="height:10px"></i><i style="height:8px"></i><i style="height:14px"></i><i style="height:18px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:78%"></i></span><span>78%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">Toss</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">6</td><td><span class="spark"><i style="height:10px"></i><i style="height:8px"></i><i style="height:12px"></i><i style="height:9px"></i><i style="height:11px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:67%"></i></span><span>67%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">우아한형제들</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">5</td><td><span class="spark"><i style="height:8px"></i><i style="height:12px"></i><i style="height:6px"></i><i style="height:10px"></i><i style="height:9px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:80%"></i></span><span>80%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">LINE <small>LY Corp</small></td><td><span class="badge plain">본문 요청</span></td><td class="when">오늘 09:13</td><td class="r">4</td><td><span class="spark"><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i><i style="height:7px"></i><i style="height:8px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:50%"></i></span><span>50%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">당근</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">3</td><td><span class="spark"><i style="height:4px"></i><i style="height:8px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:7px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:100%"></i></span><span>100%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr class="err"><td class="co-cell">올리브영</td><td><span class="badge plain">본문 요청</span></td><td><span class="msg">feed 시간 초과</span></td><td class="r">2</td><td><span class="spark"><i style="height:6px"></i><i style="height:4px"></i><i style="height:8px"></i><i style="height:5px"></i><i style="height:2px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:50%"></i></span><span>50%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">무신사</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">2</td><td><span class="spark"><i style="height:4px"></i><i style="height:6px"></i><i style="height:4px"></i><i style="height:8px"></i><i style="height:6px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:50%"></i></span><span>50%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr class="err"><td class="co-cell">Kakao</td><td><span class="badge plain">본문 요청</span></td><td><span class="msg">본문 403, 2회 연속</span></td><td class="r">4</td><td><span class="spark"><i style="height:8px"></i><i style="height:10px"></i><i style="height:6px"></i><i style="height:4px"></i><i style="height:2px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:60%"></i></span><span>60%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">NHN Cloud</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:13</td><td class="r">5</td><td><span class="spark"><i style="height:10px"></i><i style="height:8px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:40%"></i></span><span>40%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr class="group"><td colspan="7">해외</td></tr>
+              <tr><td class="co-cell">Netflix</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:14</td><td class="r">3</td><td><span class="spark"><i style="height:6px"></i><i style="height:4px"></i><i style="height:8px"></i><i style="height:6px"></i><i style="height:8px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:100%"></i></span><span>100%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">GitHub</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:14</td><td class="r">6</td><td><span class="spark"><i style="height:8px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:8px"></i><i style="height:10px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:67%"></i></span><span>67%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">Cloudflare</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:14</td><td class="r">12</td><td><span class="spark"><i style="height:14px"></i><i style="height:18px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:14px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:25%"></i></span><span>25%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+              <tr><td class="co-cell">Airbnb</td><td><span class="badge plain">feed 전문</span></td><td class="when">오늘 09:14</td><td class="r">1</td><td><span class="spark"><i style="height:2px"></i><i style="height:4px"></i><i style="height:2px"></i><i style="height:4px"></i><i style="height:4px"></i></span></td><td><div class="pass"><span class="bar"><i style="width:100%"></i></span><span>100%</span></div></td><td><button class="more" aria-label="소스 메뉴">⋯</button></td></tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <aside class="side">
+          <section class="panel" aria-label="동기화">
+            <h2 class="panel-head">기기와 동기화 <span>원본은 GitHub</span></h2>
+            <div class="body">
+              <dl class="kv">
+                <dt>위키 레포</dt><dd><code>yogurt-c/context-wiki</code> (private)</dd>
+                <dt>마지막 pull</dt><dd>10:02, 변경 3파일 인덱싱</dd>
+                <dt>오늘 수집</dt><dd>이 기기, 09:02~09:14</dd>
+              </dl>
+              <div style="margin-top:8px">
+                <div class="device"><span class="dot"></span>MacBook Pro <span class="you">이 기기</span><span class="t">방금</span></div>
+                <div class="device">회사 iMac<span class="t">어제 18:40에 수집</span></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel" aria-label="Claude">
+            <h2 class="panel-head">Claude 연결 <span>구독</span></h2>
+            <div class="body">
+              <dl class="kv">
+                <dt>상태</dt><dd><span class="badge ok">연결됨</span></dd>
+                <dt>오늘 사용</dt><dd>분류 1회, 요약 5회</dd>
+                <dt>요약 대기</dt><dd>2건, 다음 수집 때 재시도</dd>
+              </dl>
+            </div>
+          </section>
+          <section class="panel" aria-label="소스 추천">
+            <h2 class="panel-head">추가 후보 <span>Claude 검색 0건에서</span></h2>
+            <ul class="body suggest">
+              <li>feature flag 운영 사례
+                <div class="why"><code>find_decision_cases("feature flag")</code> 0건, 3회 질의</div>
+                <button class="btn sm">소스 찾아보기</button> <button class="btn sm ghost">무시</button></li>
+              <li>Spotify Engineering
+                <div class="why">Claude가 세션 중에 <code>suggest_source</code>로 추천</div>
+                <button class="btn sm">추가</button> <button class="btn sm ghost">무시</button></li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </main>
+</div>
+<p class="sample-note">시안, 샘플 데이터. 수집 상태, 수치, 기기 이름은 예시다.</p>
+</body>
+</html>

@@ -4,7 +4,7 @@
 
 - 개요: [architecture/overview.png](architecture/overview.png)
 - 상세 아키텍처: [architecture/architecture.png](architecture/architecture.png)
-- 화면 시안: [ui/mockup-today.png](ui/mockup-today.png)
+- 화면 시안: [ui/screens/](ui/screens/) (디자인 시스템 · Today · Search · Decisions · Inbox · Sources · 메뉴바 · 첫 실행 · 상태별)
 
 ## 1. 목표
 
@@ -43,7 +43,7 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 
 메뉴바 메뉴:
 - 상태 줄: "오늘 09:14 수집 완료 · 신규 5건" / "수집 중 3/14" / "오류: 소스 2개 실패"
-- 브리프 열기 (⌘⇧B), 검색… (⌘⇧K)
+- 브리프 열기, 검색
 - 지금 수집, 일시정지
 - 종료
 
@@ -263,16 +263,16 @@ media:
 - **한국어**: 기본 `unicode61` 토크나이저는 조사 때문에 검색이 잘 안 된다. `trigram` 토크나이저나 kiwipiepy 형태소 분석을 쓴다.
 - **한·영 교차 검색**: 한국어 요약과 영문 정규화 태그를 함께 저장하고, `profile.yaml` 용어 사전으로 동의어를 보강한다.
 - **필드 가중치**: decision > tags > summary.
-- **임베딩**: M2 평가에서 recall이 부족할 때만 로컬 다국어 임베딩(bge-m3 등)을 sqlite-vec로 추가한다.
+- **임베딩**: M1 MCP 평가에서 recall이 부족할 때만 로컬 다국어 임베딩(bge-m3 등)을 sqlite-vec로 추가한다.
 
 ## 7. 화면 (데스크톱 앱 메인 창)
 
-출근 후 아침에 펼쳐 보는 "기술 조간 브리프". 시안: [ui/mockup-today.png](ui/mockup-today.png)
+출근 후 아침에 펼쳐 보는 "기술 조간 브리프". 시안: [ui/screens/today.png](ui/screens/today.png)
 
 | 화면 | 내용 |
 |---|---|
 | **Today** | 오늘의 리드 이슈 1건(요약 + Decision Record 카드)과 2~5위 목록. 관련도 × 신선도 × 회사 가중치 순. 좌측에 수집 현황(확인한 소스, 신규, 저장, 보류, 제외, Claude 사용 건수) |
-| **Search** | ⌘K 검색, 필터(결정 사례만, 기간, 회사, 태그), 결과에 하이라이트 스니펫 |
+| **Search** | 검색, 필터(결정 사례만, 기간, 회사, 태그), 결과에 하이라이트 스니펫 |
 | **Decisions** | 주제별 결정 사례 모음. 같은 문제에 회사별로 무엇을 골랐는지 나란히 비교 |
 | **Inbox** | 보류 글을 저장 또는 관련없음으로 분류. 이 클릭이 곧 ⑤의 피드백 |
 | **Sources** | 소스별 최근 수집 성공 여부, 신규 글 수, 필터 통과율 |
@@ -286,7 +286,7 @@ media:
 - 엔진이 FastAPI + Jinja2 + HTMX로 HTML을 렌더링하고, Tauri 창이 `http://127.0.0.1:<port>`를 띄운다. 프론트엔드 빌드가 없다.
 - 엔진은 `127.0.0.1`의 임의 포트에 바인딩한다. 시작할 때 생성한 토큰을 앱에만 전달해서 다른 로컬 프로세스의 요청을 막는다.
 - "Claude에 문맥으로 보내기"(클립보드)와 알림은 Tauri API로 처리한다.
-- 디자인: 종이 톤 배경, 명조 헤드라인 + Pretendard 본문, 붉은 잉크(오늘 · 영상) / 청록(결정 사례) 의미 색상.
+- 디자인: 종이 톤 배경, 제목과 본문 모두 Pretendard(굵고 촘촘한 제목), 붉은 잉크(오늘 · 영상) / 청록(결정 사례) 의미 색상.
 - 더 풍부한 상호작용이 필요해지면 그때 화면만 Svelte 등으로 옮긴다. 엔진은 JSON API를 함께 제공한다.
 
 ## 8. MCP 검색 (Claude가 직접 검색하는 경우)
@@ -354,8 +354,8 @@ media:
 | 단계 | 범위 | 완료 기준 |
 |---|---|---|
 | **M0 검증** | 평가셋 50개 수동 라벨링, `claude -p` 분류 정확도와 JSON 출력 안정성 확인 | 소스별 수집 방식 확정, 분류 정확도 기준선 확보 |
-| **M1 브리프** | 엔진(스케줄러 · 수집 · 분류 · 요약 · 커밋 · 인덱싱), **Tauri 앱(메뉴바 · 자동 실행 · 알림 · Today / Search / Inbox 창)**, **첫 실행 설정(GitHub · Claude 연결)**, SessionStart hook | 일주일간 손대지 않아도 매일 아침 수집 완료 알림이 오고, 관련 글 precision 80% 이상 |
-| **M2 문맥** | MCP 서버, Decisions 화면, 결정 주제 정규화, MCP 질의 로그 | 평가셋 recall@5 70% 이상, 실제 기술 결정에서 사례 3건 이상 인용 |
+| **M1 엔진 · 문맥** | 엔진(수집 · 분류 · 요약 · 인덱싱 · Git 동기화), `ctx` CLI, **MCP 서버**, SessionStart hook, MCP 질의 로그 | `ctx sync`로 매일 위키가 쌓이고 관련 글 precision 80% 이상. 평가셋 recall@5 70% 이상 |
+| **M2 앱** | 화면(Today · Search · Inbox), **Tauri 앱(메뉴바 · 자동 실행 · 알림 · 스케줄)**, **첫 실행 설정(GitHub · Claude 연결)**, 패키징, Decisions 화면 · 결정 주제 정규화 | 새 Mac에서 설치 후 일주일간 손대지 않아도 매일 아침 수집 완료 알림이 오고, 실제 기술 결정에서 사례 3건 이상 인용 |
 | **M3 정리** | 피드백의 Classifier 반영, Pruner, Sources 화면 | 관련없음 피드백이 다음 수집에 반영됨 |
 | **M4 확장** | 영상 보강(Media Worker), 로컬 임베딩 | 필요성이 확인된 것만 진행 |
 
@@ -368,7 +368,6 @@ media:
 | 엔진 번들 크기와 패키징 복잡도 | 엔진(PyInstaller)과 git(pygit2)을 앱에 포함. Whisper 등 M4 도구는 필요할 때 설치 |
 | Claude Code 설치 · 로그인 실패 | 설정 화면에서 상태 확인 · 다시 연결. 연결 전 수집 글은 pending으로 보관 |
 | Claude 의존 (한도 · 장애 · 약관) | 하루 호출 수가 작음. 실패 시 pending 후 재처리. 자동화 사용 범위는 현재 약관 확인 |
-| `claude -p` 구독 한도 · 약관 | 하루 2~3건으로 제한. 실패 시 로컬로 대체. 자동화 사용 범위는 현재 약관 확인 |
 | Decision Record 환각 | evidence 코드 검증, confidence 표시, 결정 없으면 null |
 | 관련도 임계값(0.7) 근거 없음 | M0 평가셋으로 보정하고 inbox 비율 관찰 |
 | 신규 글이 적은 날 브리프가 빈약 | 화면에 "오늘 신규 없음"과 최근 7일 상위 글 표시 |

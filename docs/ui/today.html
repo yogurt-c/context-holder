@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>context-holder: Today 시안</title>
+<meta name="description" content="context-holder 데스크톱 앱의 Today 화면 시안. 오늘 저장한 글과 결정 기록을 신문 1면처럼 보여 준다.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .page { padding: var(--sp-6) 40px 0; }
+  @media (max-width: 60rem) { .page { padding: var(--sp-4); } .briefs li { grid-template-columns: 28px minmax(0, 1fr); } .briefs .side { grid-row: auto; grid-column: 2; flex-direction: row; align-items: center; } }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 36px; }
+  .lead { padding-bottom: var(--sp-5); border-bottom: 1px solid var(--rule); }
+  .lead h2 { font-family: var(--display); font-size: var(--fs-h1); font-weight: 700; line-height: 1.28; letter-spacing: -0.9px; margin: var(--sp-2) 0 var(--sp-3); }
+  .lead .summary { font-size: var(--fs-read); color: var(--ink-body); max-width: 64ch; padding-left: 20px; }
+  .lead .summary li { margin-bottom: var(--sp-1); }
+  .lead .decision-card { margin-top: var(--sp-4); }
+  .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); }
+  .actions .ghost { margin-left: auto; }
+
+  .briefs { list-style: none; counter-reset: n 1; }
+  .briefs li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--sp-1) var(--sp-4); padding: var(--sp-4) 0; border-bottom: 1px solid var(--rule-soft); counter-increment: n; }
+  .briefs li::before { content: counter(n); grid-row: 1 / span 2; font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--rule); line-height: 1; }
+  .briefs h3 { font-family: var(--display); font-size: var(--fs-h3); font-weight: 600; letter-spacing: -0.4px; line-height: 1.38; }
+  .briefs .meta-row { grid-column: 2; font-size: 13px; }
+  .briefs .side { grid-row: 1 / span 2; grid-column: 3; display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-2); }
+
+  aside.rail-right { display: flex; flex-direction: column; gap: var(--sp-4); }
+  .topics li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-1) var(--sp-3); padding: var(--sp-2) 0; font-size: 13px; border: 0 !important; }
+  .topics .bar { grid-column: 1 / -1; }
+  .topics b { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+  .inbox-mini li { padding: var(--sp-2) 0; font-size: 13px; }
+  .inbox-mini .row { display: flex; justify-content: space-between; align-items: center; margin-top: var(--sp-2); }
+  .mcp { list-style: none; }
+  .mcp li { display: flex; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-1) 0; font-size: 12px; }
+  .mcp code { font-family: var(--mono); font-size: 11.5px; }
+  .mcp .hit { font-family: var(--mono); font-size: 11.5px; color: var(--ok); }
+  .mcp .miss { font-family: var(--mono); font-size: 11.5px; color: var(--today); font-weight: 700; }
+  .pending-line { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: 12.5px; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>
+    <nav class="nav" aria-label="주 메뉴">
+      <a href="#" class="active" aria-current="page"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h4"/></svg><span>Today</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg><span>Search</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M3 14h10M3.5 5h9" stroke-linecap="round"/><path d="M3.5 5 1.8 9.5h3.4zM12.5 5l-1.7 4.5h3.4z" stroke-linejoin="round"/></svg><span>Decisions</span><span class="tail">38</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9.5 4 3h8l2 6.5V13H2z" stroke-linejoin="round"/><path d="M2 9.5h3.5l1 1.5h3l1-1.5H14"/></svg><span>Inbox</span><span class="count" aria-label="4건">4</span></a>
+      <div class="nav-label">관리</div>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3a10 10 0 0 1 10 10M3 7a6 6 0 0 1 6 6" stroke-linecap="round"/><circle cx="3.6" cy="12.4" r="1.2" fill="currentColor" stroke="none"/></svg><span>Sources</span></a>
+      <a href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke-linecap="round"/></svg><span>설정</span></a>
+    </nav>
+    <div class="sync-card" aria-label="수집 현황">
+      <div class="head"><span class="dot "></span>오늘 09:14 수집 완료</div>
+      <dl><dt>신규</dt><dd>11</dd><dt>저장</dt><dd>5</dd><dt>보류</dt><dd>4</dd><dt>제외</dt><dd>2</dd></dl>
+      <div class="foot">이 기기에서 수집<br>다음 수집 내일 08:00</div>
+    </div>
+  </aside>
+  <main class="content">
+    <div class="toolbar">
+      <button class="btn sm ghost" aria-label="이전 날 보기">‹ 11월 4일</button>
+      <span class="title">11월 5일 수요일</span>
+      <div class="spacer"></div>
+      <button class="search-field" aria-label="위키 검색 열기">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+        <span class="q">사례 검색: Kafka 도입, outbox, 사이드카</span>
+      </button>
+      <button class="btn sm">지금 수집</button>
+    </div>
+
+    <div class="scroll"><div class="page">
+      <header class="masthead">
+        <h1>오늘의 브리프</h1>
+        <div class="meta">관련도, 신선도, 회사 가중치 순<br>저장 5건, 보류 4건, 제외 2건</div>
+      </header>
+      <div class="rule-double"></div>
+
+      <div class="layout stack-narrow">
+        <section aria-label="오늘의 주요 이슈">
+          <article class="lead">
+            <div class="kicker"><span class="co-brand">NAVER D2</span><span>Kubernetes, 운영</span><span class="score">relevance 0.93</span></div>
+            <h2>사이드카의 선언적 관리: OpenKruise SidecarSet 도입과 운영</h2>
+            <ul class="summary">
+              <li>파드마다 따로 관리하던 사이드카를 SidecarSet 하나로 선언해 버전을 통일했다.</li>
+              <li>사이드카만 교체하는 in-place 업데이트로 애플리케이션 재시작 없이 배포한다.</li>
+              <li>도입 뒤 남은 운영 과제와 점검 항목을 정리했다.</li>
+            </ul>
+            <dl class="decision-card" aria-label="결정 기록">
+              <div class="label">결정 기록: 사이드카 관리 방식<span class="conf">신뢰도 높음<span class="confidence" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span></span></div>
+              <dt>문제</dt><dd>서비스마다 사이드카 버전이 달라 일괄 업데이트와 장애 대응이 어려움</dd>
+              <dt>선택지</dt><dd><span class="opt">매니페스트 직접 관리</span><span class="opt">Admission Webhook 자체 구현</span><span class="opt chosen">OpenKruise SidecarSet</span></dd>
+              <dt>트레이드오프</dt><dd>재시작 없는 업데이트 ↔ CRD와 컨트롤러 운영 부담</dd>
+              <p class="evidence">원문 근거 문장 2개, 원문 대조 통과</p>
+            </dl>
+            <div class="actions">
+              <button class="btn primary">원문 열기</button>
+              <button class="btn decision">Claude에 문맥으로 보내기</button>
+              <button class="btn">북마크</button>
+              <button class="btn ghost">관련없음</button>
+            </div>
+          </article>
+
+          <ol class="briefs">
+            <li>
+              <h3>에이전트, 개념부터 같이 정리해봐요: 워크플로우, 하네스, Context</h3>
+              <div class="meta-row brand-row"><span class="co-brand">NAVER D2</span><span>세션 영상 글. 본문 요약으로 저장했고 영상 보강 대상이다.</span></div>
+              <div class="side"><span class="badge video">영상</span><span class="score">0.91</span></div>
+            </li>
+            <li>
+              <h3>Python의 GC가 멀티프로세싱과 만나면 생기는 일</h3>
+              <div class="meta-row brand-row"><span class="co-brand">NAVER D2</span><span>fork 이후 GC가 copy-on-write를 깨뜨려 메모리가 늘어나는 원인과 대응.</span></div>
+              <div class="side"><span class="badge decision">결정 사례</span><span class="score">0.88</span></div>
+            </li>
+            <li>
+              <h3>Hive는 잊으려 했지만, Spark는 기억하고 있었다</h3>
+              <div class="meta-row brand-row"><span class="co-brand">NAVER D2</span><span>사라진 테이블 메타데이터를 Spark 캐시가 붙잡고 있던 장애 분석.</span></div>
+              <div class="side"><span class="score">0.81</span></div>
+            </li>
+            <li>
+              <h3>컨테이너처럼 쓰고, VM처럼 격리하기</h3>
+              <div class="meta-row brand-row"><span class="co-brand">NAVER D2</span><span>세션 영상 글. 본문이 짧아 요약만 저장했다.</span></div>
+              <div class="side"><span class="badge video">영상, 요약만</span><span class="score">0.79</span></div>
+            </li>
+          </ol>
+          <div class="pending-line"><span class="badge pending">요약 대기 2</span> Claude 응답이 없어 다음 수집 때 다시 요약한다.</div>
+        </section>
+
+        <aside class="rail-right">
+          <section class="panel" aria-label="결정 사례 주제">
+            <h3 class="panel-head">결정 사례 주제 <span>누적 38건</span></h3>
+            <ul class="row-list body topics">
+              <li>메시지 큐 선택<b>12</b><div class="bar"><i style="width:100%"></i></div></li>
+              <li>사이드카, 서비스 메시<b>7</b><div class="bar"><i style="width:58%"></i></div></li>
+              <li>DB 샤딩 전략<b>6</b><div class="bar"><i style="width:50%"></i></div></li>
+              <li>이벤트 발행 일관성<b>4</b><div class="bar"><i style="width:33%"></i></div></li>
+            </ul>
+          </section>
+
+          <section class="panel" aria-label="보류 글">
+            <h3 class="panel-head">Inbox <span>관련도 0.4~0.7</span></h3>
+            <ul class="row-list body inbox-mini">
+              <li>LLM 응답 캐시로 추론 비용 줄이기
+                <div class="row"><span class="note"><span class="score">0.61</span> AI 엔지니어링</span><span><button class="btn sm">저장</button> <button class="btn sm ghost">관련없음</button></span></div></li>
+              <li>FE News 26년 11월 소식
+                <div class="row"><span class="note"><span class="score">0.44</span> 프론트엔드</span><span><button class="btn sm">저장</button> <button class="btn sm ghost">관련없음</button></span></div></li>
+            </ul>
+          </section>
+
+          <section class="panel" aria-label="Claude 검색 기록">
+            <h3 class="panel-head">Claude가 찾아본 것 <span>MCP, 최근 7일</span></h3>
+            <ul class="body mcp">
+              <li><code>find_decision_cases("outbox")</code><span class="hit">3건</span></li>
+              <li><code>search_wiki(["사이드카","sidecar"])</code><span class="hit">5건</span></li>
+              <li><code>find_decision_cases("feature flag")</code><span class="miss">0건</span></li>
+            </ul>
+            <p class="note" style="padding:0 16px 12px">0건 주제는 Sources에 소스 추가 후보로 표시한다.</p>
+          </section>
+        </aside>
+      </div>
+    </div></div>
+  </main>
+</div>
+<p class="sample-note">시안, 샘플 데이터. 글 제목은 네이버 D2의 실제 글이고 요약, 결정 기록, 점수는 예시다.</p>
+</body>
+</html>
