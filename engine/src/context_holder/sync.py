@@ -63,6 +63,7 @@ def run_sync(
         since=now - timedelta(days=days),
         seen_urls=wiki.seen_urls() | pending_urls,
         etags=etags,
+        seen_hashes=wiki.seen_hashes(),
     )
     by_url = {a.url: a for a in collected.articles}
 
@@ -81,7 +82,9 @@ def run_sync(
         enrichment, reason = state.try_enrich(llm, article)
         wiki.write_article(article, decision, enrichment, collected=now, reason=reason)
         pending_enrich += enrichment is None
-    wiki.record_seen(decisions, when=now)
+    wiki.record_seen(
+        decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
+    )
 
     counts = {b: sum(d.bucket is b for d in decisions) for b in Bucket}
     return SyncReport(

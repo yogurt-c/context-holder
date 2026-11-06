@@ -196,3 +196,12 @@ def test_url_without_path_uses_article_id(tmp_path: Path):
     path = wiki.write_article(a, decision(a.url), enrichment(), collected=NOW)
 
     assert path.name == f"{article_id(a.url)}.md"
+
+
+def test_seen_records_keep_content_hashes(tmp_path: Path):
+    wiki = Wiki(tmp_path)
+
+    wiki.record_seen([decision("https://x/1")], when=NOW, hashes={"https://x/1": "h1"})
+    wiki.record_seen([decision("https://x/2")], when=NOW)
+
+    assert wiki.seen_hashes() == frozenset({"h1"})

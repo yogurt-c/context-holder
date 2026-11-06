@@ -232,6 +232,7 @@ def _next_batch(state) -> list[dict[str, Any]]:
 
 def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget: Budget):
     seen = wiki.seen_urls()
+    bodies = set(wiki.seen_hashes())
     feeds: dict[str, dict[str, FeedEntry]] = {}
     articles: dict[str, tuple[dict[str, Any], Article]] = {}
     for item in batch:
@@ -250,6 +251,12 @@ def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget
         if article.published and article.published < cutoff:
             item["status"] = "old"
             continue
+        if article.content_hash in bodies:
+            item["status"] = (
+                "duplicate"  # 같은 글이 다른 주소로 올라와 있다 (Toss 숫자 · 영문 주소 등)
+            )
+            continue
+        bodies.add(article.content_hash)
         articles[article.url] = (item, article)
     if not articles:
         return []
@@ -265,7 +272,7 @@ def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget
                 continue  # 한도 · 로그인 문제면 대기열에 남겨 다음 실행에서 다시 한다
             origin = "init" if decision.bucket is Bucket.INBOX else None
             wiki.write_article(article, decision, enrichment, now, reason=reason, origin=origin)
-        wiki.record_seen([decision], when=now)
+        wiki.record_seen([decision], when=now, hashes={article.url: article.content_hash})
         item.update(status="done", bucket=decision.bucket.value)
         finished.append(decision.bucket)
     return finished

@@ -357,3 +357,23 @@ def test_known_title_and_date_win_over_page(make_client):
     a = fetch_article(client, FULL, "https://toss.tech/x", title="목록 제목", published=when)
 
     assert (a.title, a.published) == ("목록 제목", when)
+
+
+def test_skips_bodies_seen_in_earlier_runs(make_client):
+    page = article_page("같은 글", LONG_BODY)
+
+    def client_with(link: str):
+        body = rss([{"title": "글", "link": link, "content": page}])
+        return make_client(routes({FULL.feed_url: httpx.Response(200, text=body)}))
+
+    [first] = collect(client_with("https://toss.tech/article/slug"), [FULL], since=SINCE).articles
+
+    result = collect(
+        client_with("https://toss.tech/article/54329"),
+        [FULL],
+        since=SINCE,
+        seen_hashes=frozenset({first.content_hash}),
+    )
+
+    assert result.articles == ()
+    assert result.reports[0].skipped == 1

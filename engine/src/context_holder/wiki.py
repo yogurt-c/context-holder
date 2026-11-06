@@ -7,7 +7,7 @@
 import hashlib
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from importlib import resources
@@ -65,14 +65,26 @@ class Wiki:
     # ---------- 본 글 기록 ----------
 
     def seen_urls(self) -> frozenset[str]:
-        urls: set[str] = set()
+        return frozenset(row["url"] for row in self._seen_rows())
+
+    def _seen_rows(self) -> list[dict[str, Any]]:
+        rows = []
         for path in sorted((self.root / "state/seen").glob("*.jsonl")):
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
-                    urls.add(json.loads(line)["url"])
-        return frozenset(urls)
+                    rows.append(json.loads(line))
+        return rows
 
-    def record_seen(self, decisions: Iterable[Decision], when: datetime) -> None:
+    def seen_hashes(self) -> frozenset[str]:
+        """본 글의 본문 해시. 같은 글이 다른 주소로 다시 올라와도 거른다."""
+        return frozenset(row["hash"] for row in self._seen_rows() if row.get("hash"))
+
+    def record_seen(
+        self,
+        decisions: Iterable[Decision],
+        when: datetime,
+        hashes: Mapping[str, str] | None = None,
+    ) -> None:
         path = self.root / "state/seen" / f"{when:%Y-%m}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
@@ -83,6 +95,8 @@ class Wiki:
                     "score": d.score,
                     "at": when.isoformat(),
                 }
+                if hashes and d.url in hashes:
+                    row["hash"] = hashes[d.url]
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     # ---------- 글 ----------

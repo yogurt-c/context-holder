@@ -323,3 +323,26 @@ def test_feed_only_sources_use_feed_body_when_pages_are_blocked(make_client, tmp
     result = run_init(wiki, make_client(handler), ScriptedLlm([0.9]), now=NOW)
 
     assert result.saved == 1
+
+
+def test_same_body_under_two_urls_is_saved_once(make_client, tmp_path: Path):
+    wiki = setup_wiki(tmp_path)
+    posts = [
+        {"url": "https://blog.example.com/p/slug", "title": "글", "at": NOW.isoformat()},
+        {"url": "https://blog.example.com/p/123", "title": "글", "at": NOW.isoformat()},
+    ]
+    same = article_page("글", LONG_BODY)
+    table = {
+        "https://blog.example.com/api?page=1": httpx.Response(200, json={"posts": posts}),
+        "https://blog.example.com/api?page=2": httpx.Response(200, json={"posts": []}),
+        "https://blog.example.com/p/slug": httpx.Response(200, text=same),
+        "https://blog.example.com/p/123": httpx.Response(200, text=same),
+    }
+    client = make_client(lambda r: table.get(str(r.url), httpx.Response(404)))
+
+    result = run_init(
+        wiki, client, ScriptedLlm([0.9]), now=NOW, settings=InitSettings(per_source=5)
+    )
+
+    assert result.saved == 1
+    assert progress(load_state(wiki)).counts == {"save": 1, "duplicate": 1}

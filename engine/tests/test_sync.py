@@ -229,3 +229,24 @@ def test_pending_article_of_removed_source_stays_pending(make_client, tmp_path: 
     report = run_sync(wiki, feed_client(make_client, []), ScriptedLlm([]), now=NOW, days=7)
 
     assert report.still_pending == 1
+
+
+def test_same_article_under_another_url_is_not_written_twice(make_client, tmp_path: Path):
+    wiki = setup_wiki(tmp_path)
+    page = article_page("같은 글", LONG_BODY)
+
+    def client_with(link: str):
+        from tests.conftest import rss
+
+        items = [{"title": "같은 글", "link": link, "content": page}]
+        return make_client(lambda r: httpx.Response(200, text=rss(items)))
+
+    run_sync(
+        wiki, client_with("https://blog.example.com/slug"), ScriptedLlm([0.9]), now=NOW, days=7
+    )
+    second = run_sync(
+        wiki, client_with("https://blog.example.com/123"), ScriptedLlm([0.9]), now=NOW, days=7
+    )
+
+    assert second.saved == 0
+    assert len(list((tmp_path / "wiki").rglob("*.md"))) == 1

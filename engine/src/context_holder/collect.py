@@ -62,12 +62,13 @@ def collect(
     since: datetime,
     seen_urls: frozenset[str] = frozenset(),
     etags: Mapping[str, str] | None = None,
+    seen_hashes: frozenset[str] = frozenset(),
 ) -> CollectResult:
     previous = dict(etags or {})
     articles: list[Article] = []
     reports: list[SourceReport] = []
     new_etags: dict[str, str] = {}
-    hashes: set[str] = set()
+    hashes: set[str] = set(seen_hashes)  # 이전 실행에서 본 본문도 거른다
     for source in sources:
         report, found, etag = _collect_source(
             client, source, since, seen_urls, previous.get(source.id), hashes

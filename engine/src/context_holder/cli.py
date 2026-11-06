@@ -346,6 +346,7 @@ STATUS_LABEL = {
     "old": "오래됨",
     "failed": "실패",
     "seen": "이미 수집",
+    "duplicate": "중복",
 }
 
 
