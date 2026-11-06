@@ -21,9 +21,7 @@ def completed(stdout: str, code: int = 0) -> subprocess.CompletedProcess:
 
 
 def test_device_name_is_made_once_from_mac_name(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        device.subprocess, "run", lambda *a, **k: completed("Team's Mac\n")
-    )
+    monkeypatch.setattr(device.subprocess, "run", lambda *a, **k: completed("Team's Mac\n"))
     assert device.device_name(tmp_path) == "team-s-mac"
 
     monkeypatch.setattr(device.subprocess, "run", lambda *a, **k: completed("Renamed"))
