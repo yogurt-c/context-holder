@@ -17,8 +17,12 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx collect` | 소스에서 새 글만 모아 소스별 결과를 본다. `--out`으로 JSONL 저장 |
 | `ctx classify` | 모은 글의 관련도를 판정한다 |
 | `ctx eval-classify` | 평가셋으로 분류 정확도를 잰다 ([eval](eval/README.md)) |
+| `ctx search` | 위키를 키워드 + 의미 검색한다. `--keyword-only`, `--saved-only` |
+| `ctx reindex` | 위키와 `vectors/`에서 검색 인덱스(`index.db`)를 다시 만든다 |
+| `ctx reembed` | 원문을 다시 가져와 단락 벡터를 새 검색 모델로 만든다. `--model`, `--no-switch` |
+| `ctx eval-search` | 평가셋으로 키워드만 쓸 때와 모델별 검색 recall@5를 비교한다 ([eval](eval/README.md)) |
 
-기기 로컬 파일은 `~/.context-holder`(`CONTEXT_HOLDER_HOME`으로 변경)에 둔다. 위키 기본 위치는 그 아래 `wiki/`다.
+기기 로컬 파일은 `~/.context-holder`(`CONTEXT_HOLDER_HOME`으로 변경)에 둔다. 위키 기본 위치는 그 아래 `wiki/`다. 검색 모델은 처음 쓸 때 `models/`에 내려받는다(bge-m3 약 570MB).
 
 ```bash
 # 개발할 때는 저장소 안 임시 폴더를 쓴다 (.tmp는 gitignore)

@@ -275,7 +275,7 @@ def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path)
     (home / "etag-cache.json").write_text('{"toss": "\\"old\\""}', encoding="utf-8")
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None):
+    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None):
         seen.update(root=wiki.root, days=days, etags=dict(etags), model=llm.model)
         return SyncReport(
             sources=(SourceReport("toss", found=3, new=2),),
@@ -312,7 +312,7 @@ def test_sync_defaults_to_wiki_in_home_and_first_run_window(monkeypatch, tmp_pat
     monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None):
+    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None):
         seen.update(root=wiki.root, days=days)
         return SyncReport((), 0, 0, 0, 0, 0, 0, 0, 0.0, {}, None)
 
@@ -367,7 +367,7 @@ def test_init_runs_and_prints_progress(monkeypatch, tmp_path):
 
     seen = {}
 
-    def fake_run_init(wiki, client, llm, now, settings, on_progress):
+    def fake_run_init(wiki, client, llm, now, settings, on_progress, embedder=None):
         seen.update(per_source=settings.per_source, days=settings.max_age_days, model=llm.model)
         on_progress(Progress(total=40, remaining=20, counts={"save": 12, "drop": 8}))
         return InitResult(False, 12, 0, 8, "limit: 한도", 0.4)
@@ -416,3 +416,109 @@ def test_init_dry_run_prints_counts(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
     assert "toss" in result.output and "50" in result.output
     assert "HTTP 500" in result.output and "합계 50" in result.output
+
+
+def _search_wiki(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.wiki import Wiki
+    from tests.conftest import FakeEmbedder
+    from tests.test_index import write
+
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(cli, "make_embedder", lambda model_id: FakeEmbedder(model_id))
+    wiki = Wiki(tmp_path / "wiki")
+    write(wiki, "https://t/kafka", "Kafka 종단 간 암호화", ("초당 100만 건 암호화",))
+    return wiki
+
+
+def test_search_prints_ranked_hits(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+
+    result = runner.invoke(app, ["search", "kafka 암호화", "--wiki", str(tmp_path / "wiki")])
+
+    assert result.exit_code == 0, result.output
+    assert "Kafka 종단 간 암호화" in result.output and "https://t/kafka" in result.output
+    assert (tmp_path / "home/index.db").exists()
+
+
+def test_search_keyword_only_and_no_results(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["search", "없는말", "--wiki", str(tmp_path / "wiki"), "--keyword-only", "--saved-only"],
+    )
+
+    assert result.exit_code == 0
+    assert "결과 없음" in result.output
+
+
+def test_reindex_rebuilds_index(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+    (tmp_path / "home").mkdir(exist_ok=True)
+    (tmp_path / "home/index.db").write_text("broken")
+
+    result = runner.invoke(app, ["reindex", "--wiki", str(tmp_path / "wiki")])
+
+    assert result.exit_code == 0, result.output
+    assert "1건" in result.output
+
+
+def test_reembed_reports_progress_and_failures(monkeypatch, tmp_path):
+    from context_holder import cli
+    from context_holder.reembed import Failure, ReembedResult
+
+    _search_wiki(monkeypatch, tmp_path)
+    seen = {}
+
+    def fake_run(wiki, client, embedders, on_progress, switch):
+        seen.update(models=[e.model_id for e in embedders], switch=switch)
+        on_progress((1, 1))
+        return ReembedResult(0, (Failure("x", "사라진 글", "HTTP 404"),))
+
+    monkeypatch.setattr(cli, "run_reembed", fake_run)
+
+    result = runner.invoke(
+        app,
+        [
+            "reembed",
+            "--wiki",
+            str(tmp_path / "wiki"),
+            "--model",
+            "e5-small",
+            "--model",
+            "bge-m3",
+            "--no-switch",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == {"models": ["e5-small", "bge-m3"], "switch": False}
+    assert "사라진 글" in result.output and "HTTP 404" in result.output
+
+
+def test_reembed_rejects_unknown_model(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+
+    result = runner.invoke(app, ["reembed", "--wiki", str(tmp_path / "wiki"), "--model", "nope"])
+
+    assert result.exit_code == 2
+    assert "모르는 검색 모델" in result.output
+
+
+def test_eval_search_compares_keyword_and_models(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+    queries = tmp_path / "q.yaml"
+    queries.write_text(
+        "queries:\n  - {query: kafka 암호화, kind: en-ko, expected: ['https://t/kafka']}\n"
+        "  - {query: redlock, kind: detail, expected: []}\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app, ["eval-search", str(queries), "--wiki", str(tmp_path / "wiki"), "--models", "e5-small"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "키워드만" in result.output and "e5-small" in result.output
+    assert "1/1" in result.output

@@ -250,3 +250,61 @@ def test_same_article_under_another_url_is_not_written_twice(make_client, tmp_pa
 
     assert second.saved == 0
     assert len(list((tmp_path / "wiki").rglob("*.md"))) == 1
+
+
+def test_sync_writes_paragraph_vectors_and_survives_embedding_errors(make_client, tmp_path: Path):
+    from tests.conftest import FakeEmbedder
+
+    wiki = setup_wiki(tmp_path)
+    links = ["https://blog.example.com/a"]
+
+    run_sync(
+        wiki,
+        feed_client(make_client, links),
+        ScriptedLlm([0.9]),
+        now=NOW,
+        days=7,
+        embedder=FakeEmbedder(),
+    )
+
+    assert list((tmp_path / "vectors/fake").glob("*.f16"))
+
+    class Broken(FakeEmbedder):
+        def passages(self, texts):
+            raise RuntimeError("모델 없음")
+
+    report = run_sync(
+        wiki,
+        feed_client(make_client, ["https://blog.example.com/b"]),
+        ScriptedLlm([0.9]),
+        now=NOW,
+        days=7,
+        embedder=Broken("broken"),
+    )
+    assert report.saved == 1  # 벡터화가 실패해도 글은 저장한다
+
+
+def test_completed_pending_article_gets_vectors(make_client, tmp_path: Path):
+    from tests.conftest import FakeEmbedder
+
+    wiki = setup_wiki(tmp_path)
+    link = "https://blog.example.com/a"
+    run_sync(
+        wiki,
+        feed_client(make_client, [link]),
+        ScriptedLlm([0.9], [LlmError(ErrorKind.FAILED, "x")]),
+        now=NOW,
+        days=7,
+    )
+    page = {link: httpx.Response(200, text=article_page("글", LONG_BODY))}
+
+    run_sync(
+        wiki,
+        feed_client(make_client, [link], page),
+        ScriptedLlm([]),
+        now=NOW,
+        days=7,
+        embedder=FakeEmbedder(),
+    )
+
+    assert len(list((tmp_path / "vectors/fake").glob("*.f16"))) == 1

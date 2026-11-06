@@ -2,6 +2,7 @@
 
 import json
 import logging
+import tempfile
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -22,7 +23,9 @@ from context_holder.classify import (
     load_profile,
 )
 from context_holder.collect import Article, CollectResult, SourceReport, collect
+from context_holder.embed import Embedder, FastEmbedder, model_spec
 from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
+from context_holder.index import Index
 from context_holder.init import (
     InitSettings,
     Progress,
@@ -32,7 +35,10 @@ from context_holder.init import (
     run_init,
 )
 from context_holder.llm import ClaudeCli
-from context_holder.paths import default_wiki, etag_cache
+from context_holder.paths import default_wiki, etag_cache, home
+from context_holder.reembed import run_reembed
+from context_holder.search import search
+from context_holder.searcheval import evaluate_search, load_queries
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 from context_holder.sync import SyncReport, default_days, run_sync
 from context_holder.wiki import Wiki
@@ -319,6 +325,7 @@ def sync_command(
             now=datetime.now(UTC),
             days=days or default_days(wiki),
             etags=etags,
+            embedder=make_embedder(wiki.search_model()),
         )
 
     cache.parent.mkdir(parents=True, exist_ok=True)
@@ -401,6 +408,7 @@ def init_command(
             now=datetime.now(UTC),
             settings=settings,
             on_progress=on_progress,
+            embedder=make_embedder(wiki.search_model()),
         )
     if result.finished:
         typer.echo("초기 수집을 마쳤다.")
@@ -428,3 +436,131 @@ def _print_init_status(wiki: Wiki) -> None:
         )
     if p.stopped_reason:
         typer.echo(f"\n멈춘 이유: {p.stopped_reason}")
+
+
+def make_embedder(model_id: str) -> Embedder:
+    """검색 모델. 처음 쓸 때 ~/.context-holder/models에 내려받는다."""
+    return FastEmbedder(model_id, home() / "models")  # pragma: no cover - 실제 모델
+
+
+def _index() -> Index:
+    return Index(home() / "index.db")
+
+
+@app.command("search")
+def search_command(
+    query: str = typer.Argument(..., help="찾을 말."),
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    limit: int = typer.Option(10, min=1, help="보여 줄 결과 수."),
+    keyword_only: bool = typer.Option(False, "--keyword-only", help="의미 검색 없이 키워드로만."),
+    saved_only: bool = typer.Option(False, "--saved-only", help="보류 글은 빼고 저장 글만."),
+) -> None:
+    """위키를 키워드와 의미로 함께 검색한다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    embedder = None if keyword_only else make_embedder(wiki.search_model())
+    index = _index()
+    index.sync(wiki, embedder)
+    buckets = (Bucket.SAVE,) if saved_only else (Bucket.SAVE, Bucket.INBOX)
+    hits = search(index, query, embedder, limit=limit, buckets=buckets)
+    if not hits:
+        typer.echo("결과 없음")
+        return
+    for n, hit in enumerate(hits, 1):
+        a = hit.article
+        mark = "" if a.bucket is Bucket.SAVE else " [보류]"
+        typer.echo(f"{n:>2}. {a.title}{mark}")
+        typer.echo(f"    {a.source_id} · {hit.matched} · {a.url}")
+
+
+@app.command("reindex")
+def reindex_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    keyword_only: bool = typer.Option(False, "--keyword-only", help="벡터 없이 키워드 인덱스만."),
+) -> None:
+    """index.db를 지우고 위키에서 다시 만든다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    path = home() / "index.db"
+    for suffix in ("", "-wal", "-shm"):
+        Path(f"{path}{suffix}").unlink(missing_ok=True)
+    embedder = None if keyword_only else make_embedder(wiki.search_model())
+    updated, _ = _index().sync(wiki, embedder)
+    typer.echo(f"글 {updated}건을 다시 색인했다.")
+
+
+@app.command("reembed")
+def reembed_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    models: list[str] = typer.Option(
+        [], "--model", help="검색 모델 (여러 번 줄 수 있다). 없으면 지금 모델."
+    ),
+    no_switch: bool = typer.Option(
+        False, "--no-switch", help="모델 설정을 바꾸지 않는다 (모델 비교용)."
+    ),
+) -> None:
+    """원문을 다시 가져와 원문 단락 벡터를 만든다. 모델을 바꿀 때 쓴다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    chosen = models or [wiki.search_model()]
+    try:
+        for model_id in chosen:
+            model_spec(model_id)
+    except KeyError as e:
+        typer.echo(str(e.args[0]), err=True)
+        raise typer.Exit(code=2) from e
+    logging.getLogger("trafilatura").setLevel(logging.CRITICAL)
+
+    def on_progress(p: tuple[int, int]) -> None:
+        done, total = p
+        if done % 20 == 0 or done == total:
+            typer.echo(f"[{done} / {total}]")
+
+    with httpx.Client() as client:
+        result = run_reembed(
+            wiki, client, [make_embedder(m) for m in chosen], on_progress, switch=not no_switch
+        )
+    typer.echo(f"벡터를 만든 글 {result.written}건, 원문 없음 {len(result.failed)}건")
+    for f in result.failed:
+        typer.echo(f"  원문 없음: {f.title} ({f.reason})")
+
+
+@app.command("eval-search")
+def eval_search_command(
+    queries_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="검색 평가셋."),
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    models: str = typer.Option("minilm,e5-small,bge-m3", help="비교할 검색 모델 (쉼표로)."),
+) -> None:
+    """키워드만 쓸 때와 모델별 혼합 검색의 recall@5를 비교한다.
+
+    원문 단락 벡터는 미리 ctx reembed --no-switch로 만들어 둔다.
+    """
+
+    wiki = Wiki(wiki_path or default_wiki())
+    queries = load_queries(queries_path)
+    kinds = sorted({q.kind for q in queries if q.expected})
+    typer.echo(
+        f"{'방식':<12}{'전체':>8}  "
+        + "  ".join(f"{k:>10}" for k in kinds)
+        + "  답있음1위  답없음1위"
+    )
+    for name in ["키워드만", *[m for m in models.split(",") if m]]:
+        embedder = None if name == "키워드만" else make_embedder(name)
+        with tempfile.TemporaryDirectory() as tmp:
+            index = Index(Path(tmp) / "eval.db")
+            index.sync(wiki, embedder)
+            r = evaluate_search(index, queries, embedder)
+        cols = "  ".join(f"{_ratio(*r.by_kind.get(k, (0, 0))):>10}" for k in kinds)
+        typer.echo(
+            f"{name:<12}{_ratio(r.hits, r.total):>8}  {cols}  {_median(r.answered_top):>9}  "
+            f"{_max(r.unanswered_top):>9}"
+        )
+
+
+def _ratio(hits: int, total: int) -> str:
+    return f"{hits}/{total}"
+
+
+def _median(values: tuple[float, ...]) -> str:
+    return f"{sorted(values)[len(values) // 2]:.2f}" if values else "-"
+
+
+def _max(values: tuple[float, ...]) -> str:
+    return f"{max(values):.2f}" if values else "-"

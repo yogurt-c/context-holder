@@ -294,9 +294,10 @@ media:
 | 원문 단락 | X | O (단락 단위) | 수집할 때 계산해 `vectors/`에 저장 · 동기화 |
 
 - `index.db`는 SQLite FTS5다. 위키와 `vectors/`에서 언제든 다시 만들 수 있다(`ctx reindex`).
-- **한국어**: 기본 `unicode61` 토크나이저는 조사 때문에 검색이 잘 안 된다. `trigram` 토크나이저나 kiwipiepy 형태소 분석을 쓴다.
+- **한국어**: 기본 `unicode61` 토크나이저는 조사 때문에 검색이 잘 안 된다. 색인 · 질의 전에 한글은 두 글자씩(bigram), 영문은 소문자 단어로 나눠 넣는다.
 - **필드 가중치**: decision > tags > 핵심 내용 > summary.
-- **임베딩 모델**: 로컬 다국어 모델(후보 multilingual-e5-small, bge-m3)을 ONNX Runtime으로 돌린다. 앱 번들에 넣지 않고 첫 실행 때 내려받는다. 모델은 검색 평가셋 recall@5로 고른다.
+- **임베딩 모델**: 로컬 다국어 모델 **bge-m3**(양자화 ONNX, 약 570MB)를 ONNX Runtime으로 돌린다. 앱 번들에 넣지 않고 첫 실행 때 내려받는다. 검색 평가셋 recall@5로 multilingual-e5-small, paraphrase-multilingual-MiniLM과 비교해 골랐다([결과](../engine/eval/README.md)).
+- **결과 없음**: 유사도로는 답이 없는 질의와 있는 질의가 잘 갈리지 않아 기준값을 두지 않는다. 결과는 순위대로 보여 준다.
 - **결과 표시**: 어느 필드나 원문 몇 번째 단락이 맞았는지 보여 준다. 원문 텍스트는 없으므로 단락은 번호와 원문 링크로만 안내한다.
 - **검색 모델 바꾸기** (설정 화면, `ctx reembed --model`):
   1. 새 모델을 내려받고, 수집 잠금과 같은 방식으로 한 기기만 다시 인덱싱한다.

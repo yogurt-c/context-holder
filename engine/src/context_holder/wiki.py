@@ -7,7 +7,7 @@
 import hashlib
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from importlib import resources
@@ -15,15 +15,37 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
+import numpy as np
 import yaml
 
 from context_holder.classify import Bucket, Decision, Profile, load_profile
 from context_holder.collect import Article
+from context_holder.embed import DEFAULT_MODEL
 from context_holder.enrich import DecisionRecord, Enrichment
 from context_holder.sources import Source, load_sources
 
 FOLDER = {Bucket.SAVE: "wiki", Bucket.INBOX: "inbox"}
 SLUG_MAX = 60
+
+
+@dataclass(frozen=True)
+class StoredArticle:
+    """위키에 저장된 글. 검색 인덱스를 만들 때 읽는다."""
+
+    id: str
+    path: Path
+    url: str
+    title: str
+    source_id: str
+    published: datetime | None
+    bucket: Bucket
+    status: str
+    origin: str | None
+    tags: tuple[str, ...]
+    summary: tuple[str, ...]
+    key_points: tuple[str, ...]
+    decision: dict[str, Any] | None
+    signature: str  # 파일이 바뀌었는지 비교하는 값
 
 
 @dataclass(frozen=True)
@@ -55,6 +77,56 @@ class Wiki:
             if not target.exists():
                 default = resources.files("context_holder.defaults").joinpath(name)
                 target.write_text(default.read_text("utf-8"), encoding="utf-8")
+
+    def search_model(self) -> str:
+        """모든 기기가 쓰는 검색 모델 (config/search.yaml)."""
+        path = self.root / "config/search.yaml"
+        if not path.exists():
+            return DEFAULT_MODEL
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return str(data.get("model") or DEFAULT_MODEL)
+
+    def set_search_model(self, model_id: str) -> None:
+        path = self.root / "config/search.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"# 모든 기기가 쓰는 검색 모델. 바꾸려면 ctx reembed --model\nmodel: {model_id}\n",
+            encoding="utf-8",
+        )
+
+    # ---------- 원문 단락 벡터 (원문 텍스트는 저장하지 않는다) ----------
+
+    def vector_path(self, model_id: str, article_id: str) -> Path:
+        return self.root / "vectors" / model_id / f"{article_id}.f16"
+
+    def write_vectors(
+        self, model_id: str, article_id: str, vectors: np.ndarray, content_hash: str
+    ) -> None:
+        path = self.vector_path(model_id, article_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(np.asarray(vectors, dtype=np.float16).tobytes())
+        meta = {
+            "model": model_id,
+            "count": int(vectors.shape[0]),
+            "dim": int(vectors.shape[1]),
+            "content_hash": content_hash,
+        }
+        path.with_suffix(".json").write_text(json.dumps(meta), encoding="utf-8")
+
+    def read_vectors(self, model_id: str, article_id: str) -> np.ndarray | None:
+        path = self.vector_path(model_id, article_id)
+        if not path.exists():
+            return None
+        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        data = np.frombuffer(path.read_bytes(), dtype=np.float16)
+        return data.reshape(meta["count"], meta["dim"]).astype(np.float32)
+
+    def remove_vectors(self, model_id: str) -> None:
+        folder = self.root / "vectors" / model_id
+        for path in folder.glob("*"):
+            path.unlink()
+        if folder.exists():
+            folder.rmdir()
 
     def sources(self) -> tuple[Source, ...]:
         return load_sources(self.root / "config/sources.yaml")
@@ -120,6 +192,11 @@ class Wiki:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(_render(meta, relevance, enrichment, reason), encoding="utf-8")
         return path
+
+    def articles(self) -> Iterator[StoredArticle]:
+        for folder in FOLDER.values():
+            for path in sorted((self.root / folder).glob("*/*/*.md")):
+                yield _stored(path)
 
     def pending(self) -> list[PendingArticle]:
         found = []
@@ -252,3 +329,33 @@ def _read_meta(path: Path) -> dict[str, Any]:
 
 def _parse_time(value: Any) -> datetime | None:
     return datetime.fromisoformat(value) if isinstance(value, str) else None
+
+
+def _stored(path: Path) -> StoredArticle:
+    text = path.read_text(encoding="utf-8")
+    _, header, body = text.split("---\n", 2)
+    meta = yaml.safe_load(header) or {}
+    stat = path.stat()
+    return StoredArticle(
+        id=meta["id"],
+        path=path,
+        url=meta["url"],
+        title=meta["title"],
+        source_id=meta["source"],
+        published=_parse_time(meta.get("published")),
+        bucket=Bucket(meta["relevance"]["bucket"]),
+        status=meta.get("status", "done"),
+        origin=meta.get("origin"),
+        tags=tuple(meta.get("tags") or ()),
+        summary=_section(body, "요약"),
+        key_points=_section(body, "핵심 내용"),
+        decision=meta.get("decision"),
+        signature=f"{stat.st_mtime_ns}:{stat.st_size}",
+    )
+
+
+def _section(body: str, name: str) -> tuple[str, ...]:
+    match = re.search(rf"^## {re.escape(name)}\n(.*?)(?=^## |\Z|^\[원문 보기\])", body, re.M | re.S)
+    if not match:
+        return ()
+    return tuple(line[2:].strip() for line in match.group(1).splitlines() if line.startswith("- "))

@@ -22,10 +22,12 @@ from context_holder.archive import list_candidates
 from context_holder.classify import Bucket, StructuredLlm, classify
 from context_holder.collect import Article, article_from_entry, fetch_article
 from context_holder.dates import parse_date
+from context_holder.embed import Embedder
 from context_holder.extract import canonical_url
 from context_holder.feed import FeedEntry, FetchError, fetch_feed
 from context_holder.pipeline import Budget
 from context_holder.sources import Source
+from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
 BATCH_SIZE = 20
@@ -106,6 +108,7 @@ def run_init(
     now: datetime,
     settings: InitSettings = DEFAULT_SETTINGS,
     on_progress: ProgressCallback | None = None,
+    embedder: Embedder | None = None,
 ) -> InitResult:
     wiki.ensure_config()
     state = load_state(wiki) or {
@@ -128,7 +131,9 @@ def run_init(
         batch = _next_batch(state)
         if not batch:
             break
-        done.update(_process(client, llm, wiki, state, sources, batch, cutoff, now, budget))
+        done.update(
+            _process(client, llm, wiki, state, sources, batch, cutoff, now, budget, embedder)
+        )
         state["stopped"] = budget.stopped
         save_state(wiki, state)
         if on_progress:
@@ -230,7 +235,7 @@ def _next_batch(state) -> list[dict[str, Any]]:
     return batch
 
 
-def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget: Budget):
+def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget: Budget, embedder):
     seen = wiki.seen_urls()
     bodies = set(wiki.seen_hashes())
     feeds: dict[str, dict[str, FeedEntry]] = {}
@@ -272,6 +277,8 @@ def _process(client, llm, wiki: Wiki, state, sources, batch, cutoff, now, budget
                 continue  # 한도 · 로그인 문제면 대기열에 남겨 다음 실행에서 다시 한다
             origin = "init" if decision.bucket is Bucket.INBOX else None
             wiki.write_article(article, decision, enrichment, now, reason=reason, origin=origin)
+            if enrichment:
+                try_write_vectors(wiki, embedder, article)
         wiki.record_seen([decision], when=now, hashes={article.url: article.content_hash})
         item.update(status="done", bucket=decision.bucket.value)
         finished.append(decision.bucket)

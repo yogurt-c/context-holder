@@ -48,3 +48,46 @@ def no_network_politeness(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr("context_holder.feed.time.sleep", lambda _: None)
     monkeypatch.setattr("context_holder.feed.RESPECT_ROBOTS", False)
+
+
+class FakeEmbedder:
+    """단어(토큰)가 겹칠수록 가까워지는 결정적 임베더. 실제 모델 없이 검색 흐름을 시험한다."""
+
+    def __init__(
+        self, model_id: str = "fake", dim: int = 64, synonyms: dict[str, str] | None = None
+    ):
+        self.model_id = model_id
+        self.dim = dim
+        self.synonyms = synonyms or {}  # 다른 말을 같은 뜻으로 묶는다 (실제 모델의 의미 이해 흉내)
+        self.calls = 0
+
+    def passages(self, texts):
+        import numpy as np
+
+        self.calls += 1
+        return np.array([self._vec(t) for t in texts], dtype=np.float32).reshape(
+            len(texts), self.dim
+        )
+
+    def query(self, text):
+        return self._vec(text)
+
+    def _vec(self, text):
+        import hashlib
+
+        import numpy as np
+
+        from context_holder.textproc import search_tokens
+
+        v = np.zeros(self.dim, dtype=np.float32)
+        for token in search_tokens(text):
+            token = self.synonyms.get(token, token)
+            v[int(hashlib.md5(token.encode()).hexdigest(), 16) % self.dim] += 1.0
+        norm = np.linalg.norm(v)
+        return v / norm if norm else v
+
+
+@pytest.fixture(autouse=True)
+def fake_search_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CLI가 실제 검색 모델을 내려받지 않게 한다."""
+    monkeypatch.setattr("context_holder.cli.make_embedder", lambda model_id: FakeEmbedder(model_id))

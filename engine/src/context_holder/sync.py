@@ -12,8 +12,10 @@ import httpx
 
 from context_holder.classify import Bucket, StructuredLlm, classify
 from context_holder.collect import SourceReport, collect, fetch_article
+from context_holder.embed import Embedder
 from context_holder.feed import FetchError
 from context_holder.pipeline import Budget
+from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
 log = logging.getLogger(__name__)
@@ -48,13 +50,14 @@ def run_sync(
     now: datetime,
     days: int,
     etags: Mapping[str, str] | None = None,
+    embedder: Embedder | None = None,
 ) -> SyncReport:
     wiki.ensure_config()
     sources = {s.id: s for s in wiki.sources()}
     profile = wiki.profile()
     state = Budget()
 
-    completed, still_pending = _retry_pending(wiki, client, llm, sources, now, state)
+    completed, still_pending = _retry_pending(wiki, client, llm, sources, now, state, embedder)
 
     pending_urls = {p.url for p in wiki.pending()}
     collected = collect(
@@ -81,6 +84,8 @@ def run_sync(
         article = by_url[decision.url]
         enrichment, reason = state.try_enrich(llm, article)
         wiki.write_article(article, decision, enrichment, collected=now, reason=reason)
+        if enrichment:
+            try_write_vectors(wiki, embedder, article)
         pending_enrich += enrichment is None
     wiki.record_seen(
         decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
@@ -102,7 +107,7 @@ def run_sync(
     )
 
 
-def _retry_pending(wiki, client, llm, sources, now, state) -> tuple[int, int]:
+def _retry_pending(wiki, client, llm, sources, now, state, embedder) -> tuple[int, int]:
     completed = still = 0
     for pending in wiki.pending():
         source = sources.get(pending.source_id)
@@ -120,5 +125,6 @@ def _retry_pending(wiki, client, llm, sources, now, state) -> tuple[int, int]:
             still += 1
             continue
         wiki.complete(pending, enrichment, collected=now)
+        try_write_vectors(wiki, embedder, article)
         completed += 1
     return completed, still

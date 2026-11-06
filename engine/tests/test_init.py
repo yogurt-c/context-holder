@@ -346,3 +346,15 @@ def test_same_body_under_two_urls_is_saved_once(make_client, tmp_path: Path):
 
     assert result.saved == 1
     assert progress(load_state(wiki)).counts == {"save": 1, "duplicate": 1}
+
+
+def test_init_writes_paragraph_vectors(make_client, tmp_path: Path):
+    from tests.conftest import FakeEmbedder
+
+    wiki = setup_wiki(tmp_path)
+
+    run_init(
+        wiki, make_routes(make_client, [1]), ScriptedLlm([0.9]), now=NOW, embedder=FakeEmbedder()
+    )
+
+    assert len(list((tmp_path / "vectors/fake").glob("*.f16"))) == 1

@@ -1,0 +1,291 @@
+# 검색 평가셋. expected는 상위 5위 안에 하나라도 나와야 하는 글의 URL.
+# 2026-11-06 초기 수집 위키(210건) 기준으로 만들고 사람이 검토했다. expected가 빈 질의는 위키에 답이 없다.
+queries:
+- query: 프롬프트 캐시 적중률로 LLM 추론 비용 줄이기
+  kind: ko-en
+  expected:
+  - https://blog.cloudflare.com/obsessive-inference-optimization
+  - https://medium.com/daangn/%EB%AA%A8%EB%8D%B8%EB%A7%8C-%EB%B0%94%EA%BF%A8%EB%8A%94%EB%8D%B0-llm-%EB%B9%84%EC%9A%A9%EC%9D%B4-3%EB%B0%B0%EA%B0%80-%EB%90%9C-%EC%9D%B4%EC%9C%A0-5ae60ab5108b
+  - https://github.blog/ai-and-ml/github-copilot/how-we-make-ai-coding-more-cost-efficient-without-sacrificing-task-quality
+  - https://techblog.lycorp.co.jp/ko/cut-token-usage-40-percent-with-adk-context-engineering
+- query: 실제 DB 트래픽을 캡처해서 재생하는 부하 테스트
+  kind: ko-en
+  expected:
+  - https://medium.com/airbnb-engineering/beyond-synthetic-testing-capturing-and-replaying-real-database-workloads-at-airbnb-cea7ee9b1ab2
+- query: LLM 평가 체계와 골든 데이터셋 만들기
+  kind: ko-en
+  expected:
+  - https://medium.com/airbnb-engineering/eval-driven-development-lessons-from-evaluating-genai-at-scale-e817e5ae5788
+  - https://toss.tech/article/toss-benchmark
+- query: 대형 PR diff 렌더링 성능 개선
+  kind: ko-en
+  expected:
+  - https://github.blog/engineering/architecture-optimization/the-uphill-climb-of-making-diff-lines-performant
+  - https://github.blog/engineering/user-experience/rendering-huge-pull-requests-in-the-github-copilot-app
+- query: eBPF로 배포 중 순환 의존성 막기
+  kind: ko-en
+  expected:
+  - https://github.blog/engineering/infrastructure/how-github-uses-ebpf-to-improve-deployment-safety
+- query: 멀티테넌트 컨테이너 플랫폼에서 VM 수준 격리
+  kind: ko-en
+  expected:
+  - https://netflixtechblog.com/single-tenant-titus-vm-level-isolation-on-a-multi-tenant-container-platform-6d8b1909d163
+  - https://d2.naver.com/helloworld/2265641
+- query: Git 저장소 쓰기 복제와 quorum
+  kind: ko-en
+  expected:
+  - https://github.blog/engineering/architecture-optimization/the-bridge-to-agent-scale-git-infrastructure
+  - https://github.blog/engineering/architecture-optimization/building-git-infrastructure-for-agent-scale-development
+  - https://github.blog/engineering/architecture-optimization/inside-githubs-new-git-storage-architecture
+- query: 시계열 데이터 콜드 티어 스토리지
+  kind: ko-en
+  expected:
+  - https://netflixtechblog.com/timeseries-tiered-storage-journey-kafka-flink-streams-to-native-cassandra-cold-reads-e59d597c9d60
+- query: 대용량 파일 range 요청 캐싱
+  kind: ko-en
+  expected:
+  - https://blog.cloudflare.com/origin-range-requests
+- query: 국가별로 다른 로그인 인증 수단 고르기
+  kind: ko-en
+  expected:
+  - https://medium.com/airbnb-engineering/flexible-authentication-reimagining-authentication-for-millions-of-users-at-airbnb-3a8a4c917137
+- query: transactional outbox event publishing after commit
+  kind: en-ko
+  expected:
+  - https://oliveyoung.tech/2026-02-23/from-legacy-to-modern-architecture-journey
+- query: CDC migration verification for search index
+  kind: en-ko
+  expected:
+  - https://tech.kakao.com/posts/845
+  - https://oliveyoung.tech/2025-12-29/campaign-worekr_review
+  - https://techblog.lycorp.co.jp/ko/internalizing-without-specification-proving-equivalence-through-verification-logic
+- query: Kafka end-to-end encryption
+  kind: en-ko
+  expected:
+  - https://techblog.lycorp.co.jp/ko/applying-e2ee-to-apache-kafka-in-line-app
+- query: first-come coupon issuance consistency under heavy traffic
+  kind: en-ko
+  expected:
+  - https://oliveyoung.tech/2025-12-15/fcfs-coupon
+- query: pnpm monorepo React 19 type conflict
+  kind: en-ko
+  expected:
+  - https://techblog.woowahan.com/26128
+- query: Next.js App Router migration decision
+  kind: en-ko
+  expected:
+  - https://toss.tech/article/52999
+- query: Spark on Kubernetes
+  kind: en-ko
+  expected:
+  - https://techblog.lycorp.co.jp/ko/processing-large-scale-data-with-spark-on-kubernetes
+  - https://toss.tech/article/spark-connect-on-kubernetes-1
+  - https://toss.tech/article/spark-connect-on-kubernetes-2
+- query: Hive to Iceberg streaming ingestion
+  kind: en-ko
+  expected:
+  - https://techblog.lycorp.co.jp/ko/from-hive-to-iceberg-12x-faster-data-updates
+- query: Python fork copy-on-write garbage collection
+  kind: en-ko
+  expected:
+  - https://d2.naver.com/helloworld/4149925
+  - https://d2.naver.com/helloworld/4452165
+- query: zero downtime OAuth2 migration
+  kind: en-ko
+  expected:
+  - https://oliveyoung.tech/2025-10-28/oliveyoung-zero-downtime-oauth2-migration
+- query: ProxySQL 쿼리 로그 수집
+  kind: detail
+  expected:
+  - https://medium.com/airbnb-engineering/beyond-synthetic-testing-capturing-and-replaying-real-database-workloads-at-airbnb-cea7ee9b1ab2
+- query: NIC 인터럽트가 한 CPU 코어에 몰리는 문제
+  kind: detail
+  expected:
+  - https://toss.tech/article/nic-interrupt-bottleneck
+- query: VictoriaMetrics 디스크 고갈 대응
+  kind: detail
+  expected:
+  - https://d2.naver.com/helloworld/5788040
+  - https://d2.naver.com/helloworld/6475419
+- query: KEDA로 로그 시스템 오토스케일링
+  kind: detail
+  expected:
+  - https://techblog.woowahan.com/24405
+- query: Kafka 대신 RDB 기반 작업 큐
+  kind: detail
+  expected:
+  - https://techblog.woowahan.com/23625
+- query: BFF에서 SSE로 응답 스트리밍
+  kind: detail
+  expected:
+  - https://techblog.woowahan.com/26507
+- query: 사내 도구를 MCP 서버로 연결하는 구조
+  kind: topic
+  expected:
+  - https://techblog.lycorp.co.jp/ko/flava-mcp-hub-ai-infrastructure
+  - https://techblog.woowahan.com/25986
+  - https://techblog.lycorp.co.jp/ko/improving-development-efficiency-with-secure-mcp-servers
+- query: 에이전트 컨텍스트 관리로 토큰 사용량 줄이기
+  kind: topic
+  expected:
+  - https://techblog.lycorp.co.jp/ko/cut-token-usage-40-percent-with-adk-context-engineering
+  - https://techblog.lycorp.co.jp/ko/techverse2026-59
+  - https://github.blog/ai-and-ml/github-copilot/how-we-make-ai-coding-more-cost-efficient-without-sacrificing-task-quality
+- query: 하네스 엔지니어링으로 팀 맞춤 AI 환경
+  kind: topic
+  expected:
+  - https://techblog.woowahan.com/26177
+  - https://d2.naver.com/helloworld/8118359
+- query: 벡터 검색 인덱스 선택과 사이징
+  kind: topic
+  expected:
+  - https://toss.tech/article/milvus-optimization-and-sizing
+  - https://d2.naver.com/helloworld/7134499
+- query: 장애 알림 원인을 LLM 에이전트로 자동 분석
+  kind: topic
+  expected:
+  - https://techblog.lycorp.co.jp/ko/building-sre-observer-for-alert-root-cause-analysis
+  - https://techblog.lycorp.co.jp/ko/analyzing-incident-root-causes-in-grafana-using-natural-language-with-llm-agent
+  - https://oliveyoung.tech/2026-06-30/product-monitoring-evolution
+  - https://netflixtechblog.com/making-failure-diagnosis-reliable-with-pensive-ai-6b0811a1c015
+- query: 모바일 앱 테스트 디바이스 팜
+  kind: topic
+  expected:
+  - https://toss.tech/article/device-farm-nebula
+  - https://techblog.musinsa.com/%EB%B9%A0%EB%A5%B8-%EA%B8%B0%EA%B8%B0%EA%B0%80-%EC%99%9C-%EA%B8%B0%EB%8B%A4%EB%A0%A4%EC%95%BC-%ED%95%98%EC%A7%80-a0533ee53dd2
+- query: 웹뷰를 대체하는 크로스플랫폼 렌더링 선택
+  kind: topic
+  expected:
+  - https://medium.com/daangn/laying-the-rails-beyond-webview-why-karrot-chose-lynx-db1aa92af5e4
+  - https://medium.com/daangn/%EC%9B%B9%EB%B7%B0-%EB%8B%A4%EC%9D%8C%EC%9D%98-%EB%A0%88%EC%9D%BC%EC%9D%84-%EA%B9%94%EB%8B%A4-%EB%8B%B9%EA%B7%BC%EC%9D%B4-lynx%EB%A5%BC-%EC%84%A0%ED%83%9D%ED%95%9C-%EC%9D%B4%EC%9C%A0-34dd50abbfb7
+  - https://techblog.woowahan.com/24337
+- query: SLO와 SLI 도입
+  kind: topic
+  expected:
+  - https://techblog.lycorp.co.jp/ko/using-sli-slo-for-improving-reliability-1-developing-framework-and-line-status
+  - https://techblog.lycorp.co.jp/ko/sli-and-slo-for-improving-reliability-3
+- query: Redis 캐시 스탬피드 현상 방지 기법
+  kind: ko-en
+  expected: []
+  note: 위키에 답이 없는 질의. 결과 없음 기준을 정할 때 쓴다
+- query: zero downtime database schema migration
+  kind: en-ko
+  expected: []
+  note: 위키에 답이 없는 질의. 결과 없음 기준을 정할 때 쓴다
+- query: 분산 락 구현 시 Redis Redlock 알고리즘의 문제점
+  kind: detail
+  expected: []
+  note: 위키에 답이 없는 질의. 결과 없음 기준을 정할 때 쓴다
+- query: 한정 수량 이벤트에서 초과 지급 막기
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2025-12-15/fcfs-coupon
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 같은 작업을 여러 서버가 동시에 가져가지 않게 하기
+  kind: paraphrase
+  expected:
+  - https://techblog.woowahan.com/27678
+  - https://techblog.woowahan.com/23625
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 동기식 로깅 때문에 생긴 장애
+  kind: paraphrase
+  expected:
+  - https://techblog.musinsa.com/%EB%A1%9C%EA%B7%B8%EA%B0%80-%EC%84%9C%EB%B9%84%EC%8A%A4%EB%A5%BC-%EC%A3%BD%EC%98%80%EB%8B%A4-4013e35a463b
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 매장 계산대 응답 속도 단축
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2026-07-24/offline-payment-upgrade-phase1
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 화면 구성을 서버가 내려주는 구조의 느린 응답
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2025-11-11/sdui_with_caffein
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 메시지 발송이 중복되거나 누락되는 문제
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2026-02-23/from-legacy-to-modern-architecture-journey
+  - https://oliveyoung.tech/2025-12-30/alimtalk_improve_event_driven_architecture
+  - https://oliveyoung.tech/2026-09-23/overengineering-message-system
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 팀의 업무 지식을 AI가 참고하도록 정리
+  kind: paraphrase
+  expected:
+  - https://techblog.musinsa.com/ai-native-%EC%A1%B0%EC%A7%81%EC%9D%80-%EB%8F%84%EB%A9%94%EC%9D%B8-%EC%A7%80%EC%8B%9D%EC%9D%84-%EC%96%B4%EB%96%BB%EA%B2%8C-%EA%B3%B5%EC%9C%A0%ED%95%98%EB%8A%94%EA%B0%80-f2e3de607df3
+  - https://techblog.lycorp.co.jp/ko/llm-wiki-code-driven-knowledge-ssot
+  - https://tech.kakao.com/posts/844
+  - https://toss.tech/article/52631
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 외부 협력사 시스템 장애에 대비하는 연동 설계
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2025-12-01/o2o_delivery
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 사람 대신 AI가 앱을 직접 눌러 보며 검사
+  kind: paraphrase
+  expected:
+  - https://medium.com/daangn/%ED%95%9C-%EB%AC%B8%EC%9E%A5%EC%9C%BC%EB%A1%9C-%EC%95%B1%EC%9D%84-%ED%85%8C%EC%8A%A4%ED%8A%B8%ED%95%98%EA%B8%B0%EA%B9%8C%EC%A7%80-5340546886b5
+  - https://techblog.lycorp.co.jp/ko/ai-e2e-test-automation
+  - https://d2.naver.com/helloworld/6811215
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 빠진 다국어 문구를 자동으로 잡아내기
+  kind: paraphrase
+  expected:
+  - https://techblog.woowahan.com/26388
+  - https://techblog.woowahan.com/26162
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 회사 외부에 노출된 서버 자산 찾기
+  kind: paraphrase
+  expected:
+  - https://tech.kakao.com/posts/798
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 그래픽카드 한 장을 여러 모델이 나눠 쓰기
+  kind: paraphrase
+  expected:
+  - https://toss.tech/article/gpu-native-cluster
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: 추천 후보를 몇 개 뽑아야 전환이 오르나
+  kind: paraphrase
+  expected:
+  - https://toss.tech/article/53545
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: preventing multiple workers from grabbing the same request
+  kind: paraphrase
+  expected:
+  - https://techblog.woowahan.com/27678
+  - https://techblog.woowahan.com/23625
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: running long jobs reliably without a message broker
+  kind: paraphrase
+  expected:
+  - https://techblog.woowahan.com/23625
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: syncing data to electronic shelf labels in physical stores
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2026-02-09/esl-series-1
+  - https://oliveyoung.tech/2026-02-10/esl-series-2
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: keeping stock counts accurate across online and offline channels
+  kind: paraphrase
+  expected:
+  - https://oliveyoung.tech/2026-07-01/inventory-pipeline
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: replacing a paid error monitoring SaaS with an in-house tool
+  kind: paraphrase
+  expected:
+  - https://d2.naver.com/helloworld/8319114
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: why our cloud bill for AI code review went up and how we cut it
+  kind: paraphrase
+  expected:
+  - https://blog.cloudflare.com/obsessive-inference-optimization
+  note: 공유 단어를 피해 바꿔 말한 질의
+- query: letting an AI agent query the data warehouse safely
+  kind: paraphrase
+  expected:
+  - https://tech.kakao.com/posts/824
+  - https://tech.kakao.com/posts/838
+  - https://techblog.lycorp.co.jp/ko/a2a-conversational-bi-app
+  note: 공유 단어를 피해 바꿔 말한 질의
