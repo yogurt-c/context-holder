@@ -91,3 +91,43 @@ class FakeEmbedder:
 def fake_search_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """CLI가 실제 검색 모델을 내려받지 않게 한다."""
     monkeypatch.setattr("context_holder.cli.make_embedder", lambda model_id: FakeEmbedder(model_id))
+
+
+@pytest.fixture(autouse=True)
+def isolated_git_config(tmp_path_factory: pytest.TempPathFactory):
+    """이 기기의 ~/.gitconfig를 읽지 않게 한다. CI와 개발 기기에서 같은 결과가 나오게."""
+    import pygit2
+    from pygit2.enums import ConfigLevel
+
+    paths = pygit2.settings.search_path
+    levels = (ConfigLevel.GLOBAL, ConfigLevel.XDG, ConfigLevel.SYSTEM)
+    before = {level: paths[level] for level in levels}
+    empty = str(tmp_path_factory.mktemp("gitconfig"))
+    for level in levels:
+        paths[level] = empty
+    yield
+    for level, path in before.items():
+        paths[level] = path
+
+
+@pytest.fixture
+def remote(tmp_path):
+    """GitHub 대신 쓰는 로컬 bare 레포. 경로를 원격 주소로 쓴다."""
+    import pygit2
+
+    path = tmp_path / "remote.git"
+    pygit2.init_repository(str(path), bare=True, initial_head="main")
+    return str(path)
+
+
+@pytest.fixture
+def make_device(tmp_path, remote):
+    """원격에 연결된 기기 하나를 만든다 (위키 폴더 = 레포)."""
+    from context_holder.gitsync import WikiRepo
+
+    def _make(name: str) -> WikiRepo:
+        repo = WikiRepo.create(tmp_path / name, remote)
+        repo.set_identity(name, f"{name}@example.com")
+        return repo
+
+    return _make

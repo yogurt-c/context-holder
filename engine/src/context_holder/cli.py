@@ -12,6 +12,7 @@ import httpx
 import typer
 
 from context_holder import __version__
+from context_holder.auth import TokenMissing, github_token
 from context_holder.classify import (
     Bucket,
     ClassifyResult,
@@ -23,10 +24,16 @@ from context_holder.classify import (
     load_profile,
 )
 from context_holder.collect import Article, CollectResult, SourceReport, collect
+from context_holder.collectrun import Checkpoint, LockedRun, Work, run_locked
+from context_holder.device import device_name
 from context_holder.embed import Embedder, FastEmbedder, model_spec
 from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
+from context_holder.feedback import Kind, record_feedback
+from context_holder.github import GitHubError, account, find_or_create_wiki
+from context_holder.gitsync import GitSyncError, WikiRepo
 from context_holder.index import Index
 from context_holder.init import (
+    InitResult,
     InitSettings,
     Progress,
     load_state,
@@ -37,6 +44,7 @@ from context_holder.init import (
 from context_holder.llm import ClaudeCli
 from context_holder.paths import default_wiki, etag_cache, home
 from context_holder.reembed import run_reembed
+from context_holder.runlock import INIT_LOCK, Outcome, RunLock, daily_lock
 from context_holder.search import search
 from context_holder.searcheval import evaluate_search, load_queries
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
@@ -317,20 +325,42 @@ def sync_command(
     cache = etag_cache()
     etags = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
 
-    with httpx.Client() as client:
-        report = run_sync(
-            wiki,
-            client,
-            ClaudeCli(model=model),
-            now=datetime.now(UTC),
-            days=days or default_days(wiki),
-            etags=etags,
-            embedder=make_embedder(wiki.search_model()),
-        )
+    def work(checkpoint: Checkpoint | None = None) -> Work[SyncReport]:
+        with httpx.Client() as client:
+            report = run_sync(
+                wiki,
+                client,
+                ClaudeCli(model=model),
+                now=datetime.now(UTC),
+                days=days or default_days(wiki),
+                etags=etags,
+                embedder=make_embedder(wiki.search_model()),
+                checkpoint=checkpoint.tick if checkpoint else lambda: None,
+            )
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(report.etags, ensure_ascii=False, indent=2), encoding="utf-8")
+        _print_sync(report)
+        return Work(report, _sync_summary(report), finished=report.stopped_reason is None)
 
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps(report.etags, ensure_ascii=False, indent=2), encoding="utf-8")
-    _print_sync(report)
+    repo = _open_repo(wiki.root)
+    if repo is None:  # git 레포가 아닌 로컬 폴더 (개발용)
+        work()
+        return
+    now = datetime.now(UTC)
+    _pull_and_index(repo, wiki)
+    lock = RunLock(repo, daily_lock(now), device_name(home()), lambda: datetime.now(UTC))
+    run = _run_locked(lock, work, blockers=[INIT_LOCK])
+    if run.work:
+        _index().sync(wiki, make_embedder(wiki.search_model()))
+
+
+def _sync_summary(report: SyncReport) -> dict[str, int]:
+    return {
+        "saved": report.saved,
+        "inboxed": report.inboxed,
+        "dropped": report.dropped,
+        "pending": report.pending_enrich + report.still_pending,
+    }
 
 
 def _print_sync(report: SyncReport) -> None:
@@ -400,20 +430,38 @@ def init_command(
             line += f" · 예상 {eta / 60:.0f}분"
         typer.echo(line)
 
-    with httpx.Client() as client:
-        result = run_init(
-            wiki,
-            client,
-            ClaudeCli(model=model),
-            now=datetime.now(UTC),
-            settings=settings,
-            on_progress=on_progress,
-            embedder=make_embedder(wiki.search_model()),
-        )
-    if result.finished:
-        typer.echo("초기 수집을 마쳤다.")
-    elif result.stopped_reason:
-        typer.echo(f"Claude 호출을 멈췄다: {result.stopped_reason}. 다시 실행하면 이어서 한다.")
+    def work(checkpoint: Checkpoint | None = None) -> Work[InitResult]:
+        def on_batch(p: Progress) -> None:
+            on_progress(p)
+            if checkpoint:
+                checkpoint.save()
+
+        with httpx.Client() as client:
+            result = run_init(
+                wiki,
+                client,
+                ClaudeCli(model=model),
+                now=datetime.now(UTC),
+                settings=settings,
+                on_progress=on_batch,
+                embedder=make_embedder(wiki.search_model()),
+            )
+        if result.finished:
+            typer.echo("초기 수집을 마쳤다.")
+        elif result.stopped_reason:
+            typer.echo(f"Claude 호출을 멈췄다: {result.stopped_reason}. 다시 실행하면 이어서 한다.")
+        summary = {"saved": result.saved, "inboxed": result.inboxed, "dropped": result.dropped}
+        return Work(result, summary, finished=result.finished)
+
+    repo = _open_repo(wiki.root)
+    if repo is None:
+        work()
+        return
+    _pull_and_index(repo, wiki)
+    lock = RunLock(repo, INIT_LOCK, device_name(home()), lambda: datetime.now(UTC))
+    run = _run_locked(lock, work, blockers=[daily_lock(datetime.now(UTC))])
+    if run.work:
+        _index().sync(wiki, make_embedder(wiki.search_model()))
 
 
 def _counts(counts: dict[str, int]) -> str:
@@ -436,6 +484,133 @@ def _print_init_status(wiki: Wiki) -> None:
         )
     if p.stopped_reason:
         typer.echo(f"\n멈춘 이유: {p.stopped_reason}")
+
+
+# ---------- Git 동기화 ----------
+
+LOCK_MESSAGE = {
+    Outcome.DONE: "오늘 수집은 이미 끝났다 ({device}). 받아 온 내용으로 인덱스만 갱신했다.",
+    Outcome.BUSY: "다른 기기({device})가 수집하는 중이다. 받아 온 내용으로 인덱스만 갱신했다.",
+}
+
+
+def _open_repo(path: Path) -> WikiRepo | None:
+    repo = WikiRepo.open(path)
+    if repo is not None and repo.remote_url.startswith("https://"):
+        repo.token = _token()
+    return repo
+
+
+def _token() -> str:
+    try:
+        return github_token()
+    except TokenMissing as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=2) from e
+
+
+def _pull_and_index(repo: WikiRepo, wiki: Wiki) -> None:
+    """이전 실행에서 남은 변경을 커밋하고 pull한 뒤, 바뀐 글만 다시 인덱싱한다."""
+    repo.commit_all("이전 실행에서 남은 변경")
+    try:
+        result = repo.pull()
+        if repo.ahead():
+            repo.push()  # 오프라인일 때 쌓인 커밋
+    except GitSyncError as e:
+        typer.echo(f"위키를 동기화하지 못했다: {e}", err=True)
+        raise typer.Exit(code=1) from e
+    if result.dropped:
+        typer.echo(f"원격과 겹친 로컬 변경 {result.dropped}건은 원격 내용을 따랐다.")
+    updated, removed = _index().sync(wiki, make_embedder(wiki.search_model()))
+    if updated or removed:
+        typer.echo(f"인덱스 갱신 {updated}건, 삭제 {removed}건")
+
+
+def _run_locked(lock: RunLock, work, blockers) -> LockedRun:
+    try:
+        run = run_locked(lock, work, blockers)
+    except GitSyncError as e:
+        typer.echo(f"수집 잠금을 잡지 못했다: {e}", err=True)
+        raise typer.Exit(code=1) from e
+    if run.status.outcome is not Outcome.ACQUIRED:
+        holder = run.status.holder or {}
+        typer.echo(LOCK_MESSAGE[run.status.outcome].format(device=holder.get("device", "?")))
+    elif run.status.took_over:
+        typer.echo(f"멈춘 수집({run.status.took_over})을 이어받았다.")
+    if run.push_error:
+        typer.echo(f"push하지 못했다. 다음 실행에서 다시 올린다: {run.push_error}", err=True)
+    return run
+
+
+@app.command("connect")
+def connect_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키를 받을 폴더."),
+) -> None:
+    """GitHub 계정에서 context-wiki를 찾아 받는다. 없으면 private으로 만든다."""
+    path = wiki_path or default_wiki()
+    token = _token()
+    try:
+        with httpx.Client(timeout=30) as client:
+            me = account(client, token)
+            remote = find_or_create_wiki(client, token, me.login)
+    except GitHubError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=1) from e
+
+    repo = WikiRepo.open(path, token)
+    if repo is None:
+        if path.exists() and any(path.iterdir()):
+            typer.echo(f"{path}에 이미 다른 파일이 있다. 빈 폴더를 지정한다.", err=True)
+            raise typer.Exit(code=2)
+        repo = WikiRepo.create(path, remote.url, token)
+    elif repo.remote_url != remote.url:
+        typer.echo(f"{path}는 다른 레포({repo.remote_url})에 연결돼 있다.", err=True)
+        raise typer.Exit(code=2)
+    if not repo.has_identity():
+        repo.set_identity(me.name, me.noreply_email)
+    try:
+        repo.pull()
+        if repo.head() is None:  # 빈 레포: 기본 설정을 넣어 시작한다
+            Wiki(path).ensure_config()
+            repo.commit_all("위키 시작")
+        repo.push()
+    except GitSyncError as e:
+        typer.echo(f"위키를 받지 못했다: {e}", err=True)
+        raise typer.Exit(code=1) from e
+    made = "만들었다" if remote.created else "찾았다"
+    typer.echo(f"{me.login}/context-wiki를 {made} (private). 위키 폴더: {path}")
+
+
+@app.command("pull")
+def pull_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+) -> None:
+    """다른 기기의 변경을 받아 바뀐 글만 다시 인덱싱한다. 수집은 하지 않는다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    repo = _open_repo(wiki.root)
+    if repo is None:
+        typer.echo(f"{wiki.root}는 git 레포가 아니다. 먼저 ctx connect를 실행한다.", err=True)
+        raise typer.Exit(code=2)
+    _pull_and_index(repo, wiki)
+
+
+@app.command("feedback")
+def feedback_command(
+    kind: Kind = typer.Argument(..., help="not_relevant(관련 없음) 또는 bookmark(북마크)."),
+    url: str = typer.Argument(..., help="글 원문 주소."),
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+) -> None:
+    """피드백을 이 기기의 피드백 파일에 남긴다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    record_feedback(wiki, device_name(home()), kind, url, datetime.now(UTC))
+    repo = _open_repo(wiki.root)
+    if repo is None:
+        return
+    repo.commit_all(f"피드백: {kind.value}")
+    try:
+        repo.push()
+    except GitSyncError as e:
+        typer.echo(f"push하지 못했다. 다음 실행에서 다시 올린다: {e}", err=True)
 
 
 def make_embedder(model_id: str) -> Embedder:

@@ -1,10 +1,11 @@
 """`ctx sync`: 요약 대기 글 재처리 → 수집 → 분류 → 요약 → 위키 쓰기 (plan 5장).
 
-Git 동기화(pull · 수집 잠금 · push)는 이 단계 밖에서 감싼다.
+Git 동기화(pull · 수집 잠금 · push)는 이 단계 밖에서 감싼다 (collectrun).
+checkpoint는 글을 하나 쓸 때마다 부른다. 일정 건수마다 커밋 · push하는 데 쓴다.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -51,13 +52,16 @@ def run_sync(
     days: int,
     etags: Mapping[str, str] | None = None,
     embedder: Embedder | None = None,
+    checkpoint: Callable[[], None] = lambda: None,
 ) -> SyncReport:
     wiki.ensure_config()
     sources = {s.id: s for s in wiki.sources()}
     profile = wiki.profile()
     state = Budget()
 
-    completed, still_pending = _retry_pending(wiki, client, llm, sources, now, state, embedder)
+    completed, still_pending = _retry_pending(
+        wiki, client, llm, sources, now, state, embedder, checkpoint
+    )
 
     pending_urls = {p.url for p in wiki.pending()}
     collected = collect(
@@ -87,6 +91,7 @@ def run_sync(
         if enrichment:
             try_write_vectors(wiki, embedder, article)
         pending_enrich += enrichment is None
+        checkpoint()
     wiki.record_seen(
         decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
     )
@@ -107,7 +112,7 @@ def run_sync(
     )
 
 
-def _retry_pending(wiki, client, llm, sources, now, state, embedder) -> tuple[int, int]:
+def _retry_pending(wiki, client, llm, sources, now, state, embedder, checkpoint) -> tuple[int, int]:
     completed = still = 0
     for pending in wiki.pending():
         source = sources.get(pending.source_id)
@@ -127,4 +132,5 @@ def _retry_pending(wiki, client, llm, sources, now, state, embedder) -> tuple[in
         wiki.complete(pending, enrichment, collected=now)
         try_write_vectors(wiki, embedder, article)
         completed += 1
+        checkpoint()
     return completed, still

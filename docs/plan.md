@@ -89,11 +89,13 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 
 1. `git pull --rebase`
 2. `state/runs/{date}.json`이 이미 있으면 수집하지 않는다. pull과 인덱싱만 한다.
-3. 없으면 `{host, started_at, status: running}`으로 파일을 만들어 커밋하고 **즉시 push**한다.
+3. 없으면 `{device, started_at, heartbeat_at, status: running}`으로 파일을 만들어 커밋하고 **즉시 push**한다.
    - push 성공: 이 기기가 오늘 수집을 맡는다.
    - push 거절(다른 기기가 먼저 push): pull해서 상대의 실행 기록을 확인하고 수집하지 않는다.
-4. 수집이 끝나면 `status: done`과 결과 수치를 기록해 커밋 · push한다.
-5. `running` 상태로 2시간이 지나면(기기가 중간에 꺼진 경우) 다른 기기가 이어받는다.
+4. 수집하는 동안 글 20건마다 `heartbeat_at`을 갱신해 그때까지 쓴 글과 함께 커밋 · push한다. 기기가 중간에 꺼져도 push한 만큼은 남는다.
+5. 수집이 끝나면 `status: done`과 결과 수치를 기록해 커밋 · push한다. 한도 · 로그인 문제로 멈추면 `status: stopped`로 풀어 같은 날 다시 시도할 수 있게 한다.
+6. 마지막 heartbeat 후 2시간이 지나면(기기가 중간에 꺼진 경우) 다른 기기가 이어받는다. 수집이 2시간보다 오래 걸려도 heartbeat가 이어지는 동안은 이어받지 않는다.
+- 날짜는 기기의 현지 날짜다. 첫 실행 초기 수집은 `state/runs/init.json`을 같은 방식으로 쓰고, 초기 수집이 도는 동안 매일 수집은 수집을 건너뛴다.
 
 GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해도 push는 한 쪽만 성공한다. 별도 잠금 서버가 필요 없다. 주간 Pruner도 `state/runs/prune-{yyyy-ww}.json`으로 같은 방식을 쓴다.
 
@@ -107,10 +109,12 @@ GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해
 **동기화 시점과 인덱스 갱신**
 
 - 앱 시작, 잠자기 해제, 앱이 켜져 있는 동안 30분마다 pull한다.
-- pull 전후 커밋을 비교해(`git diff --name-only`) 바뀐 파일만 다시 인덱싱한다.
+- pull 후 글마다 파일 시그니처를 비교해 바뀐 글만 다시 인덱싱한다. 바뀐 게 없으면 1초 남짓이다.
 - 오프라인이면 로컬에 커밋해 두고 연결되면 push한다.
 
-**새 기기 추가**: 3.2의 초기 설정과 같다. GitHub 로그인 후 기존 `context-wiki`를 찾으면 clone하고 전체 인덱싱한다.
+**새 기기 추가**: 3.2의 초기 설정과 같다. GitHub 로그인 후 기존 `context-wiki`를 찾으면 clone하고 전체 인덱싱한다. 글 286건 기준 전체 인덱싱은 약 8분이다(위키 필드를 검색 모델로 계산). 진행률을 보여 준다.
+
+**위키 커밋 저자**: 기기의 git 설정(`user.name` · `user.email`)을 쓰고, 없으면 GitHub 계정의 noreply 주소를 쓴다.
 
 ### 3.2 초기 설정 · 인증
 

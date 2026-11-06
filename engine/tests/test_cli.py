@@ -275,7 +275,7 @@ def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path)
     (home / "etag-cache.json").write_text('{"toss": "\\"old\\""}', encoding="utf-8")
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None):
+    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None):
         seen.update(root=wiki.root, days=days, etags=dict(etags), model=llm.model)
         return SyncReport(
             sources=(SourceReport("toss", found=3, new=2),),
@@ -312,7 +312,7 @@ def test_sync_defaults_to_wiki_in_home_and_first_run_window(monkeypatch, tmp_pat
     monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None):
+    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None):
         seen.update(root=wiki.root, days=days)
         return SyncReport((), 0, 0, 0, 0, 0, 0, 0, 0.0, {}, None)
 
