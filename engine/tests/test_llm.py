@@ -85,3 +85,46 @@ def test_default_runner_executes_a_real_process(tmp_path):
     run = subprocess_runner(["cat"], stdin="안녕", timeout=5, cwd=str(tmp_path))
 
     assert run == Run(0, "안녕", "")
+
+
+@pytest.mark.parametrize(
+    ("body", "kind", "message"),
+    [
+        (
+            {
+                "is_error": True,
+                "result": "Claude AI usage limit reached|1793900000",
+                "api_error_status": None,
+            },
+            ErrorKind.LIMIT,
+            "usage limit",
+        ),
+        (
+            {"is_error": True, "result": "API Error", "api_error_status": 429},
+            ErrorKind.LIMIT,
+            "API Error",
+        ),
+        (
+            {"is_error": True, "result": "API Error", "api_error_status": 401},
+            ErrorKind.AUTH,
+            "API Error",
+        ),
+        (
+            {"is_error": True, "result": "Overloaded", "api_error_status": 529},
+            ErrorKind.FAILED,
+            "Overloaded",
+        ),
+    ],
+)
+def test_failed_run_with_json_body_uses_its_fields(body, kind, message):
+    # 실패 응답에도 credential_expires_at 같은 필드가 늘 있다.
+    # 필드 이름으로 원인을 추측하면 안 된다.
+    payload = json.dumps({**body, "credential_expires_at": "2026-11-17T12:53:58Z", "usage": {}})
+    cli = ClaudeCli(runner=FakeRunner(Run(1, payload, "")))
+
+    with pytest.raises(LlmError) as excinfo:
+        cli.structured(prompt="p", system="s", schema=SCHEMA)
+
+    assert excinfo.value.kind is kind
+    assert message in str(excinfo.value)
+    assert "credential_expires_at" not in str(excinfo.value)

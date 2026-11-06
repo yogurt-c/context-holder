@@ -47,7 +47,7 @@ class Run(NamedTuple):
 
 Runner = Callable[[list[str], str, float, str], Run]
 
-AUTH_HINTS = ("login", "log in", "api key", "unauthorized", "oauth", "credential")
+AUTH_HINTS = ("login", "log in", "api key", "unauthorized", "oauth")
 LIMIT_HINTS = ("usage limit", "rate limit", "limit reached", "quota")
 
 
@@ -112,19 +112,16 @@ class ClaudeCli:
 
 
 def _parse(run: Run) -> LlmResult:
-    if run.returncode != 0:
-        raise LlmError(
-            _kind_from_text(run.stderr or run.stdout), _snippet(run.stderr or run.stdout)
-        )
-    try:
-        body = json.loads(run.stdout)
-    except json.JSONDecodeError as e:
-        raise LlmError(ErrorKind.BAD_OUTPUT, f"JSON이 아닌 출력: {_snippet(run.stdout)}") from e
-    if not isinstance(body, dict):
-        raise LlmError(ErrorKind.BAD_OUTPUT, "응답이 객체가 아니다")
-    if body.get("is_error"):
+    body = _json_body(run.stdout)
+    if run.returncode != 0 and body is None:
+        text = run.stderr or run.stdout
+        raise LlmError(_kind_from_text(text), _snippet(text))
+    if body is None:
+        raise LlmError(ErrorKind.BAD_OUTPUT, f"JSON이 아닌 출력: {_snippet(run.stdout)}")
+    if run.returncode != 0 or body.get("is_error"):
+        # 실패 응답도 JSON이다. 필드 이름(credential_expires_at 등)이 아니라 내용으로 판단한다
         message = str(body.get("result") or body.get("subtype") or "알 수 없는 오류")
-        raise LlmError(_kind_from_text(message), _snippet(message))
+        raise LlmError(_kind_from_body(body, message), _snippet(message))
     data = body.get("structured_output")
     if not isinstance(data, dict):
         raise LlmError(ErrorKind.BAD_OUTPUT, "structured_output이 없다")
@@ -133,6 +130,23 @@ def _parse(run: Run) -> LlmResult:
         cost_usd=float(body.get("total_cost_usd") or 0.0),
         duration_ms=int(body.get("duration_ms") or 0),
     )
+
+
+def _json_body(stdout: str) -> dict[str, Any] | None:
+    try:
+        body = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _kind_from_body(body: dict[str, Any], message: str) -> ErrorKind:
+    status = body.get("api_error_status")
+    if status == 429:
+        return ErrorKind.LIMIT
+    if status in (401, 403):
+        return ErrorKind.AUTH
+    return _kind_from_text(message)
 
 
 def _kind_from_text(text: str) -> ErrorKind:
