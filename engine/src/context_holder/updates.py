@@ -62,6 +62,7 @@ class Updates:
         self.on_change = on_change
         self.state = UpdateState()
         self.current = __version__
+        self.closed = ""  # 이번 실행에서 닫은 버전
 
     # ---------- 앱이 알려 준 상태 ----------
 
@@ -112,10 +113,15 @@ class Updates:
         self.emit({"event": "update", "action": "restart"})
         return True
 
-    def dismiss(self) -> None:
+    def skip(self) -> None:
         """이 버전 알림을 다시 띄우지 않는다. 설정 화면에는 계속 보인다."""
         if self.state.version:
             appsettings.update(self.settings_path, skipped_update=self.state.version)
+        self.on_change()
+
+    def close(self) -> None:
+        """설치 실패 팝업을 닫는다. 버전은 건너뛰지 않고, 앱을 다시 켜기 전까지만 숨긴다."""
+        self.closed = self.state.version
         if self.state.state == "error":
             self.state = replace(self.state, state="available" if self.state.version else "idle")
         self.on_change()
@@ -144,7 +150,8 @@ class Updates:
         if s.state == "error":
             return bool(s.version)  # 확인 실패는 띄우지 않고, 설치 실패만 띄운다
         if s.state == "available":
-            return s.version != appsettings.load(self.settings_path).skipped_update
+            hidden = (appsettings.load(self.settings_path).skipped_update, self.closed)
+            return s.version not in hidden
         return False
 
     def menu_item(self, busy: bool) -> dict[str, Any] | None:

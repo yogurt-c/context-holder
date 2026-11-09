@@ -8,7 +8,8 @@
   <div class="foot">{{ sync.started }}에 시작했어요. 화면은 계속 써도 돼요.</div>
   {% else %}
   <div class="head"><span class="dot {{ {'running': 'busy', 'stopped': 'error', 'none': 'idle'}.get(st.state, '') }}"></span>{{ st.label }}</div>
-  {% if st.counts %}<dl>{% for name, n in st.counts.items() %}<dt>{{ name }}</dt><dd>{{ n }}</dd>{% endfor %}</dl>{% endif %}
+  {# 숫자는 평소 한 줄로 접어 두고, 누르면 네 줄로 펼친다 #}
+  {% if st.counts %}<details class="sync-counts"><summary>새 글 {{ st.counts.get("신규", 0) }}건, 저장 {{ st.counts.get("저장", 0) }}건</summary><dl>{% for name, n in st.counts.items() %}<dt>{{ name }}</dt><dd>{{ n }}</dd>{% endfor %}</dl></details>{% endif %}
   {% if st.foot %}<div class="foot">{{ st.foot }}</div>{% endif %}
   {% if sync and sync.paused %}<div class="foot">수집 일시정지 중 ({{ sync.paused }})</div>{% endif %}
   {% if sync and sync.can_run %}<button type="button" class="btn sm sync-now" hx-post="/sync" hx-target="#sync-card" hx-swap="outerHTML">지금 수집</button>{% endif %}

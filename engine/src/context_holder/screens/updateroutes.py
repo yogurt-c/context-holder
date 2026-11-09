@@ -65,9 +65,14 @@ def add_routes(
         updates.restart(busy=busy())
         return Response(headers=CHANGED)
 
-    @app.post("/update/dismiss")
-    def dismiss() -> Response:
-        updates.dismiss()
+    @app.post("/update/skip")
+    def skip() -> Response:
+        updates.skip()
+        return Response(headers=CHANGED)
+
+    @app.post("/update/close")
+    def close() -> Response:
+        updates.close()
         return Response(headers=CHANGED)
 
     @app.post("/update/auto", response_class=HTMLResponse)

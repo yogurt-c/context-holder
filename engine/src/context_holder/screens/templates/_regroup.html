@@ -4,6 +4,6 @@
   <span class="ut-spin" aria-hidden="true"></span><span>주제를 정리하는 중{% if job.total > 1 %} ({{ job.done }}/{{ job.total }}){% endif %}… 1분쯤 걸려요</span>
   {% else %}
   {% if job.message %}<span class="{{ 'warn' if job.state == 'error' else 'regroup-done' }}">{{ job.message }}</span>{% endif %}
-  <button type="button" class="btn sm decision" hx-post="/decisions/regroup" hx-target="#regroup" hx-swap="outerHTML" title="결정 사례의 주제와 문제 한 줄만 Claude에 보내요">주제 정리</button>
+  <button type="button" class="btn sm" hx-post="/decisions/regroup" hx-target="#regroup" hx-swap="outerHTML" title="결정 사례의 주제와 문제 한 줄만 Claude에 보내요">주제 정리</button>
   {% endif %}
 </div>

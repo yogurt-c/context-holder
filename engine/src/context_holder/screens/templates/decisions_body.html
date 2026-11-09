@@ -46,7 +46,12 @@
       </div>
     </div>
 
-    <div class="table-scroll" tabindex="0" aria-label="회사별 결정 비교, 옆으로 넘겨 볼 수 있어요">
+    <div class="scroll-bar" data-scroll-bar hidden>
+      <span class="scroll-status" data-scroll-status aria-live="polite"></span>
+      <button type="button" class="btn sm" data-scroll-step="-1" aria-label="앞 사례 보기">‹</button>
+      <button type="button" class="btn sm" data-scroll-step="1" aria-label="다음 사례 보기">›</button>
+    </div>
+    <div class="table-scroll" tabindex="0" data-scroll-table aria-label="회사별 결정 비교, 옆으로 넘겨 볼 수 있어요">
       <div class="matrix" role="table" aria-label="회사별 결정 비교" style="--cols: {{ view.columns | length }}">
         <div class="rh ch" role="columnheader"></div>
         {% for c in view.columns %}<div class="ch{% if loop.first %} col-hl{% endif %}" role="columnheader"><span class="co-brand">{{ c.company }}</span><span class="date">{{ c.date or "날짜 모름" }}</span></div>{% endfor %}
@@ -70,7 +75,7 @@
         {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><a class="src" href="#" hx-get="/article/{{ c.id }}" hx-target="#modal-body">{{ c.title }}</a></div>{% endfor %}
       </div>
     </div>
-    <div class="footnote"><span>{% if view.columns | length > 3 %}옆으로 넘겨 더 보기 · {% endif %}출처를 누르면 글 상세가 열려요</span><span>신뢰도는 원문 근거 문장 대조 결과</span></div>
+    <div class="footnote"><span>출처를 누르면 글 상세가 열려요</span><span>신뢰도는 원문 근거 문장 대조 결과</span></div>
     {% endif %}
   </section>
 </div>

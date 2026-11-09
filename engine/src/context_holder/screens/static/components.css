@@ -47,6 +47,12 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .sync-card .head { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-weight: 600; }
 .sync-card dl { display: grid; grid-template-columns: 1fr auto; gap: 2px var(--sp-2); margin-top: var(--sp-2); }
 .sync-card dd { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sync-counts summary { margin-top: var(--sp-1); padding-left: 16px; list-style: none; cursor: pointer; color: var(--ink-soft); font-variant-numeric: tabular-nums; border-radius: var(--r-paper); }
+.sync-counts summary::-webkit-details-marker { display: none; }
+.sync-counts summary::after { content: "펼치기"; margin-left: var(--sp-2); font-size: var(--fs-micro); color: var(--ink-faint); }
+.sync-counts[open] summary::after { content: "접기"; }
+.sync-counts summary:hover { color: var(--ink); }
+.sync-counts summary:focus-visible { outline: 2px solid var(--decision); outline-offset: 2px; }
 .sync-card .foot { margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px dashed var(--chrome-line); font-size: var(--fs-micro); color: var(--ink-faint); line-height: 1.5; }
 
 /* ---------- 상태 점: 실시간 상태에만 쓴다 ---------- */
@@ -212,6 +218,22 @@ a.btn, a.chip { text-decoration: none; }
 .article-detail .summary li, .article-detail .key-points li { margin-bottom: var(--sp-1); }
 .article-detail .section-head { font-size: 12px; font-weight: 700; color: var(--ink-faint); margin-bottom: var(--sp-2); }
 .article-detail .decision-card { margin-bottom: var(--sp-4); box-shadow: none; }
+/* 받아 오는 동안: 실제 글과 같은 자리에 회색 막대 (같은 높이라 내용이 들어와도 모달이 튀지 않는다) */
+.skel { display: block; height: 0.9em; border-radius: var(--r-paper); background: var(--rule-soft); animation: skel-pulse 1.4s ease-in-out infinite; }
+.is-loading .kicker { display: flex; gap: var(--sp-2); }
+.is-loading .kicker .skel { width: 72px; height: 14px; }
+.is-loading .kicker .skel + .skel { width: 64px; }
+.skel-title { display: grid; gap: 10px; margin: var(--sp-3) 0 var(--sp-5); }
+.skel-title .skel { height: 22px; width: 88%; }
+.skel-title .skel + .skel { width: 54%; }
+.skel-lines { display: grid; gap: 12px; padding-left: var(--sp-5); }
+.skel-lines .skel { width: 96%; }
+.skel-lines .skel:nth-child(2) { width: 91%; }
+.skel-lines .skel:nth-child(3) { width: 72%; }
+@keyframes skel-pulse { 50% { opacity: 0.45; } }
+.load-failed .failed-head { margin-top: var(--sp-3); font-size: var(--fs-h3); font-weight: 700; color: var(--ink); }
+.load-failed .note { margin: var(--sp-1) 0 var(--sp-4); }
+.is-opening { opacity: 0.6; text-decoration: underline; text-underline-offset: 3px; }
 .evidence-list { list-style: none; display: grid; gap: var(--sp-1); }
 .evidence-list q { color: var(--ink-soft); font-size: 13px; }
 .article-detail .tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: 0 0 var(--sp-4); }
@@ -243,13 +265,14 @@ a.btn, a.chip { text-decoration: none; }
 .ut-head { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: 14px; }
 .ut-head strong { font-weight: 650; }
 .ut-pct { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--busy-ink); font-variant-numeric: tabular-nums; }
-.ut-badge { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.02em; padding: 1px var(--sp-2); border-radius: 9px; color: var(--decision-ink); background: var(--decision-tint); border: 1px solid var(--decision-line); }
-.ut-badge.error { color: var(--error-deep); background: var(--error-tint); border-color: var(--error-line); }
-.ut-check { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--on-ink); background: var(--ok); }
+/* 제목 앞 아이콘: 모든 상태가 같은 18px 원, 색만 왼쪽 띠를 따른다 */
+.ut-icon { width: 18px; height: 18px; flex: none; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; line-height: 1; color: var(--on-ink); background: var(--ut-accent); }
+.ut-icon.spin { background: none; border: 2px solid var(--busy-line); border-top-color: var(--busy); animation: spin 0.9s linear infinite; }
+.ut-wait { font-size: 12.5px; color: var(--busy-ink); }
 .ut-spin { width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid var(--busy-line); border-top-color: var(--busy); animation: spin 0.9s linear infinite; display: inline-block; }
 .ut-body { margin-top: var(--sp-2); line-height: 1.55; }
 .ut-body a, .us-status a { color: var(--decision-ink); text-decoration: underline; text-underline-offset: 2px; }
-.ut-num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.ut-num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .ut-bar { margin-top: var(--sp-3); height: 6px; border-radius: 3px; }
 .ut-bar i, .us-bar i { transition: width var(--dur-short) var(--ease); }
 .bar.indeterminate i { animation: ut-slide 1.2s var(--ease) infinite; }

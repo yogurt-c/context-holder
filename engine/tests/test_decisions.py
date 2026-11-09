@@ -171,6 +171,14 @@ def test_decisions_page_and_partials(tmp_path):
     assert "맞는 주제가 없어요" in c.get("/decisions?q=zzz").text
 
 
+def test_search_start_links_broad_topics_by_area(tmp_path):
+    wiki = make_wiki(tmp_path)
+    seed(wiki)
+    page = client(tmp_path, wiki, FakeLlm([])).get("/search").text
+    assert "주제별로 결정 비교하기" in page and "<dt>인프라</dt>" in page
+    assert 'href="/decisions?sel=%EC%84%9C%EB%B9%84%EC%8A%A4' in page  # 서비스 메시 운영 비교표
+
+
 def test_decisions_empty_before_first_regroup_then_runs(tmp_path):
     wiki = make_wiki(tmp_path)
     add(wiki, "https://t/1", "글", topic="캐시 무효화")

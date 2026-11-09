@@ -129,6 +129,12 @@ def build_decisions(
     )
 
 
+def browse_topics(wiki: Wiki, index: Index, per_area: int = 3) -> list[tuple[str, list[str]]]:
+    """분야마다 사례가 많은 주제 몇 개. Search 첫 화면에서 비교표로 바로 간다."""
+    view = build_decisions(wiki, index, {})
+    return [(area, [t.name for t in items[:per_area]]) for area, items in view.areas]
+
+
 def _areas(
     shown: list[topicmod.Group], members: dict[str, list[IndexedArticle]], selected
 ) -> list[tuple[str, list[TopicItem]]]:

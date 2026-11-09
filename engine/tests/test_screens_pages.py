@@ -134,7 +134,7 @@ def test_inbox_without_reasons_and_empty_inbox(wiki, tmp_path):
     c, _ = make_client(wiki, tmp_path)
     assert "판정 이유가 남아 있지 않아요" in c.get("/inbox").text
     assert (
-        "검토할 보류 글이 없어요"
+        "검토할 글이 없어요"
         in make_client(Wiki(tmp_path / "empty"), tmp_path / "e")[0].get("/inbox").text
     )
 
@@ -379,7 +379,7 @@ def test_sources_counts_new_saved_and_pass_rate_over_30_days(wiki, tmp_path):
 def test_sources_page_without_records(wiki, tmp_path):
     c, _ = make_client(wiki, tmp_path)
     page = c.get("/sources").text
-    assert "소스별 결과는 이번 업데이트부터" in page and "기록 없음" in page
+    assert "다음 수집부터 소스별" in page and "기록 없음" not in page and "spark" not in page
     assert "아직 후보가 없어요" in page and "2곳" in page
 
 

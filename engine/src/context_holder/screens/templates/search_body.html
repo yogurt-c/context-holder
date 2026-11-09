@@ -3,9 +3,14 @@
 {% if not query.q %}
 <div class="search-empty">
   <p class="empty-note">모은 글의 요약, 핵심 내용, 결정 기록을 키워드와 뜻으로 함께 찾아요.</p>
-  {% if view.topics %}
-  <h3 class="panel-head">결정 주제로 찾아보기</h3>
-  <ul class="topic-links">{% for t in view.topics %}<li><a class="chip" href="{{ query.url(q=t, kind='decision') }}">{{ t }}</a></li>{% endfor %}</ul>
+  {% if view.browse %}
+  <h3 class="panel-head">주제별로 결정 비교하기</h3>
+  <dl class="topic-browse">
+    {% for area, links in view.browse %}
+    {% if area %}<dt>{{ area }}</dt>{% endif %}
+    <dd><ul class="topic-links">{% for name, href in links %}<li><a class="chip" href="{{ href }}">{{ name }}</a></li>{% endfor %}</ul></dd>
+    {% endfor %}
+  </dl>
   {% endif %}
 </div>
 {% else %}

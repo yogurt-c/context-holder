@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 from context_holder.index import Index
 from context_holder.mcptools import NO_MODEL_NOTE, WikiTools
+from context_holder.screens.decisionsview import DecisionsView, browse_topics
 from context_holder.search import SearchHit
 from context_holder.wiki import StoredArticle, Wiki
 
@@ -86,7 +87,17 @@ class SearchView:
     elapsed: float = 0.0
     article_total: int = 0
     decision_total: int = 0
-    topics: list[str] = field(default_factory=list)  # 검색어가 없을 때 보여 줄 결정 주제
+    # 검색어가 없을 때 보여 줄 주제: (분야, [(이름, 주소)]). 정리한 주제는 Decisions 비교표로 간다
+    browse: list[tuple[str, list[tuple[str, str]]]] = field(default_factory=list)
+
+
+def _browse(wiki: Wiki, index: Index, query: Query) -> list[tuple[str, list[tuple[str, str]]]]:
+    groups = browse_topics(wiki, index)
+    if groups:
+        return [(area, [(n, DecisionsView().url(sel=n)) for n in names]) for area, names in groups]
+    # 주제를 아직 정리하지 않았으면 사례가 많은 결정 주제를 검색어로 건다
+    names = [name for name, _ in index.topics()[:TOPIC_LINKS]]
+    return [("", [(n, query.url(q=n, kind="decision")) for n in names])] if names else []
 
 
 def parse_query(params: Mapping[str, str], lists: Mapping[str, list[str]]) -> Query:
@@ -109,8 +120,7 @@ def build_search(
         "decision_total": sum(n for _, n in index.topics()),
     }
     if not query.q:
-        topics = [name for name, _ in index.topics()[:TOPIC_LINKS]]
-        return SearchView(query, topics=topics, **totals)
+        return SearchView(query, browse=_browse(wiki, index, query), **totals)
     started = time.perf_counter()
     hits, notes = tools.all_hits([query.q])
     notes = [NO_MODEL_SCREEN if n == NO_MODEL_NOTE else n for n in notes]

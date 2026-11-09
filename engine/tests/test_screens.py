@@ -215,10 +215,43 @@ def test_mcp_entries_keep_recent_searches_only(tmp_path):
     entries = views.mcp_entries(log, NOW)
 
     assert entries == [
-        views.McpEntry("결정 사례 · 피처 플래그", 0),
-        views.McpEntry("사이드카 · a very long eng…", 2),
+        views.McpEntry("결정 사례 · 피처 플래그", 0, "결정 사례 · 피처 플래그"),
+        views.McpEntry("사이드카 외 2개", 2, "사이드카 · a very long english query · 셋째"),
     ]
     assert views.mcp_entries(tmp_path / "없음.jsonl", NOW) == []
+
+
+def test_mcp_entries_merge_repeats_and_clip_at_words(tmp_path):
+    log = tmp_path / "q.jsonl"
+    long = "transactional outbox pattern CDC Debezium"
+    rows = [
+        {
+            "at": NOW.isoformat(),
+            "tool": "find_decision_cases",
+            "args": {"topic": "서비스 간 데이터 동기화"},
+            "ids": ["1"],
+        },
+        {"at": NOW.isoformat(), "tool": "search_wiki", "args": {"queries": [long]}, "ids": []},
+        {
+            "at": NOW.isoformat(),
+            "tool": "find_decision_cases",
+            "args": {"topic": "서비스 간 데이터 동기화"},
+            "ids": ["1", "2"],
+        },
+        {"at": NOW.isoformat(), "tool": "search_wiki", "args": {"queries": ["가" * 30]}, "ids": []},
+    ]
+    log.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows))
+
+    entries = views.mcp_entries(log, NOW)
+
+    assert [e.call for e in entries] == [
+        "가" * 19 + "…",
+        "결정 사례 · 서비스 간 데이터 동기화",
+        "transactional…",
+    ]
+    assert entries[1].times == 2 and entries[1].hits == 2  # 가장 최근 건수
+    assert entries[2].full == long
+    assert views.call_text("search_wiki", {}) == ("", "")
 
 
 # ---------- Today ----------

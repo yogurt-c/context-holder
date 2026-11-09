@@ -2,14 +2,17 @@
 {% from "_macros.html" import alert_banners %}
 {% block title %}Sources · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/sources.css">{% endblock %}
-{% macro rows(items) -%}
+{# blank: 소스별 기록이 하나도 없으면 칸을 비운다 (같은 "기록 없음"이 모든 줄에 반복되지 않게) #}
+{% macro rows(items, blank) -%}
 {% for r in items %}
 <tr{% if r.error %} class="err"{% endif %}>
   <td class="co-cell">{{ r.source.name }} <small>{{ r.source.id }}</small></td>
+  {% if blank %}<td></td><td></td><td></td><td></td>{% else %}
   <td>{% if r.error %}<span class="msg">{{ r.error }}</span>{% elif r.last_check %}<span class="when">{{ r.last_check }}</span>{% else %}<span class="none">기록 없음</span>{% endif %}</td>
   <td class="r">{{ r.new }}</td>
   <td><span class="spark" role="img" aria-label="6일 단위 새 글 추이">{% for h in r.spark %}<i style="height:{{ h }}px"></i>{% endfor %}</span></td>
   <td>{% if r.pass_rate is not none %}<div class="pass"><span class="bar"><i style="width:{{ r.pass_rate }}%"></i></span><span>{{ r.pass_rate }}%</span></div>{% else %}<span class="none">–</span>{% endif %}</td>
+  {% endif %}
 </tr>
 {% endfor %}
 {%- endmacro %}
@@ -25,12 +28,12 @@
           <span class="grow"><b>마지막 수집에서 소스 {{ view.failures | length }}곳을 확인하지 못했어요.</b> {% for name, why in view.failures %}{{ name }}: {{ why }}{% if not loop.last %}, {% endif %}{% endfor %}. 다른 소스는 정상으로 확인했어요.</span>
         </div>
         {% endif %}
-        {% if not view.has_records %}<p class="note records-note">소스별 결과는 이번 업데이트부터 수집 기록에 쌓여요. 다음 수집이 끝나면 채워져요.</p>{% endif %}
+        {% if not view.has_records %}<p class="note records-note">다음 수집부터 소스별 확인 시각, 새 글 수, 통과율이 쌓여요.</p>{% endif %}
         <div class="table-scroll"><table aria-label="소스 목록">
           <thead><tr><th>회사</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th></tr></thead>
           <tbody>
-            {% if view.domestic %}<tr class="group"><td colspan="5">국내</td></tr>{{ rows(view.domestic) }}{% endif %}
-            {% if view.overseas %}<tr class="group"><td colspan="5">해외</td></tr>{{ rows(view.overseas) }}{% endif %}
+            {% if view.domestic %}<tr class="group"><td colspan="5">국내</td></tr>{{ rows(view.domestic, not view.has_records) }}{% endif %}
+            {% if view.overseas %}<tr class="group"><td colspan="5">해외</td></tr>{{ rows(view.overseas, not view.has_records) }}{% endif %}
           </tbody>
         </table></div>
         <p class="note table-note">통과율은 30일 동안 새로 모은 글 중 저장한 비율이에요.</p>

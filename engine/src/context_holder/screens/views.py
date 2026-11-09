@@ -6,7 +6,7 @@ Today 순위 = 관련도 * 신선도 * 회사 가중치.
 
 import json
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -55,8 +55,10 @@ class Lead:
 
 @dataclass(frozen=True)
 class McpEntry:
-    call: str
-    hits: int
+    call: str  # 목록에 보이는 짧은 말
+    hits: int  # 가장 최근에 찾았을 때 나온 건수
+    full: str = ""  # 잘리기 전 전체 말 (title)
+    times: int = 1  # 같은 말을 찾은 횟수
 
 
 @dataclass(frozen=True)
@@ -175,8 +177,18 @@ def mcp_entries(log_path: Path, now: datetime) -> list[McpEntry]:
             continue
         if row.get("tool") not in ("search_wiki", "find_decision_cases") or at < since:
             continue
-        entries.append(McpEntry(call_text(row["tool"], row.get("args") or {}), len(row["ids"])))
-    return entries[-MCP_SIZE:][::-1]
+        full, short = call_text(row["tool"], row.get("args") or {})
+        entries.append(McpEntry(short, len(row["ids"]), full))
+    return _merge(entries[::-1])[:MCP_SIZE]
+
+
+def _merge(latest_first: list[McpEntry]) -> list[McpEntry]:
+    """같은 말을 여러 번 찾았으면 가장 최근 줄 하나로 합치고 횟수를 센다."""
+    merged: dict[str, McpEntry] = {}
+    for e in latest_first:
+        seen = merged.get(e.full)
+        merged[e.full] = e if seen is None else replace(seen, times=seen.times + 1)
+    return list(merged.values())
 
 
 def decision_markdown(stored: StoredArticle, company: str) -> str:
@@ -323,12 +335,23 @@ def _clock_time(value: str | None) -> str:
     return datetime.fromisoformat(value).astimezone().strftime("%H:%M")
 
 
-def call_text(tool: str, args: dict[str, Any]) -> str:
-    """Claude가 찾은 말. 검색은 질의 두 개까지, 결정 사례 찾기는 주제(없으면 문제)."""
+def call_text(tool: str, args: dict[str, Any]) -> tuple[str, str]:
+    """Claude가 찾은 말 (전체, 짧게).
+
+    검색은 첫 질의와 나머지 개수, 결정 사례 찾기는 주제(없으면 문제).
+    """
     if tool == "search_wiki":
-        return " · ".join(_clip(q) for q in (args.get("queries") or [])[:2])
-    return "결정 사례 · " + _clip(args.get("topic") or args.get("problem") or "")
+        queries = [str(q) for q in args.get("queries") or [] if q]
+        rest = f" 외 {len(queries) - 1}개" if len(queries) > 1 else ""
+        return " · ".join(queries), _clip(queries[0] if queries else "") + rest
+    subject = str(args.get("topic") or args.get("problem") or "")
+    return "결정 사례 · " + subject, "결정 사례 · " + _clip(subject)
 
 
-def _clip(text: str, size: int = 16) -> str:
-    return text if len(text) <= size else text[: size - 1] + "…"
+def _clip(text: str, size: int = 20) -> str:
+    """길면 단어 경계에서 자른다. 단어가 너무 길면 글자로 자른다."""
+    if len(text) <= size:
+        return text
+    cut = text[: size - 1]
+    space = cut.rfind(" ")
+    return (cut[:space] if space > size // 2 else cut).rstrip(" ·") + "…"

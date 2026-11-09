@@ -37,12 +37,14 @@
             </div>
           </article>
 
+          {% set listed = view.briefs + (view.more or []) %}
+          {% set mark_briefs = listed | rejectattr("article.decision_topic") | list | length > 0 %}
           <ol class="briefs">
           {% for b in view.briefs %}
             <li>
               <h3><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
               <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
-              <div class="side">{{ badges(b.article) }}</div>
+              <div class="side">{{ badges(b.article, mark_briefs) }}</div>
             </li>
           {% endfor %}
           </ol>
@@ -54,7 +56,7 @@
               <li>
                 <h3><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
                 <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
-                <div class="side">{{ badges(b.article) }}</div>
+                <div class="side">{{ badges(b.article, mark_briefs) }}</div>
               </li>
             {% endfor %}
             </ol>
@@ -64,12 +66,13 @@
           <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
           {% if view.recent %}
           <h3 class="panel-head">최근 7일 상위 글</h3>
+          {% set mark_recent = view.recent | map(attribute="1") | rejectattr("article.decision_topic") | list | length > 0 %}
           <ol class="briefs recent">
           {% for day, b in view.recent %}
             <li>
               <h3><span class="day">{{ day.strftime("%m.%d") }}</span><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
               <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
-              <div class="side">{{ badges(b.article) }}</div>
+              <div class="side">{{ badges(b.article, mark_recent) }}</div>
             </li>
           {% endfor %}
           </ol>
@@ -110,7 +113,7 @@
             {% if rail.mcp %}
             <ul class="body mcp">
             {% for m in rail.mcp %}
-              <li><span class="q">{{ m.call }}</span><span class="{{ 'hit' if m.hits else 'miss' }}">{{ m.hits }}건</span></li>
+              <li><span class="q"{% if m.full != m.call %} title="{{ m.full }}"{% endif %}>{{ m.call }}{% if m.times > 1 %} <span class="times">{{ m.times }}번</span>{% endif %}</span><span class="{{ 'hit' if m.hits else 'miss' }}">{{ m.hits }}건</span></li>
             {% endfor %}
             </ul>
             <p class="note mcp-note">0건이면 아직 위키에 없는 주제예요. Sources에서 추가 후보로 볼 수 있어요.</p>

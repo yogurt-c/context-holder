@@ -94,22 +94,29 @@ def test_off_build_never_checks(made):
     assert not updates.check() and events == []
 
 
-def test_dismiss_hides_toast_for_that_version(made, tmp_path):
+def test_skip_hides_toast_for_that_version(made, tmp_path):
     updates, *_ = made
     feed(updates, state="available", version="0.2.0")
     assert updates.toast()
-    updates.dismiss()
+    updates.skip()
     assert not updates.toast()
     assert appsettings.load(tmp_path / "app-state.json").skipped_update == "0.2.0"
     feed(updates, state="available", version="0.3.0")
     assert updates.toast()  # 새 버전은 다시 알린다
+
+
+def test_close_hides_failure_without_skipping_the_version(made, tmp_path):
+    updates, *_ = made
     feed(updates, state="error", version="0.3.0", error="network")
     assert updates.toast()  # 설치 실패는 띄운다
-    updates.dismiss()
-    assert updates.state.state == "available"
+    updates.close()
+    assert updates.state.state == "available" and not updates.toast()  # 이번 실행에서는 숨긴다
+    assert appsettings.load(tmp_path / "app-state.json").skipped_update == ""  # 건너뛰지는 않는다
+    feed(updates, state="available", version="0.4.0")
+    assert updates.toast()
     feed(updates, state="error", error="offline")
     assert not updates.toast()  # 확인 실패는 띄우지 않는다
-    updates.dismiss()
+    updates.close()
     assert updates.state.state == "idle"
 
 
@@ -229,7 +236,8 @@ def test_toast_on_every_page(made, tmp_path):
     assert "every 60s" in page
     feed(updates, state="available", version="0.2.0")
     toast = c.get("/update/toast").text
-    assert "새 버전" in toast and "0.2.0" in toast and "변경 사항 보기" in toast
+    assert "0.2.0로 업데이트할 수 있어요" in toast and "변경 사항 보기" in toast
+    assert 'hx-post="/update/skip"' in toast and "이 버전 건너뛰기" in toast
     response = c.post("/update/install", headers=HTMX)
     assert response.headers["HX-Trigger"] == "update-changed"
     assert events[-1]["action"] == "install"
@@ -245,9 +253,15 @@ def test_toast_on_every_page(made, tmp_path):
     assert events[-1]["action"] == "restart"
     feed(updates, state="error", version="0.2.0", error="서명이 맞지 않아요")
     assert "서명이 맞지 않아요" in c.get("/update/toast").text
-    c.post("/update/dismiss", headers=HTMX)
-    assert updates.state.state == "available" and not updates.toast()  # 이 버전은 더 띄우지 않는다
+    assert 'hx-post="/update/close"' in c.get("/update/toast").text
+    c.post("/update/close", headers=HTMX)
+    assert (
+        updates.state.state == "available" and not updates.toast()
+    )  # 닫으면 이번 실행에서는 숨긴다
     assert "<aside" not in c.get("/update/toast").text
+    feed(updates, state="available", version="0.3.0")
+    c.post("/update/skip", headers=HTMX)
+    assert appsettings.load(tmp_path / "app-state.json").skipped_update == "0.3.0"
 
 
 def test_no_toast_outside_app(tmp_path):
@@ -298,6 +312,6 @@ def test_restart_waits_for_sync(made, tmp_path, setup, monkeypatch):  # noqa: F8
     c = app_client(tmp_path, updates, scheduler=scheduler)
     feed(updates, state="ready", version="0.2.0")
     toast = c.get("/update/toast").text
-    assert "수집이 끝나면" in toast and "disabled" in toast
+    assert "수집이 끝나면 다시 시작할 수 있어요" in toast and "/update/restart" not in toast
     c.post("/update/restart", headers=HTMX)
     assert events == []

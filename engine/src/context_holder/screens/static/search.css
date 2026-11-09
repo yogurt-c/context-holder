@@ -45,3 +45,6 @@
 .results .r-snippet { display: block; font-size: 13px; color: var(--ink-soft); }
 
 @media (max-width: 60rem) { .panes { grid-template-columns: minmax(0, 1fr); } .filters { border-right: 0; border-bottom: 1px solid var(--rule-soft); } }
+.topic-browse { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--sp-2) var(--sp-4); align-items: baseline; max-width: 960px; }
+.topic-browse dt { font-size: 12px; font-weight: 600; color: var(--ink-faint); }
+.topic-browse dd:first-child { grid-column: 1 / -1; }

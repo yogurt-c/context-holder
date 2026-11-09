@@ -30,5 +30,25 @@
 </div>
 {% include "_update_toast.html" %}
 <dialog id="article-modal" class="modal" aria-label="글 상세"><div id="modal-body" class="modal-card"></div></dialog>
+{# 글 상세를 받아 오는 동안 · 받지 못했을 때 모달에 넣는다 (app.js) #}
+<template id="modal-loading">
+  <div class="article-detail is-loading" aria-busy="true">
+    <header class="article-head">
+      <div class="kicker"><span class="skel"></span><span class="skel"></span></div>
+      <button type="button" class="btn ghost sm modal-close" data-close>닫기</button>
+    </header>
+    <p class="sr-only" role="status">글을 불러오는 중이에요</p>
+    <div class="skel-title"><span class="skel"></span><span class="skel"></span></div>
+    <div class="skel-lines"><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+  </div>
+</template>
+<template id="modal-failed">
+  <div class="article-detail load-failed">
+    <header class="article-head"><span></span><button type="button" class="btn ghost sm modal-close" data-close>닫기</button></header>
+    <p class="failed-head" role="alert">글을 불러오지 못했어요</p>
+    <p class="note">목록이 바뀌었거나 앱 연결이 끊겼을 수 있어요.</p>
+    <button type="button" class="btn sm" data-retry>다시 시도</button>
+  </div>
+</template>
 </body>
 </html>
