@@ -33,3 +33,12 @@ scripts/build-app.sh --install  # /Applications에 복사
 - 묶을 때만 `src-tauri/tauri.bundle.conf.json`(엔진 resources · ad-hoc 서명)을 더한다. 평소 `cargo build`와 CI는 엔진 없이 돈다.
 - 앱 아이콘 원본은 `icons/app-icon.png`(`scripts/app_icon.py`), `src-tauri/icons/`는 `npx @tauri-apps/cli@2 icon`으로 만든다.
 - 직접 빌드한 앱은 바로 열린다. 내려받은 앱을 Downloads에서 바로 열면 macOS가 임시 위치에서 실행하므로(App Translocation) MCP 등록을 막고 응용 프로그램 폴더로 옮기라고 안내한다.
+
+## 릴리스
+
+`.github/workflows/release.yml`이 Developer ID로 서명하고 공증한 dmg를 GitHub 릴리스로 낸다.
+
+- 태그 `v<버전>`을 올리면 실행된다. 태그 · `tauri.conf.json` · `engine/pyproject.toml`의 버전이 같아야 한다. 수동 실행(workflow_dispatch)은 draft 릴리스로만 남는다.
+- 순서: 엔진 묶기 → `scripts/sign-engine.sh`(엔진의 모든 Mach-O를 hardened runtime · 타임스탬프로 서명, 실행 파일은 `src-tauri/engine.entitlements`와 함께) → Tauri가 앱을 서명 · 공증 · staple → dmg 서명 · 공증 · staple → Gatekeeper 확인.
+- Tauri는 Resources 안의 파일을 서명하지 않아서 엔진을 먼저 서명한다.
+- 레포 secret: `MAC_CERT_P12_BASE64`, `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`.

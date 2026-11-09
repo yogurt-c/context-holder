@@ -426,7 +426,7 @@ media:
 - Claude Code CLI (`claude -p`). 없으면 앱이 공식 설치 프로그램으로 설치
 - GitHub OAuth App (Device Flow), macOS 키체인
 - M4: whisper.cpp, Playwright, ffmpeg
-- 배포: 직접 빌드(`scripts/build-app.sh`, ad-hoc 서명)는 격리 표시가 없어 바로 열린다. 다른 Mac에 배포하는 빌드는 Developer ID 서명과 공증을 거친다(릴리스 워크플로우). ad-hoc 서명 앱은 내려받으면 Gatekeeper가 거절한다. Apple Silicon 전용.
+- 배포: 직접 빌드(`scripts/build-app.sh`, ad-hoc 서명)는 격리 표시가 없어 바로 열린다. 다른 Mac에 배포하는 빌드는 Developer ID 서명과 공증을 거친다(릴리스 워크플로우, 태그를 올리면 dmg를 GitHub 릴리스로 낸다). 묶은 엔진은 앱보다 먼저 hardened runtime으로 서명한다. ad-hoc 서명 앱은 내려받으면 Gatekeeper가 거절한다. Apple Silicon 전용.
 
 ## 12. 로드맵
 

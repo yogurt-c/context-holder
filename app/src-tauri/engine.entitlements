@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 묶은 엔진(PyInstaller)이 hardened runtime에서 돌기 위한 권한 -->
+	<!-- ctypes · cffi가 실행 가능한 메모리를 만든다 (pygit2 · onnxruntime) -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<!-- 압축을 푼 Python 확장 모듈을 불러온다 -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>
