@@ -1,7 +1,9 @@
 name: release
 
 # 태그(v0.1.0 등)를 올리면 서명 · 공증한 앱을 빌드해 GitHub 릴리스로 낸다.
-# 수동 실행(workflow_dispatch)은 시험용이다: draft 릴리스로만 남긴다.
+# 릴리스에는 dmg와 앱 업데이트 파일(context-holder.app.tar.gz · latest.json)이 함께 올라간다.
+# 설치된 앱은 releases/latest/download/latest.json을 보고 새 버전을 안다.
+# 수동 실행(workflow_dispatch)은 시험용이다: draft 릴리스로만 남긴다 (latest에 잡히지 않는다).
 on:
   push:
     tags:
@@ -78,9 +80,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # 업데이트 파일(.app.tar.gz)에 서명한다. 앱은 tauri.conf.json의 공개 키로 확인한다
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          override="$(jq -cn --arg id "$SIGNING_IDENTITY" '{bundle:{macOS:{signingIdentity:$id}}}')"
+          override="$(jq -cn --arg id "$SIGNING_IDENTITY" \
+            '{bundle:{createUpdaterArtifacts:true, macOS:{signingIdentity:$id}}}')"
           npx -y @tauri-apps/cli@2 build --bundles app,dmg \
             --config src-tauri/tauri.bundle.conf.json --config "$override"
 
@@ -108,11 +114,31 @@ jobs:
           xcrun stapler validate "$app"
           xcrun stapler validate "$dmg"
           "$app/Contents/Resources/engine/ctx-engine" --version
+          # 업데이트로 받는 앱도 공증 · staple된 그 앱인지
+          mkdir -p "$RUNNER_TEMP/updater"
+          tar -xzf app/src-tauri/target/release/bundle/macos/context-holder.app.tar.gz -C "$RUNNER_TEMP/updater"
+          xcrun stapler validate "$RUNNER_TEMP/updater/context-holder.app"
+          spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/updater/context-holder.app"
+
+      - name: Write updater manifest
+        run: |
+          set -euo pipefail
+          bundle=app/src-tauri/target/release/bundle
+          mkdir -p release
+          cp "$bundle"/dmg/*.dmg "$bundle/macos/context-holder.app.tar.gz" release/
+          version="$(jq -r .version app/src-tauri/tauri.conf.json)"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/context-holder.app.tar.gz"
+          jq -n --arg v "$version" --arg sig "$(cat "$bundle/macos/context-holder.app.tar.gz.sig")" \
+            --arg url "$url" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" \
+            '{version:$v, notes:$notes, pub_date:$date,
+              platforms:{"darwin-aarch64":{signature:$sig, url:$url}}}' > release/latest.json
+          cat release/latest.json
 
       - uses: actions/upload-artifact@v4
         with:
           name: mac-release
-          path: app/src-tauri/target/release/bundle/dmg/*.dmg
+          path: release/*
           if-no-files-found: error
 
   release:
@@ -134,7 +160,10 @@ jobs:
           generate_release_notes: true
           draft: true
           fail_on_unmatched_files: true
-          files: release/*.dmg
+          files: |
+            release/*.dmg
+            release/context-holder.app.tar.gz
+            release/latest.json
       - name: Publish tagged release
         if: github.event_name == 'push'
         env:

@@ -52,6 +52,7 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 - 앱은 그리기만 한다. 언제 수집할지, 메뉴에 무엇을 보일지, 알릴지는 엔진(`ctx serve --app`)이 정한다. 앱과 엔진은 stdin · stdout 줄로만 주고받고, 화면(웹뷰)에는 IPC 권한을 주지 않는다 ([app/README](../app/README.md)).
 - 메뉴바 아이콘은 단색 template 이미지 네 가지(평상시 · 수집 중 · 오류 · 일시정지)다. 오류는 template이라 빨간 점 대신 채운 점으로 보인다.
 - 창은 엔진 주소를 띄운다. 창이 열려 있을 때만 Dock 아이콘을 보인다. 키보드 단축키는 두지 않는다.
+- 앱 업데이트: 엔진이 앱 시작 때와 6시간마다 확인을 시키고(설정에서 끌 수 있다), 앱이 Tauri 업데이터로 GitHub 최신 릴리스의 `latest.json`을 본다. 새 버전이 있으면 화면 우측 하단 팝업(업데이트 · 나중에)과 메뉴에 보인다. 내려받는 동안 진행률을 보이고, 다 받으면 "다시 시작"으로 적용한다. 수집 중에는 다시 시작을 기다린다. 업데이트 파일은 별도 키로 서명하고 앱이 공개 키로 확인한다. 개발 빌드는 확인하지 않는다.
 
 선택 이유:
 - 매일 자동 수집하는 상주 작업이 있고, 상태를 계속 보여 줘야 한다. 브라우저 탭보다 메뉴바 앱이 가시성이 좋다.
@@ -336,7 +337,7 @@ media:
 | **Decisions** | 주제별 결정 사례 모음. 같은 문제에 회사별로 무엇을 골랐는지 나란히 비교 |
 | **Inbox** | 보류 글을 저장 또는 관련없음으로 분류. 이 클릭이 곧 ⑤의 피드백. 초기 수집에서 온 보류 글(`origin: init`)은 "초기 수집 보류 N건"으로 접어 두고 일괄 처리 버튼을 둔다 |
 | **Sources** | 소스별 최근 수집 성공 여부, 신규 글 수, 필터 통과율. Claude 검색 0건 질의와 `suggest_source` 글을 소스 추가 후보로 보여 준다 |
-| **설정** | 수집 시각(주말 포함 여부), 수집 완료 알림, 로그인 시 자동 실행, 화면 모드(시스템 · 라이트 · 다크), 연결 상태(GitHub · Claude · Claude Code MCP)와 다시 연결, 검색 모델 내려받기. 기기 로컬 `app-state.json`에 둔다. 검색 모델 바꾸기와 다시 인덱싱은 아직 `ctx reembed`로 한다 (6장) |
+| **설정** | 수집 시각(주말 포함 여부), 수집 완료 알림, 로그인 시 자동 실행, 화면 모드(시스템 · 라이트 · 다크), 앱 업데이트(지금 버전 · 확인 · 자동 확인), 연결 상태(GitHub · Claude · Claude Code MCP)와 다시 연결, 검색 모델 내려받기. 기기 로컬 `app-state.json`에 둔다. 검색 모델 바꾸기와 다시 인덱싱은 아직 `ctx reembed`로 한다 (6장) |
 
 주요 동작:
 - 원문 열기, 북마크, 관련없음(→ `feedback/`)
@@ -413,7 +414,7 @@ media:
 
 ## 11. 기술 스택
 
-- **앱 셸**: Tauri 2 (Rust), 플러그인: tray, autostart, notification, shell(sidecar), clipboard
+- **앱 셸**: Tauri 2 (Rust), 플러그인: tray, autostart, notification, updater
 - **엔진**: Python 3.12 + uv
   - 사용자 배포: PyInstaller로 묶어 앱 번들에 포함한다 (사용자는 Python 불필요).
   - 개발 중: `uv`로 실행한다.
@@ -426,7 +427,7 @@ media:
 - Claude Code CLI (`claude -p`). 없으면 앱이 공식 설치 프로그램으로 설치
 - GitHub OAuth App (Device Flow), macOS 키체인
 - M4: whisper.cpp, Playwright, ffmpeg
-- 배포: 직접 빌드(`scripts/build-app.sh`, ad-hoc 서명)는 격리 표시가 없어 바로 열린다. 다른 Mac에 배포하는 빌드는 Developer ID 서명과 공증을 거친다(릴리스 워크플로우, 태그를 올리면 dmg를 GitHub 릴리스로 낸다). 묶은 엔진은 앱보다 먼저 hardened runtime으로 서명한다. ad-hoc 서명 앱은 내려받으면 Gatekeeper가 거절한다. Apple Silicon 전용.
+- 배포: 직접 빌드(`scripts/build-app.sh`, ad-hoc 서명)는 격리 표시가 없어 바로 열린다. 다른 Mac에 배포하는 빌드는 Developer ID 서명과 공증을 거친다(릴리스 워크플로우, 태그를 올리면 dmg와 앱 업데이트 파일을 GitHub 릴리스로 낸다). 묶은 엔진은 앱보다 먼저 hardened runtime으로 서명한다. ad-hoc 서명 앱은 내려받으면 Gatekeeper가 거절한다. Apple Silicon 전용.
 
 ## 12. 로드맵
 

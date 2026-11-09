@@ -24,6 +24,7 @@ from context_holder.index import Index
 from context_holder.scheduler import FOREVER, PAUSES, Scheduler
 from context_holder.screens.runs import run_records
 from context_holder.screens.views import configured_sources, local_day, rank, short_day
+from context_holder.updates import Updates
 from context_holder.wiki import Wiki
 
 MAX_NOTICES = 2
@@ -43,7 +44,9 @@ class Notice:
         return {"event": "notify", "title": self.title, "body": self.body, "open": self.open}
 
 
-def status_event(scheduler: Scheduler, index: Index) -> dict[str, Any]:
+def status_event(
+    scheduler: Scheduler, index: Index, updates: Updates | None = None
+) -> dict[str, Any]:
     now = scheduler.clock()
     record = scheduler.today_record()
     paused = scheduler.paused_until()
@@ -67,6 +70,9 @@ def status_event(scheduler: Scheduler, index: Index) -> dict[str, Any]:
     ]
     if pending:
         items.append({"label": f"요약 대기 {pending}건", "enabled": False})
+    update = updates.menu_item(scheduler.running) if updates else None
+    if update:
+        items += [{"separator": True}, update]
     items += [
         {"separator": True},
         {"label": "설정", "enabled": True, "open": "/settings"},
@@ -273,6 +279,7 @@ class AppBridge:
         self.log = log
         self.settings = settings
         self.scheduler: Scheduler | None = None
+        self.updates: Updates | None = None
         self._last_status: dict[str, Any] | None = None
         self._lock = threading.Lock()
 
@@ -287,7 +294,7 @@ class AppBridge:
     def refresh(self) -> None:
         if self.scheduler is None:
             return
-        event = status_event(self.scheduler, self.index)
+        event = status_event(self.scheduler, self.index, self.updates)
         if event != self._last_status:
             if self._last_status is None:  # 첫 메뉴와 함께 자동 실행 설정을 알린다
                 self.apply_settings(self.settings())
@@ -315,9 +322,21 @@ class AppBridge:
         for notice in self.log.take(found, today):
             self.emit(notice.event())
 
+    def tick(self) -> None:
+        """1분마다: 알림을 확인하고, 때가 되면 새 버전을 확인한다."""
+        self.check_notices()
+        if self.updates is not None:
+            self.updates.tick()
+
     def command(self, line: str) -> None:
-        """메뉴 명령: sync_now · pause 1h|today|forever · resume. 모르는 명령은 무시한다."""
+        """앱이 보낸 줄.
+
+        메뉴 명령: sync_now · pause 1h|today|forever · resume · update_install · update_restart.
+        업데이트 상태: update {...}. 모르는 명령은 무시한다.
+        """
         if self.scheduler is None:
+            return
+        if self.updates is not None and self._update_command(line.strip()):
             return
         words = line.split()
         if words == ["sync_now"]:
@@ -326,3 +345,16 @@ class AppBridge:
             self.scheduler.pause(words[1])
         elif words == ["resume"]:
             self.scheduler.resume()
+
+    def _update_command(self, line: str) -> bool:
+        updates = self.updates
+        assert updates is not None and self.scheduler is not None
+        if line.startswith("update "):
+            updates.feed(line.removeprefix("update "))
+        elif line == "update_install":
+            updates.install()
+        elif line == "update_restart":
+            updates.restart(busy=self.scheduler.running)
+        else:
+            return False
+        return True

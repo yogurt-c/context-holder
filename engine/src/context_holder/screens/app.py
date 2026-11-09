@@ -33,6 +33,7 @@ from context_holder.screens import (
     searchview,
     setuproutes,
     sourcesview,
+    updateroutes,
     views,
 )
 from context_holder.screens.runs import alerts
@@ -68,6 +69,7 @@ class ScreenContext:
     model: Callable[[], tuple[Path, str]] = field(default=lambda: (Path("models"), "bge-m3"))
     download_model: Callable[[], None] = field(default=lambda: None)
     on_settings: Callable[[Any], None] = field(default=lambda settings: None)
+    updates: Any = None  # updates.Updates: 앱이 띄웠을 때만
 
 
 def new_token() -> str:
@@ -99,10 +101,19 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
         side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
         theme = appsettings.load(ctx.settings_path).theme if ctx.settings_path else "system"
-        shell = {"theme": theme, "in_app": ctx.app_mode}
+        shell = {"theme": theme, "in_app": ctx.app_mode, "update": update_view()}
         return templates.TemplateResponse(
             request, name, {"active": active, "side": side, "pages": PAGES, **shell, **values}
         )
+
+    def busy() -> bool:
+        return ctx.scheduler is not None and ctx.scheduler.running
+
+    def update_view() -> dict[str, Any] | None:
+        return updateroutes.update_view(ctx.updates, busy(), ctx.clock())
+
+    if ctx.updates is not None:
+        updateroutes.add_routes(app, ctx.updates, templates, busy, ctx.clock)
 
     def current_alerts() -> list:
         pending = len(ctx.index.select("WHERE status = ?", ("pending",)))

@@ -11,8 +11,8 @@ CTX_ENGINE=/path/to/ctx cargo run   # 다른 엔진으로
 
 | 주고받기 | 내용 |
 |---|---|
-| 엔진 stdout | 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event":"status","icon","items"}` · `{"event":"notify","title","body","open"}` · `{"event":"autostart","enabled"}` |
-| 엔진 stdin | 메뉴 명령 한 줄: `sync_now`, `pause 1h`, `pause today`, `pause forever`, `resume` |
+| 엔진 stdout | 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event":"status","icon","items"}` · `{"event":"notify","title","body","open"}` · `{"event":"autostart","enabled"}` · `{"event":"update","action":"check"\|"install"\|"restart"}` |
+| 엔진 stdin | 메뉴 명령 한 줄: `sync_now`, `pause 1h`, `pause today`, `pause forever`, `resume`, `update_install`, `update_restart`. 업데이트 상태: `update {"state","version","done","total","error"}` |
 
 - 창을 닫아도 앱은 메뉴바에 남는다. 창이 열려 있을 때만 Dock 아이콘을 보인다.
 - 화면(웹뷰)에는 IPC 권한을 주지 않는다. 키보드 단축키는 두지 않는다.
@@ -20,6 +20,7 @@ CTX_ENGINE=/path/to/ctx cargo run   # 다른 엔진으로
 - 창 안에서는 엔진 화면(`http://127.0.0.1:<port>`)만 연다. 원문 · GitHub 승인 같은 바깥 주소와 `target=_blank` 링크는 기본 브라우저로 연다.
 - 엔진이 비정상 종료하면 다시 띄운다(최대 3번). 앱이 끝나면 stdin을 닫아 엔진을 끈다.
 - 메뉴바 아이콘은 단색 template 이미지다: `uv run --with pillow python app/scripts/tray_icons.py`.
+- 앱 업데이트(`src/update.rs`): 엔진이 시키면 Tauri 업데이터로 확인 · 내려받기 · 교체 · 다시 시작을 하고 상태를 엔진에 돌려준다. 언제 확인할지와 팝업 · 메뉴는 엔진이 정한다(`engine/.../updates.py`). debug 빌드는 `off`로 답한다.
 - 엔진은 `CTX_ENGINE` → 앱 안 `Resources/engine/ctx-engine` → 개발 엔진(`engine/.venv/bin/ctx`) 순으로 찾는다.
 
 ## 빌드
@@ -39,6 +40,8 @@ scripts/build-app.sh --install  # /Applications에 복사
 `.github/workflows/release.yml`이 Developer ID로 서명하고 공증한 dmg를 GitHub 릴리스로 낸다.
 
 - 태그 `v<버전>`을 올리면 실행된다. 태그 · `tauri.conf.json` · `engine/pyproject.toml`의 버전이 같아야 한다. 수동 실행(workflow_dispatch)은 draft 릴리스로만 남는다.
+- 릴리스에는 dmg와 업데이트 파일(`context-holder.app.tar.gz`, `latest.json`)이 올라간다. 설치된 앱은 `releases/latest/download/latest.json`을 본다. draft 릴리스는 latest에 잡히지 않는다.
+- 업데이트 파일은 `TAURI_SIGNING_PRIVATE_KEY`로 서명하고, 앱은 `tauri.conf.json`의 `plugins.updater.pubkey`로 확인한다. 키를 잃으면 이미 설치된 앱이 그 뒤 업데이트를 받을 수 없다.
 - 순서: 엔진 묶기 → `scripts/sign-engine.sh`(엔진의 모든 Mach-O를 hardened runtime · 타임스탬프로 서명, 실행 파일은 `src-tauri/engine.entitlements`와 함께) → Tauri가 앱을 서명 · 공증 · staple → dmg 서명 · 공증 · staple → Gatekeeper 확인.
 - Tauri는 Resources 안의 파일을 서명하지 않아서 엔진을 먼저 서명한다.
-- 레포 secret: `MAC_CERT_P12_BASE64`, `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`.
+- 레포 secret: `MAC_CERT_P12_BASE64`, `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.

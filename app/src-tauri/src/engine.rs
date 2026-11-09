@@ -1,7 +1,7 @@
 //! 엔진(`ctx serve --app`)을 띄우고 감시한다. 엔진과는 stdin · stdout 줄로 주고받는다.
 //!
-//! - stdout: 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event": "status" | "notify", ...}`
-//! - stdin: 메뉴 명령 한 줄 (`sync_now`, `pause 1h`, `resume`)
+//! - stdout: 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event": "status" | "notify" | "autostart" | "update", ...}`
+//! - stdin: 메뉴 명령 한 줄 (`sync_now`, `pause 1h`, `resume`, `update_install`), 업데이트 상태 `update {...}`
 //! - 엔진이 비정상 종료하면 다시 띄운다 (최대 MAX_RESTARTS번, 점점 늦게).
 //! - 앱이 끝나면 엔진을 끈다. 앱이 강제로 죽으면 엔진은 stdin EOF를 보고 스스로 끝난다.
 
@@ -57,6 +57,9 @@ pub enum Line {
     Autostart {
         enabled: bool,
     },
+    Update {
+        action: String,
+    },
 }
 
 /// 엔진 stdout 한 줄을 읽는다. 모르는 줄은 None.
@@ -90,6 +93,9 @@ pub fn parse(line: &str) -> Option<Line> {
         }),
         Some("autostart") => Some(Line::Autostart {
             enabled: value.get("enabled")?.as_bool()?,
+        }),
+        Some("update") => Some(Line::Update {
+            action: value.get("action")?.as_str()?.to_string(),
         }),
         Some(_) => None,
     }
@@ -223,6 +229,18 @@ mod tests {
         assert_eq!(items[2].open.as_deref(), Some("/search"));
         assert_eq!(items[3].children[0].cmd.as_deref(), Some("pause 1h"));
         assert!(items[4].quit);
+    }
+
+    #[test]
+    fn update_line() {
+        let line = r#"{"event": "update", "action": "install"}"#;
+        assert_eq!(
+            parse(line),
+            Some(Line::Update {
+                action: "install".into()
+            })
+        );
+        assert_eq!(parse(r#"{"event": "update"}"#), None);
     }
 
     #[test]

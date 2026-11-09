@@ -9,6 +9,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod engine;
+mod update;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -21,6 +22,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
+use update::Updater;
 
 const TRAY: &str = "main";
 const WINDOW: &str = "main";
@@ -213,7 +215,15 @@ fn create_window(app: &AppHandle, url: &str, visible: bool) {
     }
 }
 
-fn on_engine_line(app: &AppHandle, shell: &Shared, line: Line, show_on_ready: bool) {
+struct Lines {
+    shell: Shared,
+    engine: Engine,
+    updater: Updater,
+    show_on_ready: bool,
+}
+
+fn on_engine_line(app: &AppHandle, lines: &Lines, line: Line) {
+    let (shell, show_on_ready) = (&lines.shell, lines.show_on_ready);
     match line {
         Line::Ready { url, base } => {
             {
@@ -256,6 +266,7 @@ fn on_engine_line(app: &AppHandle, shell: &Shared, line: Line, show_on_ready: bo
             shell.lock().unwrap().pending = Some(open);
             let _ = app.notification().builder().title(title).body(body).show();
         }
+        Line::Update { action } => lines.updater.handle(app, &lines.engine, &action),
     }
 }
 
@@ -279,6 +290,7 @@ fn main() {
     let setup_engine = engine_cell.clone();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec![BACKGROUND_ARG]),
@@ -302,15 +314,19 @@ fn main() {
                 })
                 .build(app)?;
 
-            let line_shell = setup_shell.clone();
+            let lines = Arc::new(Lines {
+                shell: setup_shell.clone(),
+                engine: engine.clone(),
+                updater: Updater::default(),
+                show_on_ready: !background,
+            });
             let line_handle = handle.clone();
             thread::spawn(move || {
                 engine.run(move |line| {
                     let app = line_handle.clone();
-                    let shell = line_shell.clone();
-                    let _ = line_handle.run_on_main_thread(move || {
-                        on_engine_line(&app, &shell, line, !background)
-                    });
+                    let lines = lines.clone();
+                    let _ =
+                        line_handle.run_on_main_thread(move || on_engine_line(&app, &lines, line));
                 })
             });
             Ok(())

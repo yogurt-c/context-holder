@@ -226,3 +226,34 @@ a.btn, a.chip { text-decoration: none; }
 .article-detail .related a:hover { color: var(--decision); text-decoration: underline; text-underline-offset: 3px; }
 .open-detail { cursor: pointer; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; }
 .open-detail:hover, .open-detail:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- 앱 업데이트 팝업 (우측 하단) ---------- */
+.update-toast {
+  --ut-accent: var(--decision);
+  position: fixed; right: var(--sp-5); bottom: calc(28px + var(--sp-4)); z-index: 40; width: 320px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-window);
+  box-shadow: var(--shadow-panel); padding: var(--sp-4) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 3px);
+  font-size: 13px; color: var(--ink-soft); overflow: hidden;
+  animation: ut-in var(--dur-short) var(--ease) both;
+}
+.update-toast::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ut-accent); }
+.update-toast.downloading { --ut-accent: var(--busy); }
+.update-toast.ready { --ut-accent: var(--ok); }
+.update-toast.error { --ut-accent: var(--error); }
+.ut-head { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: 14px; }
+.ut-head strong { font-weight: 650; }
+.ut-pct { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--busy-ink); font-variant-numeric: tabular-nums; }
+.ut-badge { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.02em; padding: 1px var(--sp-2); border-radius: 9px; color: var(--decision-ink); background: var(--decision-tint); border: 1px solid var(--decision-line); }
+.ut-badge.error { color: var(--error-deep); background: var(--error-tint); border-color: var(--error-line); }
+.ut-check { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--on-ink); background: var(--ok); }
+.ut-spin { width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid var(--busy-line); border-top-color: var(--busy); animation: spin 0.9s linear infinite; display: inline-block; }
+.ut-body { margin-top: var(--sp-2); line-height: 1.55; }
+.ut-body a, .us-status a { color: var(--decision-ink); text-decoration: underline; text-underline-offset: 2px; }
+.ut-num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+.ut-bar { margin-top: var(--sp-3); height: 6px; border-radius: 3px; }
+.ut-bar i, .us-bar i { transition: width var(--dur-short) var(--ease); }
+.bar.indeterminate i { animation: ut-slide 1.2s var(--ease) infinite; }
+.ut-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-3); }
+@keyframes ut-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes ut-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@keyframes spin { to { transform: rotate(360deg); } }

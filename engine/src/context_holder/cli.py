@@ -59,6 +59,7 @@ from context_holder.setupflow import SetupFlow
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 from context_holder.sync import SyncReport, default_days, run_sync
 from context_holder.tray import AppBridge, NoticeLog
+from context_holder.updates import Updates
 from context_holder.wiki import Wiki
 
 app = typer.Typer(
@@ -697,6 +698,7 @@ def serve_command(
             model=lambda: (home() / "models", wiki.search_model()),
             download_model=lambda: _download_model(wiki),
             on_settings=bridge.apply_settings if bridge else lambda settings: None,
+            updates=bridge.updates if bridge else None,
         )
 
     serve(
@@ -707,7 +709,7 @@ def serve_command(
         warm=lambda: _warm_index(wiki, embedder),
         on_line=bridge.command if bridge else lambda _: None,
         background=(
-            (lambda: run_forever(scheduler, threading.Event(), bridge.check_notices))
+            (lambda: run_forever(scheduler, threading.Event(), bridge.tick))
             if bridge and scheduler
             else None
         ),
@@ -743,6 +745,9 @@ def _app_bridge(wiki: Wiki, flow: SetupFlow) -> tuple[AppBridge, Scheduler]:
         ready=flow.ready,
     )
     bridge.scheduler = scheduler
+    bridge.updates = Updates(
+        bridge.emit, settings_path, lambda: datetime.now(UTC), on_change=bridge.refresh
+    )
     flow.on_ready = lambda: scheduler.trigger("setup")  # 설정을 마치면 바로 첫 수집
     return bridge, scheduler
 

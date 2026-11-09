@@ -21,6 +21,8 @@ class Settings:
     autostart: bool = True  # 로그인할 때 자동 실행
     theme: str = "system"  # system | light | dark
     setup_done: bool = False  # 첫 실행 설정을 마쳤다
+    auto_update: bool = True  # 새 버전을 자동으로 확인한다
+    skipped_update: str = ""  # "나중에"를 누른 버전 (그 버전 팝업을 다시 띄우지 않는다)
 
     @property
     def daily_time(self) -> time:

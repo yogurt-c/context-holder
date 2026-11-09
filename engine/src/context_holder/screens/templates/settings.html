@@ -24,6 +24,8 @@
         <p class="note settings-note">연결 상태를 확인하는 중이에요…</p>
       </section>
 
+      {% if update %}{% include "_update_settings.html" %}{% endif %}
+
       <section class="panel settings-group" aria-label="검색 모델">
         <h2 class="panel-head">검색 모델</h2>
         <dl class="kv body">
