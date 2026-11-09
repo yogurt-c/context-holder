@@ -345,8 +345,8 @@ def test_rejects_foreign_host_and_writes_without_htmx(wiki, tmp_path):
 def test_home_placeholder_pages_and_unknown(wiki, tmp_path):
     c = client(wiki, tmp_path)
     assert c.get("/").headers["location"] == "/today"
-    page = c.get("/decisions").text
-    assert "준비 중이에요" in page and 'aria-current="page"' in page
+    page = c.get("/settings").text  # 앱 밖에서는 설정을 열 수 없다
+    assert "앱에서 열 수 있어요" in page and 'aria-current="page"' in page
     assert c.get("/nothing").status_code == 404
     assert c.get("/static/htmx.min.js").status_code == 200
 

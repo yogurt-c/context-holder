@@ -26,9 +26,11 @@ from context_holder import appsettings
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
+from context_holder.llm import ClaudeCli
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     articleview,
+    decisionsview,
     inboxview,
     searchview,
     setuproutes,
@@ -45,8 +47,7 @@ CSP = (
     "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
     "base-uri 'none'; form-action 'self'"
 )
-PAGES = {  # 다음 커밋에서 채울 화면
-    "decisions": ("Decisions", "회사별 결정 사례를 주제로 묶어 비교하는 화면을 준비 중이에요."),
+PAGES = {  # 앱 밖(브라우저)에서만 보이는 자리
     "settings": ("설정", "설정은 앱에서 열 수 있어요."),
 }
 FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했어요", Kind.NOT_RELEVANT: "관련없음으로 남겼어요"}
@@ -70,6 +71,7 @@ class ScreenContext:
     download_model: Callable[[], None] = field(default=lambda: None)
     on_settings: Callable[[Any], None] = field(default=lambda settings: None)
     updates: Any = None  # updates.Updates: 앱이 띄웠을 때만
+    regroup_llm: Callable[[], Any] = field(default=lambda: ClaudeCli())  # 주제 정리 (버튼)
 
 
 def new_token() -> str:
@@ -153,6 +155,32 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if view is None:
             return PlainTextResponse("없는 글", status_code=404)
         return templates.TemplateResponse(request, "_article.html", {"a": view})
+
+    regroup = decisionsview.RegroupJob(ctx.wiki, ctx.regroup_llm)
+
+    @app.get("/decisions", response_class=HTMLResponse)
+    def decisions(
+        request: Request, sel: str | None = None, q: str = "", all: str = ""
+    ) -> HTMLResponse:
+        view = decisionsview.build_decisions(ctx.wiki, ctx.index, names(), sel, q, all == "1")
+        if request.headers.get("hx-request") == "true" and request.headers.get("hx-target"):
+            return templates.TemplateResponse(
+                request, "decisions_body.html", {"view": view, "job": regroup}
+            )
+        return page(request, "decisions.html", "decisions", view=view, job=regroup)
+
+    @app.post("/decisions/regroup", response_class=HTMLResponse)
+    def decisions_regroup(request: Request) -> HTMLResponse:
+        regroup.start(busy=busy())
+        return templates.TemplateResponse(request, "_regroup.html", {"job": regroup})
+
+    @app.get("/decisions/regroup", response_class=HTMLResponse)
+    def decisions_regroup_poll(request: Request) -> HTMLResponse:
+        response = templates.TemplateResponse(request, "_regroup.html", {"job": regroup})
+        if regroup.state == "done":
+            regroup.state = "idle"  # 한 번 알렸다
+            response.headers["HX-Refresh"] = "true"  # 새 주제로 화면을 다시 그린다
+        return response
 
     @app.get("/inbox", response_class=HTMLResponse)
     def inbox(request: Request, sel: str | None = None, confirm: str | None = None) -> Response:

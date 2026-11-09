@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Decisions · Context Holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/decisions.css">{% endblock %}
+{% block content %}
+    <div class="toolbar"><span class="title">Decisions</span><span class="sub"><span>주제 {{ view.group_total }}개</span><span>결정 사례 {{ view.case_total }}건</span></span>
+      <div class="spacer"></div>
+      {% include "_regroup.html" %}
+    </div>
+    <div id="decisions-body" class="decisions-body">{% include "decisions_body.html" %}</div>
+{% endblock %}

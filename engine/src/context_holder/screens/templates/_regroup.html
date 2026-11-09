@@ -1,0 +1,9 @@
+{# 주제 정리 버튼과 진행 상태. 정리하는 동안 2초마다 다시 묻고, 끝나면 화면을 새로 고친다 #}
+<div class="regroup" id="regroup"{% if job.state == "running" %} hx-get="/decisions/regroup" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-live="polite">
+  {% if job.state == "running" %}
+  <span class="ut-spin" aria-hidden="true"></span><span>주제를 정리하는 중{% if job.total > 1 %} ({{ job.done }}/{{ job.total }}){% endif %}… 1분쯤 걸려요</span>
+  {% else %}
+  {% if job.message %}<span class="{{ 'warn' if job.state == 'error' else 'regroup-done' }}">{{ job.message }}</span>{% endif %}
+  <button type="button" class="btn sm decision" hx-post="/decisions/regroup" hx-target="#regroup" hx-swap="outerHTML" title="결정 사례의 주제와 문제 한 줄만 Claude에 보내요">주제 정리</button>
+  {% endif %}
+</div>

@@ -17,6 +17,7 @@ from context_holder.collect import SourceReport, collect, fetch_article
 from context_holder.embed import Embedder
 from context_holder.feed import FetchError
 from context_holder.pipeline import Budget
+from context_holder.topics import attach
 from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
@@ -102,6 +103,7 @@ def run_sync(
     wiki.record_seen(
         decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
     )
+    _attach_topics(wiki, embedder)
 
     counts = {b: sum(d.bucket is b for d in decisions) for b in Bucket}
     return SyncReport(
@@ -118,6 +120,20 @@ def run_sync(
         stopped_reason=state.stopped,
         saved_by_source=_saved_by_source(decisions, by_url),
     )
+
+
+def _attach_topics(wiki: Wiki, embedder: Embedder | None) -> None:
+    """새 결정 사례를 이미 정리한 주제에 붙인다 (검색 모델, Claude 호출 없음).
+
+    실패해도 수집은 끝까지 간다. 붙이지 못한 사례는 Decisions의 "주제 정리"로 묶을 수 있다.
+    """
+    try:
+        attached = attach(wiki, embedder)
+    except Exception as e:
+        log.warning("결정 주제를 붙이지 못했다: %s", e)
+        return
+    if attached:
+        log.info("결정 사례 %d건을 기존 주제에 붙였다", attached)
 
 
 def _saved_by_source(decisions, by_url) -> dict[str, int]:

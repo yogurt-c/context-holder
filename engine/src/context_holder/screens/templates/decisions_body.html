@@ -1,0 +1,77 @@
+{# Decisions 본문: 왼쪽 주제 목록, 오른쪽 비교표 #}
+{% if not view.group_total %}
+<div class="decisions-empty panel">
+  <h2>주제를 아직 정리하지 않았어요</h2>
+  <p>결정 사례 {{ view.case_total }}건을 넓은 주제로 묶으면 같은 문제에서 회사마다 무엇을 골랐는지 나란히 볼 수 있어요.</p>
+  <p class="note">위의 "주제 정리"를 누르세요. 결정 사례의 주제와 문제 한 줄만 Claude에 보내고, 원문은 보내지 않아요.</p>
+</div>
+{% else %}
+<div class="panes">
+  <nav class="topics" aria-label="결정 주제">
+    <form hx-get="/decisions" hx-target="#decisions-body" hx-trigger="input changed delay:300ms from:#topic-q, submit" hx-push-url="true">
+      <label class="search-field topic-search">
+        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+        <span class="sr-only">주제 찾기</span>
+        <input id="topic-q" name="q" type="search" value="{{ view.q }}" placeholder="주제 찾기" autocomplete="off">
+      </label>
+      {% if view.show_all %}<input type="hidden" name="all" value="1">{% endif %}
+    </form>
+    {% for area, items in view.areas %}
+    <h3>{{ area }}</h3>
+    {% for t in items %}
+    <a class="topic{% if t.on %} sel{% endif %}" href="{{ view.url(sel=t.name) }}" hx-get="{{ view.url(sel=t.name) }}" hx-target="#decisions-body" hx-push-url="true"{% if t.on %} aria-current="true"{% endif %}><span class="name">{{ t.name }}</span><b aria-label="사례 {{ t.count }}건">{{ t.count }}</b></a>
+    {% endfor %}
+    {% else %}
+    <p class="note topics-none">맞는 주제가 없어요.</p>
+    {% endfor %}
+    <div class="topics-foot">
+      {% if view.hidden and not view.show_all %}<a href="{{ view.url(all='1') }}" hx-get="{{ view.url(all='1') }}" hx-target="#decisions-body" hx-push-url="true">사례가 1건인 주제 {{ view.hidden }}개 더 보기</a>
+      {% elif view.show_all and view.hidden and view.hidden < view.group_total %}<a href="{{ view.url(all='') }}" hx-get="{{ view.url(all='') }}" hx-target="#decisions-body" hx-push-url="true">비교할 수 있는 주제만 보기</a>{% endif %}
+      {% if view.unassigned %}<p>아직 분류하지 않은 사례 {{ view.unassigned }}건 · "주제 정리"로 묶어요</p>{% endif %}
+    </div>
+  </nav>
+
+  <section class="main" aria-labelledby="topic-title">
+    {% set g = view.selected %}
+    {% if g %}
+    <div class="head-row">
+      <div>
+        <p class="topic-meta">{{ g.area or "기타" }} · {{ view.columns | length }}개 사례 · {{ view.columns | map(attribute="company") | unique | list | length }}개 회사</p>
+        <h1 id="topic-title">{{ g.name }}</h1>
+        {% if g.question %}<p class="lede">{{ g.question }}</p>{% endif %}
+      </div>
+      <div class="head-actions">
+        <template id="compare-md">{{ view.markdown }}</template>
+        <button type="button" class="btn decision" data-copy="compare-md">비교표 복사</button>
+      </div>
+    </div>
+
+    <div class="table-scroll" tabindex="0" aria-label="회사별 결정 비교, 옆으로 넘겨 볼 수 있어요">
+      <div class="matrix" role="table" aria-label="회사별 결정 비교" style="--cols: {{ view.columns | length }}">
+        <div class="rh ch" role="columnheader"></div>
+        {% for c in view.columns %}<div class="ch{% if loop.first %} col-hl{% endif %}" role="columnheader"><span class="co-brand">{{ c.company }}</span><span class="date">{{ c.date or "날짜 모름" }}</span></div>{% endfor %}
+
+        <div class="rh" role="rowheader">문제</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell">{{ c.problem }}</div>{% endfor %}
+
+        <div class="rh" role="rowheader">결정</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><span class="chosen">{{ c.chosen }}</span>{% if c.alternatives %}<span class="alt">{% for o in c.alternatives %}<s>{{ o }}</s>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>{% endfor %}
+
+        <div class="rh" role="rowheader">트레이드오프</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell">{% for t in c.tradeoffs %}<span class="trade">{{ t }}</span>{% else %}<span class="weak">원문에 없음</span>{% endfor %}</div>{% endfor %}
+
+        <div class="rh" role="rowheader">결과</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}{% if not c.outcome %} weak{% endif %}" role="cell">{{ c.outcome or "원문에 결과 없음" }}</div>{% endfor %}
+
+        <div class="rh" role="rowheader">신뢰도</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><span class="confidence" aria-label="신뢰도 {{ c.confidence }}/3">{% for i in range(3) %}<i{% if i < c.confidence %} class="on"{% endif %}></i>{% endfor %}</span></div>{% endfor %}
+
+        <div class="rh" role="rowheader">출처</div>
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><a class="src" href="#" hx-get="/article/{{ c.id }}" hx-target="#modal-body">{{ c.title }}</a></div>{% endfor %}
+      </div>
+    </div>
+    <div class="footnote"><span>{% if view.columns | length > 3 %}옆으로 넘겨 더 보기 · {% endif %}출처를 누르면 글 상세가 열려요</span><span>신뢰도는 원문 근거 문장 대조 결과</span></div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from context_holder import topics as topicmod
 from context_holder.classify import Bucket
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
@@ -68,14 +69,26 @@ class WikiTools:
     # ---------- tool ----------
 
     def list_topics(self, prefix: str | None = None) -> str:
-        topics = self.index.topics()
+        """넓은 주제(Decisions 화면과 같은 묶음)와 아직 분류하지 않은 주제."""
+        grouped, loose = _grouped_topics(self.index.topics(), topicmod.load(self.wiki))
         if prefix:
             key = normalize_topic(prefix)
-            topics = [t for t in topics if normalize_topic(t[0]).startswith(key)]
-        if not topics:
+            grouped = [
+                g for g in grouped if any(normalize_topic(t).startswith(key) for t in (g[0], *g[2]))
+            ]
+            loose = [t for t in loose if normalize_topic(t[0]).startswith(key)]
+        if not grouped and not loose:
             return self._log("list_topics", {"prefix": prefix}, [], "결정 주제가 없다.")
-        lines = [f"결정 주제 {len(topics)}개 (사례 수)"]
-        lines += [f"- {name} ({n})" for name, n in topics]
+        lines = []
+        if grouped:
+            lines.append(f"결정 주제 {len(grouped)}개 (사례 수)")
+            lines += [f"- {name} ({n})" for name, n, _ in grouped]
+        if loose:  # 한 번도 정리하지 않았으면 원래 주제가 곧 결정 주제다
+            head = "아직 묶지 않은 주제" if grouped else "결정 주제"
+            lines.append(f"{head} {len(loose)}개 (사례 수)")
+            lines += [f"- {name} ({n})" for name, n in loose]
+        if grouped:
+            lines.append("find_decision_cases(topic)에 주제 이름을 주면 그 주제 사례를 앞에 둔다.")
         return self._log("list_topics", {"prefix": prefix}, [], _fit(lines, "list_topics"))
 
     def search_wiki(
@@ -194,9 +207,22 @@ class WikiTools:
         query = " ".join(q.strip() for q in (topic, problem) if q and q.strip())
         hits, notes = self._search([query], None, None)
         cases = [h for h in hits if h.article.decision_topic]
-        if topic:  # 주제가 정확히 같은 사례를 앞에 둔다
+        if topic:  # 같은 넓은 주제 · 같은 원래 주제의 사례를 앞에 둔다
             key = normalize_topic(topic)
-            cases.sort(key=lambda h: normalize_topic(h.article.decision_topic or "") != key)
+            group = topicmod.load(self.wiki).group(topic)
+            members = {normalize_topic(t) for t in group.topics} if group else set()
+            found = {h.article.id for h in cases}
+            cases += [  # 검색에 걸리지 않은 같은 주제 사례도 넣는다
+                SearchHit(a, 0.0, "같은 결정 주제", None, None, None)
+                for a in self.index.select("WHERE decision_topic IS NOT NULL")
+                if normalize_topic(a.decision_topic or "") in members and a.id not in found
+            ]
+
+            def rank(h: SearchHit) -> tuple[bool, bool]:
+                own = normalize_topic(h.article.decision_topic or "")
+                return own not in members and own != key, own != key
+
+            cases.sort(key=rank)
         return cases[: max(1, min(limit, 10))], notes
 
     # ---------- 내부 ----------
@@ -328,3 +354,20 @@ def _fit(lines: list[str], tool: str) -> str:
         out.append(line)
         used += len(line) + 1
     return "\n".join(out)
+
+
+def _grouped_topics(
+    counts: list[tuple[str, int]], topics: topicmod.TopicMap
+) -> tuple[list[tuple[str, int, list[str]]], list[tuple[str, int]]]:
+    """원래 주제 사례 수를 넓은 주제로 모은다. (넓은 주제, 사례 수, 원래 주제들), 분류 전 주제."""
+    grouped: dict[str, tuple[int, list[str]]] = {}
+    loose = []
+    for name, n in counts:
+        group = topics.group_of(name)
+        if group is None:
+            loose.append((name, n))
+            continue
+        total, originals = grouped.get(group, (0, []))
+        grouped[group] = (total + n, [*originals, name])
+    ordered = sorted(grouped.items(), key=lambda kv: (-kv[1][0], kv[0]))
+    return [(g, n, originals) for g, (n, originals) in ordered], loose

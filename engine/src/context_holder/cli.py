@@ -699,6 +699,7 @@ def serve_command(
             download_model=lambda: _download_model(wiki),
             on_settings=bridge.apply_settings if bridge else lambda settings: None,
             updates=bridge.updates if bridge else None,
+            regroup_llm=lambda: ClaudeCli(),
         )
 
     serve(
