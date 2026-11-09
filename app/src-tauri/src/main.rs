@@ -190,7 +190,7 @@ fn create_window(app: &AppHandle, url: &str, visible: bool) {
             }
             tauri::webview::NewWindowResponse::Deny
         })
-        .title("context-holder")
+        .title("Context Holder")
         .inner_size(1280.0, 840.0)
         .min_inner_size(900.0, 600.0)
         .visible(visible)
