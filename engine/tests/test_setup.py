@@ -185,6 +185,26 @@ def test_install_then_login(flow):
     assert flow.claude_job.state == "idle" and flow.claude().detail == "max"
 
 
+def test_relogin_waits_for_login_process(flow):
+    """이미 로그인된 채로 다시 연결하면 프로세스가 끝날 때까지 기다린다."""
+
+    class Login:
+        code = None
+
+        def poll(self):
+            return self.code
+
+    login = Login()
+    flow.spawn = lambda args: login
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    flow.login_claude()
+    flow.claude_settled()
+    assert flow.claude_job.state == "logging_in"  # 로그인돼 있어도 아직 승인 전
+    login.code = 0
+    flow.claude_settled()
+    assert flow.claude_job.state == "idle" and flow._login is None
+
+
 def test_install_failure_and_busy_guard(flow):
     flow.run = FakeRun({"install": (1, "network")})
     flow.install_claude()
@@ -371,7 +391,11 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     no_real_keychain.secret = "old"
     assert c.post("/settings/github", headers=HTMX).headers["HX-Redirect"] == "/setup"
     assert no_real_keychain.secret is None
-    assert "승인하세요" in c.post("/settings/claude", headers=HTMX).text
+    waiting = c.post("/settings/claude", headers=HTMX).text
+    assert "승인하세요" in waiting and 'hx-trigger="every 2s"' in waiting
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    done = c.get("/settings/connections").text  # 승인이 끝나면 문구와 다시 묻기가 사라진다
+    assert "승인하세요" not in done and "every 2s" not in done
     flow.run = FakeRun({"mcp add": (1, "<bad>")})
     assert "&lt;bad&gt;" in c.post("/settings/mcp", headers=HTMX).text
     flow.run = FakeRun()

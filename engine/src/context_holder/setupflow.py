@@ -59,6 +59,7 @@ class SetupFlow:
     github: GitHubLogin = field(default_factory=GitHubLogin)
     claude_job: ClaudeJob = field(default_factory=ClaudeJob)
     _status: tuple[float, claudesetup.ClaudeStatus] | None = None
+    _login: object = None  # 띄운 `claude auth login` 프로세스
 
     # ---------- 상태 ----------
 
@@ -190,7 +191,7 @@ class SetupFlow:
     def login_claude(self) -> None:
         """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다."""
         try:
-            self.spawn(claudesetup.login_command(tool("claude")))
+            self._login = self.spawn(claudesetup.login_command(tool("claude")))
         except OSError as e:
             self.claude_job = ClaudeJob("error", f"Claude 로그인을 띄우지 못했어요: {e}")
             return
@@ -198,8 +199,18 @@ class SetupFlow:
         self.claude_job = ClaudeJob("logging_in")
 
     def claude_settled(self) -> None:
-        """로그인을 기다리다 로그인됐으면 작업 표시를 지운다."""
-        if self.claude_job.state == "logging_in" and self.claude(fresh=True).logged_in:
+        """로그인을 기다리다 끝났으면 작업 표시를 지운다.
+
+        이미 로그인된 채로 다시 연결하면 로그인 상태만으로는 끝났는지 모른다.
+        띄운 프로세스가 끝났는지를 먼저 본다 (승인하거나 취소하면 끝난다).
+        """
+        if self.claude_job.state != "logging_in":
+            return
+        poll = getattr(self._login, "poll", None)
+        done = poll() is not None if poll else self.claude(fresh=True).logged_in
+        if done:
+            self._login = None
+            self._status = None
             self.claude_job = ClaudeJob()
 
     def register_mcp(self) -> tuple[bool, str]:

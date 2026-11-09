@@ -45,6 +45,7 @@ def settings_view(models_dir, model_id: str, settings_path) -> dict[str, Any]:
 
 
 def connections_view(flow: SetupFlow) -> dict[str, Any]:
+    flow.claude_settled()
     repo = WikiRepo.open(flow.wiki_root)
     claude = flow.claude()
     registered = flow.registered() if claude.installed else None
@@ -55,6 +56,8 @@ def connections_view(flow: SetupFlow) -> dict[str, Any]:
         "registered": registered is not None,
         "mcp_ok": registered == claudesetup.engine_command(),
         "translocated": claudesetup.translocated(),
+        "claude_waiting": flow.claude_job.state == "logging_in",
+        "claude_error": flow.claude_job.message if flow.claude_job.state == "error" else "",
     }
 
 
@@ -160,9 +163,12 @@ def add_routes(
         return Response(headers={"HX-Redirect": "/setup"})
 
     @app.post("/settings/claude", response_class=HTMLResponse)
-    def settings_claude() -> HTMLResponse:
+    def settings_claude(request: Request) -> HTMLResponse:
+        """승인을 띄우고 연결 영역을 다시 그린다. 승인을 기다리는 동안 영역이 스스로 다시 묻는다."""
         flow.login_claude()
-        return HTMLResponse('<span class="done-label">브라우저에서 승인하세요</span>')
+        return templates.TemplateResponse(
+            request, "_connections.html", {"c": connections_view(flow)}
+        )
 
     @app.post("/settings/mcp", response_class=HTMLResponse)
     def settings_mcp(request: Request) -> HTMLResponse:
