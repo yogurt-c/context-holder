@@ -166,6 +166,11 @@ def test_decisions_page_and_partials(tmp_path):
     assert "서비스 메시 운영" in page and "비교표 복사" in page and 'aria-current="page"' in page
     assert "사례가 1건인 주제 1개 더 보기" in page and "아직 분류하지 않은 사례 1건" in page
     assert 'hx-get="/article/' in page and "SidecarSet" in page
+    assert page.count("data-article=") == 2 * 7  # 사례 2건, 머리줄 + 6줄: 열 어디를 눌러도 상세
+    assert 'class="col-open" aria-label="Toss 글 상세 열기"' in page
+    assert (
+        'id="decisions-loading"' in page and 'id="decisions-failed"' in page
+    )  # 주제를 바꾸는 동안
     body = c.get("/decisions?all=1", headers={**HTMX, "HX-Target": "decisions-body"}).text
     assert "<html" not in body and "모노레포 운영" in body and "비교할 수 있는 주제만 보기" in body
     assert "맞는 주제가 없어요" in c.get("/decisions?q=zzz").text

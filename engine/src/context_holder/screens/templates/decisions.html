@@ -7,4 +7,19 @@
       {% include "_regroup.html" %}
     </div>
     <div id="decisions-body" class="decisions-body">{% include "decisions_body.html" %}</div>
+    {# 주제를 바꾸는 동안 비교표 자리에 넣는 자리표시와, 받지 못했을 때의 안내 (app.js) #}
+    <template id="decisions-loading">
+      <div class="is-loading" aria-busy="true">
+        <p class="sr-only" role="status">비교표를 불러오는 중이에요</p>
+        <div class="skel-head"><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+        <div class="skel-matrix">{% for _ in range(12) %}<span class="skel"></span>{% endfor %}</div>
+      </div>
+    </template>
+    <template id="decisions-failed">
+      <div class="load-failed">
+        <p class="failed-head" role="alert">비교표를 불러오지 못했어요</p>
+        <p class="note">앱 연결이 끊겼을 수 있어요.</p>
+        <button type="button" class="btn sm" data-decisions-retry>다시 시도</button>
+      </div>
+    </template>
 {% endblock %}

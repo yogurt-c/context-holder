@@ -15,4 +15,18 @@
       </div>
       <div id="search-body" class="search-body">{% include "search_body.html" %}</div>
     </form>
+    {# 찾는 동안 결과 자리에 넣는 자리표시와, 찾지 못했을 때의 안내 (app.js) #}
+    <template id="search-loading">
+      <p class="sr-only" role="status">찾는 중이에요</p>
+      {% for _ in range(4) %}
+      <li class="skel-result" aria-hidden="true"><span class="skel"></span><span class="skel"></span><span class="skel"></span></li>
+      {% endfor %}
+    </template>
+    <template id="search-failed">
+      <div class="results empty load-failed">
+        <p class="failed-head" role="alert">검색하지 못했어요</p>
+        <p class="note">앱 연결이 끊겼을 수 있어요.</p>
+        <button type="button" class="btn sm" data-search-retry>다시 시도</button>
+      </div>
+    </template>
 {% endblock %}

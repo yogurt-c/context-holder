@@ -48,3 +48,11 @@
 .topic-browse { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--sp-2) var(--sp-4); align-items: baseline; max-width: 960px; }
 .topic-browse dt { font-size: 12px; font-weight: 600; color: var(--ink-faint); }
 .topic-browse dd:first-child { grid-column: 1 / -1; }
+
+/* 찾는 동안: 결과 자리에 같은 모양의 회색 막대 */
+.query-meta .searching { color: var(--ink-soft); }
+.skel-result { display: grid; gap: 10px; padding: var(--sp-4) var(--sp-5); max-width: 980px; }
+.skel-result .skel { width: 96px; height: 12px; }
+.skel-result .skel:nth-child(2) { width: 62%; height: 18px; }
+.skel-result .skel:nth-child(3) { width: 88%; height: 13px; }
+.search-start { padding: 0; }

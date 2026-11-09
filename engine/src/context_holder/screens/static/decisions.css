@@ -51,6 +51,12 @@
 .matrix .ch .co-brand { font-size: 14px; font-weight: 600; color: var(--ink); display: block; }
 .matrix .ch .date { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
 .matrix .col-hl { background: var(--surface-hover); }
+.matrix [data-article] { cursor: pointer; transition: background-color var(--dur-micro) var(--ease); }
+.matrix .col-hover { background: var(--paper-deep); }
+.matrix .ch.col-hover { background: var(--paper-deep); }
+.matrix .col-open { all: unset; display: block; width: 100%; cursor: pointer; border-radius: var(--r-control); }
+.matrix .col-open:focus-visible { outline: 2px solid var(--decision); outline-offset: 2px; }
+.matrix [data-article].is-opening { opacity: 1; text-decoration: none; background: var(--paper-deep); }
 .matrix .chosen { display: block; font-weight: 600; color: var(--decision-ink); border-left: 3px solid var(--decision); padding-left: var(--sp-2); }
 .matrix .alt { display: block; font-size: 12px; color: var(--ink-faint); margin-top: var(--sp-1); }
 .matrix .chosen + .alt { padding-left: calc(var(--sp-2) + 3px); }
@@ -75,3 +81,13 @@
   .topics { border-right: 0; border-bottom: 1px solid var(--rule-soft); max-height: 240px; }
   .main { padding: var(--sp-5); }
 }
+
+/* 주제를 바꾸는 동안: 제목 · 비교표 모양의 자리표시 */
+.skel-head { display: grid; gap: 12px; margin-bottom: var(--sp-6); }
+.skel-head .skel { width: 180px; height: 12px; }
+.skel-head .skel:nth-child(2) { width: 46%; height: 30px; }
+.skel-head .skel:nth-child(3) { width: 38%; height: 15px; }
+.skel-matrix { display: grid; grid-template-columns: 96px repeat(3, minmax(160px, 1fr)); gap: var(--sp-5) var(--sp-4); padding: var(--sp-4); border: 1px solid var(--rule); border-radius: var(--r-card); }
+.skel-matrix .skel { height: 48px; }
+.skel-matrix .skel:nth-child(4n + 1) { height: 12px; width: 60%; }
+.topics[aria-busy="true"] { opacity: 0.55; transition: opacity var(--dur-short) var(--ease); }

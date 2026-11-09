@@ -95,3 +95,108 @@ document.addEventListener("click", (event) => {
 window.addEventListener("resize", updateAllScrolls);
 document.addEventListener("htmx:afterSettle", updateAllScrolls);
 document.addEventListener("DOMContentLoaded", updateAllScrolls);
+
+// 검색: 찾는 동안 결과 자리에 자리표시를 넣고, 실패하면 다시 시도를 둔다.
+const searchBody = () => document.getElementById("search-body");
+const isSearchRequest = (event) => event.detail.target && event.detail.target.id === "search-body";
+document.addEventListener("htmx:beforeRequest", (event) => {
+  if (!isSearchRequest(event)) return;
+  const body = searchBody();
+  const rows = document.getElementById("search-loading").content.cloneNode(true);
+  const list = body.querySelector("ol.results, .results.empty");
+  if (list) {  // 결과 화면: 필터는 두고 결과만 바꾼다
+    const holder = document.createElement("ol");
+    holder.className = "row-list results";
+    holder.setAttribute("aria-busy", "true");
+    holder.append(rows);
+    list.replaceWith(holder);
+    const meta = body.querySelector(".query-meta");
+    if (meta) {
+      const label = document.createElement("span");
+      label.className = "searching";
+      label.textContent = "찾는 중…";
+      meta.replaceChildren(label);
+    }
+    return;
+  }
+  const holder = document.createElement("ol");  // 첫 화면: 통째로 바꾼다
+  holder.className = "row-list results search-start";
+  holder.setAttribute("aria-busy", "true");
+  holder.append(rows);
+  body.replaceChildren(holder);
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (!isSearchRequest(event) || event.detail.successful) return;
+  searchBody().replaceChildren(document.getElementById("search-failed").content.cloneNode(true));
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-search-retry]")) return;
+  htmx.trigger(document.querySelector(".search-form"), "submit");
+});
+
+// 비교표: 사례 열의 아무 칸이나 누르면 그 글 상세를 연다. 같은 열 전체에 마우스 표시를 한다.
+const sameColumn = (cell) => cell.closest(".matrix").querySelectorAll(`[data-article="${cell.dataset.article}"]`);
+document.addEventListener("click", (event) => {
+  const cell = event.target.closest(".matrix [data-article]");
+  if (!cell || event.target.closest("a")) return;  // 출처 링크는 htmx가 연다
+  if (String(window.getSelection())) return;  // 글을 고르는 중이면 열지 않는다
+  htmx.ajax("GET", `/article/${encodeURIComponent(cell.dataset.article)}`, { target: "#modal-body", source: cell });
+});
+for (const [type, on] of [["mouseover", true], ["mouseout", false]]) {
+  document.addEventListener(type, (event) => {
+    const cell = event.target.closest(".matrix [data-article]");
+    if (!cell || (event.relatedTarget && cell.contains(event.relatedTarget))) return;
+    sameColumn(cell).forEach((c) => c.classList.toggle("col-hover", on));
+  });
+}
+
+// 버튼으로 시킨 일: 응답이 올 때까지 그 버튼을 끄고 돌아가는 표시를 붙인다 (두 번 누르지 않게).
+const busyButtons = new Map();
+const buttonOf = (event) => {
+  const elt = event.detail.elt;
+  if (elt.matches?.("button")) return elt;
+  if (elt.matches?.("form")) return event.detail.requestConfig?.triggeringEvent?.submitter || null;
+  return null;
+};
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const button = buttonOf(event);
+  if (!button || !button.matches(".btn")) return;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  busyButtons.set(event.detail.xhr, button);
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  const button = busyButtons.get(event.detail.xhr);
+  if (!button) return;
+  busyButtons.delete(event.detail.xhr);
+  button.disabled = false;
+  button.removeAttribute("aria-busy");
+});
+
+// Decisions: 주제를 누르면 바로 선택 표시를 옮기고, 비교표 자리에 자리표시를 넣는다.
+const isDecisionsRequest = (event) => event.detail.target && event.detail.target.id === "decisions-body";
+let topicOpener = null;
+document.addEventListener("htmx:beforeRequest", (event) => {
+  if (!isDecisionsRequest(event)) return;
+  const body = document.getElementById("decisions-body");
+  const topic = event.detail.elt.closest?.(".topic");
+  if (!topic) {  // 주제 찾기 · 더 보기: 목록만 흐리게
+    body.querySelector(".topics")?.setAttribute("aria-busy", "true");
+    return;
+  }
+  topicOpener = topic;
+  body.querySelectorAll(".topic.sel").forEach((t) => { t.classList.remove("sel"); t.removeAttribute("aria-current"); });
+  topic.classList.add("sel");
+  topic.setAttribute("aria-current", "true");
+  body.querySelector(".main")?.replaceChildren(document.getElementById("decisions-loading").content.cloneNode(true));
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (!isDecisionsRequest(event) || event.detail.successful) return;
+  const body = document.getElementById("decisions-body");
+  body.querySelector(".topics")?.removeAttribute("aria-busy");
+  body.querySelector(".main")?.replaceChildren(document.getElementById("decisions-failed").content.cloneNode(true));
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-decisions-retry]") || !topicOpener?.isConnected) return;
+  htmx.trigger(topicOpener, "click");
+});

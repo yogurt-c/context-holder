@@ -54,28 +54,28 @@
     <div class="table-scroll" tabindex="0" data-scroll-table aria-label="회사별 결정 비교, 옆으로 넘겨 볼 수 있어요">
       <div class="matrix" role="table" aria-label="회사별 결정 비교" style="--cols: {{ view.columns | length }}">
         <div class="rh ch" role="columnheader"></div>
-        {% for c in view.columns %}<div class="ch{% if loop.first %} col-hl{% endif %}" role="columnheader"><span class="co-brand">{{ c.company }}</span><span class="date">{{ c.date or "날짜 모름" }}</span></div>{% endfor %}
+        {% for c in view.columns %}<div class="ch{% if loop.first %} col-hl{% endif %}" role="columnheader" data-article="{{ c.id }}"><button type="button" class="col-open" aria-label="{{ c.company }} 글 상세 열기"><span class="co-brand">{{ c.company }}</span><span class="date">{{ c.date or "날짜 모름" }}</span></button></div>{% endfor %}
 
         <div class="rh" role="rowheader">문제</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell">{{ c.problem }}</div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell" data-article="{{ c.id }}">{{ c.problem }}</div>{% endfor %}
 
         <div class="rh" role="rowheader">결정</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><span class="chosen">{{ c.chosen }}</span>{% if c.alternatives %}<span class="alt">{% for o in c.alternatives %}<s>{{ o }}</s>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell" data-article="{{ c.id }}"><span class="chosen">{{ c.chosen }}</span>{% if c.alternatives %}<span class="alt">{% for o in c.alternatives %}<s>{{ o }}</s>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>{% endfor %}
 
         <div class="rh" role="rowheader">트레이드오프</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell">{% for t in c.tradeoffs %}<span class="trade">{{ t }}</span>{% else %}<span class="weak">원문에 없음</span>{% endfor %}</div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell" data-article="{{ c.id }}">{% for t in c.tradeoffs %}<span class="trade">{{ t }}</span>{% else %}<span class="weak">원문에 없음</span>{% endfor %}</div>{% endfor %}
 
         <div class="rh" role="rowheader">결과</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}{% if not c.outcome %} weak{% endif %}" role="cell">{{ c.outcome or "원문에 결과 없음" }}</div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}{% if not c.outcome %} weak{% endif %}" role="cell" data-article="{{ c.id }}">{{ c.outcome or "원문에 결과 없음" }}</div>{% endfor %}
 
         <div class="rh" role="rowheader">신뢰도</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><span class="confidence" aria-label="신뢰도 {{ c.confidence }}/3">{% for i in range(3) %}<i{% if i < c.confidence %} class="on"{% endif %}></i>{% endfor %}</span></div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell" data-article="{{ c.id }}"><span class="confidence" aria-label="신뢰도 {{ c.confidence }}/3">{% for i in range(3) %}<i{% if i < c.confidence %} class="on"{% endif %}></i>{% endfor %}</span></div>{% endfor %}
 
         <div class="rh" role="rowheader">출처</div>
-        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell"><a class="src" href="#" hx-get="/article/{{ c.id }}" hx-target="#modal-body">{{ c.title }}</a></div>{% endfor %}
+        {% for c in view.columns %}<div class="{% if loop.first %}col-hl{% endif %}" role="cell" data-article="{{ c.id }}"><a class="src" href="#" hx-get="/article/{{ c.id }}" hx-target="#modal-body">{{ c.title }}</a></div>{% endfor %}
       </div>
     </div>
-    <div class="footnote"><span>출처를 누르면 글 상세가 열려요</span><span>신뢰도는 원문 근거 문장 대조 결과</span></div>
+    <div class="footnote"><span>사례 열을 누르면 글 상세가 열려요</span><span>신뢰도는 원문 근거 문장 대조 결과</span></div>
     {% endif %}
   </section>
 </div>

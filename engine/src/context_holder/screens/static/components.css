@@ -94,7 +94,8 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .btn:hover { background: var(--surface-hover); border-color: var(--rule-strong); }
 .btn:active { background: var(--paper-deep); }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
-.btn[aria-busy="true"] { cursor: progress; color: var(--ink-faint); }
+.btn[aria-busy="true"], .btn[aria-busy="true"]:disabled { cursor: progress; opacity: 0.75; }
+.btn[aria-busy="true"]::before { content: ""; width: 10px; height: 10px; flex: none; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: spin 0.8s linear infinite; }
 .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .btn.primary:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
 .btn.decision { background: var(--decision); border-color: var(--decision); color: var(--on-ink); }
