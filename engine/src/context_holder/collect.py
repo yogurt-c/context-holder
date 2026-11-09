@@ -3,7 +3,7 @@
 import html as html_lib
 import logging
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -63,7 +63,10 @@ def collect(
     seen_urls: frozenset[str] = frozenset(),
     etags: Mapping[str, str] | None = None,
     seen_hashes: frozenset[str] = frozenset(),
+    on_source: Callable[[int, int], None] = lambda done, total: None,
 ) -> CollectResult:
+    """on_source(끝낸 소스 수, 전체): 소스 하나를 끝낼 때마다 부른다 (진행률)."""
+    sources = list(sources)
     previous = dict(etags or {})
     articles: list[Article] = []
     reports: list[SourceReport] = []
@@ -77,6 +80,7 @@ def collect(
         articles.extend(found)
         if etag:
             new_etags[source.id] = etag
+        on_source(len(reports), len(sources))
     return CollectResult(articles=tuple(articles), reports=tuple(reports), etags=new_etags)
 
 

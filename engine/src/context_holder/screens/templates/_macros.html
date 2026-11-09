@@ -26,11 +26,12 @@
 {% for text, on in parts %}{% if on %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}
 {%- endmacro %}
 
-{% macro alert_banners(items) -%}
+{% macro alert_banners(items, sync=None) -%}
 {% for a in items %}
 <div class="banner {{ a.tone }}" role="{{ 'alert' if a.tone == 'error' else 'status' }}">
   {% if a.tone == "error" %}<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg>{% else %}<span class="dot busy" aria-hidden="true"></span>{% endif %}
   <span class="grow"><b>{{ a.title }}</b> {{ a.body }}</span>
+  {% if a.action == "sync" and sync and sync.can_run %}<button type="button" class="btn sm primary" hx-post="/sync" hx-target="#sync-card" hx-swap="outerHTML">지금 수집</button>{% endif %}
 </div>
 {% endfor %}
 {%- endmacro %}

@@ -445,3 +445,90 @@ def test_run_records_skip_init_and_broken_files(wiki):
     (wiki.root / "state/runs/init.json").write_text("{}")
     (wiki.root / "state/runs/2026-11-01.json").write_text("{broken")
     assert [d for d, _ in run_records(wiki)] == [TODAY]
+
+
+# ---------- 지금 수집 (앱이 띄웠을 때) ----------
+
+
+class FakeScheduler:
+    def __init__(self, running=False, paused=None, can_run=True):
+        from context_holder.scheduler import Progress
+
+        self.running = running
+        self.progress = Progress("collect", 7, 13) if running else None
+        self.started_at = NOW if running else None
+        self.paused = paused
+        self.can_run = can_run
+        self.runs = 0
+
+    def paused_until(self):
+        return self.paused
+
+    def can_run_now(self):
+        return self.can_run and not self.running
+
+    def run_now(self):
+        from context_holder.scheduler import Progress
+
+        self.runs += 1
+        self.running, self.started_at = True, NOW
+        self.progress = Progress("collect", 7, 13)
+        return True
+
+
+def app_client(wiki, tmp_path, scheduler) -> TestClient:
+    ctx = replace(context(wiki, tmp_path), scheduler=scheduler)
+    c = TestClient(create_app(ctx), follow_redirects=False)
+    c.cookies.set(COOKIE, TOKEN)
+    return c
+
+
+def test_sync_now_button_starts_collection_and_card_polls(wiki, tmp_path):
+    scheduler = FakeScheduler()
+    c = app_client(wiki, tmp_path, scheduler)
+    assert 'hx-post="/sync"' in c.get("/today").text
+
+    card = c.post("/sync", headers=HTMX)
+    assert scheduler.runs == 1
+    assert 'hx-get="/sync-card"' in card.text and "이 기기가 수집 중" in card.text
+    assert "소스 7/13" in card.text and "width:54%" in card.text and "<html" not in card.text
+
+    poll = c.get("/sync-card")
+    assert "HX-Refresh" not in poll.headers
+    scheduler.running = False
+    assert c.get("/sync-card").headers["HX-Refresh"] == "true"  # 끝났다: 화면을 새로 고친다
+
+
+def test_sync_card_shows_pause_and_hides_button_when_done(wiki, tmp_path):
+    from datetime import timedelta as td
+
+    c = app_client(wiki, tmp_path, FakeScheduler(paused="forever", can_run=False))
+    page = c.get("/today").text
+    assert "수집 일시정지 중 (다시 켤 때까지)" in page and 'hx-post="/sync"' not in page
+    later = NOW + td(hours=1)
+    page = app_client(wiki, tmp_path / "2", FakeScheduler(paused=later)).get("/today").text
+    assert f"수집 일시정지 중 ({later.astimezone():%H:%M}까지)" in page
+
+
+def test_classify_progress_has_no_ratio(wiki, tmp_path):
+    from context_holder.scheduler import Progress
+
+    scheduler = FakeScheduler(running=True)
+    scheduler.progress = Progress("classify", 0, 11)
+    page = app_client(wiki, tmp_path, scheduler).get("/today").text
+    assert "분류 중 (11건)" in page and 'role="progressbar"' not in page
+
+
+def test_stale_banner_offers_sync_only_inside_the_app(wiki, tmp_path):
+    run_file(wiki, TODAY - timedelta(days=3), {"status": "done"})
+    assert "마지막 수집이 3일 전" in make_client(wiki, tmp_path)[0].get("/today").text
+    plain = make_client(wiki, tmp_path / "p")[0].get("/today").text
+    assert 'class="btn sm primary" hx-post="/sync"' not in plain
+    inside = app_client(wiki, tmp_path / "a", FakeScheduler()).get("/today").text
+    assert 'class="btn sm primary" hx-post="/sync"' in inside
+
+
+def test_sync_without_app_is_refused(wiki, tmp_path):
+    c, _ = make_client(wiki, tmp_path)
+    assert c.post("/sync", headers=HTMX).status_code == 409
+    assert c.get("/sync-card").headers["HX-Refresh"] == "true"

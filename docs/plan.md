@@ -48,6 +48,11 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 
 창을 닫아도 앱은 메뉴바에 남아 수집을 계속한다.
 
+구현:
+- 앱은 그리기만 한다. 언제 수집할지, 메뉴에 무엇을 보일지, 알릴지는 엔진(`ctx serve --app`)이 정한다. 앱과 엔진은 stdin · stdout 줄로만 주고받고, 화면(웹뷰)에는 IPC 권한을 주지 않는다 ([app/README](../app/README.md)).
+- 메뉴바 아이콘은 단색 template 이미지 네 가지(평상시 · 수집 중 · 오류 · 일시정지)다. 오류는 template이라 빨간 점 대신 채운 점으로 보인다.
+- 창은 엔진 주소를 띄운다. 창이 열려 있을 때만 Dock 아이콘을 보인다. 키보드 단축키는 두지 않는다.
+
 선택 이유:
 - 매일 자동 수집하는 상주 작업이 있고, 상태를 계속 보여 줘야 한다. 브라우저 탭보다 메뉴바 앱이 가시성이 좋다.
 - **Tauri 2**는 macOS 내장 WebKit을 써서 앱 자체 메모리가 수십 MB 수준이다. tray, autostart, notification, sidecar가 공식 플러그인으로 있다. Electron은 상주 앱으로 쓰기에 무겁다.
@@ -59,6 +64,10 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 - **실행 시점**: 앱이 로그인 시 자동 실행되고 엔진 스케줄러가 판단한다.
   - 앱 시작, 잠자기 해제, 평일 09:30 중 하나가 발생했을 때 "오늘 미수집"이면 수집한다.
   - 완료되면 macOS 알림을 띄운다(신규 N건, 저장 M건). 알림을 누르면 브리프 창이 열린다.
+  - 엔진이 `ctx sync --events`를 자식 프로세스로 띄우고 진행률(소스 · 분류 · 요약)을 메뉴 상태 줄과 사이드바 카드에 보여 준다. 오늘 기록이 끝났거나 다른 기기가 수집 중이면 띄우지 않고, 실패 · 멈춤이면 30분 뒤 다음 계기에 다시 한다. 잠자기 해제는 1분마다 보는 벽시계가 크게 건너뛴 것으로 안다.
+  - "지금 수집"(메뉴, 사이드바, 며칠째 수집 못함 알림 띠)은 일시정지와 재시도 간격을 무시하지만, 오늘 수집이 끝났으면 누를 수 없다(하루 한 번 잠금).
+  - 일시정지: 1시간 · 오늘 하루 · 다시 켤 때까지. 기기 로컬 `app-state.json`에 남긴다.
+  - 알림은 하루 최대 2번, 종류마다 한 번: 신규 저장 1건 이상(이 기기가 수집했을 때), Claude 로그인 · 한도로 멈춤, 소스 절반 이상 실패, 3일째 수집 못함. 보낸 기록은 `notices.json`.
   - 오늘의 글은 앱(Today 창, 메뉴바, 알림)에서만 보여 준다. Claude 세션에는 넣지 않는다. Claude는 필요할 때 MCP로 찾는다(8장).
 - **모든 기기가 꺼져 있던 날**: 다음 실행 때 "마지막으로 본 글 이후"부터 따라잡는다. feed가 최근 글을 보존하므로 누락은 거의 없다.
 - **동시 접근**: index.db는 SQLite WAL 모드다. 엔진이 쓰는 동안에도 `ctx mcp`가 읽을 수 있다. index.db 쓰기는 엔진만 한다.
@@ -177,7 +186,7 @@ state/sources.json                # 소스별 마지막으로 본 글
 state/init.json                   # 초기 수집 대기열 · 진행 상태 (URL · 제목 · 날짜만, 본문 없음)
 ```
 
-기기 로컬 (커밋 안 함): `~/.context-holder/index.db`, `~/.context-holder/logs/`, `~/.context-holder/etag-cache.json`, `~/.context-holder/mcp-queries.jsonl`
+기기 로컬 (커밋 안 함): `~/.context-holder/index.db`, `~/.context-holder/logs/`, `~/.context-holder/etag-cache.json`, `~/.context-holder/mcp-queries.jsonl`, `~/.context-holder/app-state.json`(일시정지), `~/.context-holder/notices.json`(보낸 알림)
 
 ## 4. LLM Gateway
 

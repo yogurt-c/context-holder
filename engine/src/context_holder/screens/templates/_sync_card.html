@@ -1,0 +1,16 @@
+{# 사이드바 수집 카드. 수집 중이면 3초마다 다시 그리고, 끝나면 화면을 새로 고친다 #}
+{% set st = side.status %}{% set sync = side.sync %}
+<div class="sync-card" aria-label="수집 현황" id="sync-card"{% if sync and sync.running %} hx-get="/sync-card" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+  {% if sync and sync.running %}
+  <div class="head"><span class="dot busy"></span>이 기기가 수집 중</div>
+  <div class="progress-line">{{ sync.progress or "준비 중" }}</div>
+  {% if sync.ratio is not none %}<div class="bar busy" role="progressbar" aria-valuenow="{{ sync.ratio }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ sync.ratio }}%"></i></div>{% endif %}
+  <div class="foot">{{ sync.started }}에 시작했어요. 화면은 계속 써도 돼요.</div>
+  {% else %}
+  <div class="head"><span class="dot {{ {'running': 'busy', 'stopped': 'error', 'none': 'idle'}.get(st.state, '') }}"></span>{{ st.label }}</div>
+  {% if st.counts %}<dl>{% for name, n in st.counts.items() %}<dt>{{ name }}</dt><dd>{{ n }}</dd>{% endfor %}</dl>{% endif %}
+  {% if st.foot %}<div class="foot">{{ st.foot }}</div>{% endif %}
+  {% if sync and sync.paused %}<div class="foot">수집 일시정지 중 ({{ sync.paused }})</div>{% endif %}
+  {% if sync and sync.can_run %}<button type="button" class="btn sm sync-now" hx-post="/sync" hx-target="#sync-card" hx-swap="outerHTML">지금 수집</button>{% endif %}
+  {% endif %}
+</div>

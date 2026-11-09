@@ -50,12 +50,14 @@ from context_holder.mcptools import WikiTools
 from context_holder.paths import default_wiki, etag_cache, home
 from context_holder.reembed import run_reembed
 from context_holder.runlock import INIT_LOCK, Outcome, RunLock, daily_lock
+from context_holder.scheduler import Scheduler, run_forever, spawn_sync
 from context_holder.screens.app import ScreenContext, new_token
 from context_holder.screens.serve import serve
 from context_holder.search import search
 from context_holder.searcheval import evaluate_search, load_queries
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 from context_holder.sync import SyncReport, default_days, run_sync
+from context_holder.tray import AppBridge, NoticeLog
 from context_holder.wiki import Wiki
 
 app = typer.Typer(
@@ -324,6 +326,9 @@ def sync_command(
         None, min=1, help="최근 며칠의 글을 볼지. 없으면 처음 30일, 이후 7일."
     ),
     model: str = typer.Option("sonnet", help="분류 · 요약에 쓸 Claude 모델."),
+    events: bool = typer.Option(
+        False, "--events", help="진행률을 JSON 한 줄씩 쓴다 (앱의 스케줄러가 읽는다)."
+    ),
 ) -> None:
     """요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다."""
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
@@ -343,6 +348,7 @@ def sync_command(
                 etags=etags,
                 embedder=make_embedder(wiki.search_model()),
                 checkpoint=checkpoint.tick if checkpoint else lambda: None,
+                progress=_progress_line if events else lambda stage, done, total: None,
             )
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(report.etags, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -359,6 +365,11 @@ def sync_command(
     run = _run_locked(lock, work, blockers=[INIT_LOCK])
     if run.work:
         _index().sync(wiki, make_embedder(wiki.search_model()))
+
+
+def _progress_line(stage: str, done: int, total: int) -> None:
+    line = {"event": "progress", "stage": stage, "done": done, "total": total}
+    typer.echo(json.dumps(line))
 
 
 def _sync_summary(report: SyncReport) -> dict:
@@ -669,12 +680,18 @@ def serve_command(
     exit_on_stdin_eof: bool = typer.Option(
         False, "--exit-on-stdin-eof", help="stdin이 닫히면 끝낸다 (앱이 띄울 때)."
     ),
+    app_mode: bool = typer.Option(
+        False,
+        "--app",
+        help="앱이 띄울 때: 수집 스케줄러를 켜고 메뉴 · 알림 이벤트를 쓴다. stdin 명령을 받는다.",
+    ),
 ) -> None:
     """화면 서버를 127.0.0.1의 임의 포트로 띄운다. 준비되면 주소와 토큰을 JSON 한 줄로 쓴다."""
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
     wiki = Wiki(wiki_path or default_wiki())
     token = new_token()
     embedder = _shared_embedder(wiki)  # 인덱스 맞추기와 화면 검색이 모델 하나를 나눠 쓴다
+    bridge, scheduler = _app_bridge(wiki) if app_mode else (None, None)
 
     def make_context(port: int) -> ScreenContext:
         return ScreenContext(
@@ -686,15 +703,46 @@ def serve_command(
             token=token,
             hosts=frozenset({f"127.0.0.1:{port}"}),
             embedder=embedder,
+            scheduler=scheduler,
         )
 
     serve(
         make_context,
         out=sys.stdout,
-        stdin=sys.stdin if exit_on_stdin_eof else None,
+        stdin=sys.stdin if exit_on_stdin_eof or app_mode else None,
         on_ready=_open_url if open_browser else lambda url: None,
         warm=lambda: _warm_index(wiki, embedder),
+        on_line=bridge.command if bridge else lambda _: None,
+        background=(
+            (lambda: run_forever(scheduler, threading.Event(), bridge.check_notices))
+            if bridge and scheduler
+            else None
+        ),
     )
+
+
+def _app_bridge(wiki: Wiki) -> tuple[AppBridge, Scheduler]:
+    """앱 모드: 메뉴 · 알림 이벤트를 stdout에 쓰고 매일 수집을 맡는다."""
+    sync_log = home() / "logs" / "sync.log"
+    sync_log.parent.mkdir(parents=True, exist_ok=True)
+    sched_log = logging.getLogger("context_holder.scheduler")
+    if not sched_log.handlers:  # 수집 기록은 ~/.context-holder/logs/sync.log에 남긴다
+        handler = logging.FileHandler(sync_log, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        sched_log.addHandler(handler)
+    sched_log.setLevel(logging.INFO)
+    bridge = AppBridge(sys.stdout, _index(), NoticeLog(home() / "notices.json"))
+    scheduler = Scheduler(
+        wiki,
+        home() / "app-state.json",
+        device_name(home()),
+        lambda: datetime.now(UTC),
+        spawn=lambda: spawn_sync(wiki.root, sync_log),
+        on_change=bridge.refresh,
+        on_finish=bridge.check_notices,
+    )
+    bridge.scheduler = scheduler
+    return bridge, scheduler
 
 
 def _shared_embedder(wiki: Wiki):

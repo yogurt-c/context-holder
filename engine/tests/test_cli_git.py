@@ -213,7 +213,9 @@ def test_sync_takes_the_lock_and_pushes_results(tmp_path, github, make_device, m
     repo = connected(tmp_path, github)
     monkeypatch.setattr(cli, "_index", lambda: FakeIndex([], (0, 0)))
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None):
+    def fake_run_sync(
+        wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None, progress=None
+    ):
         for i in range(3):
             (wiki.root / "wiki").mkdir(exist_ok=True)
             (wiki.root / f"wiki/{i}.md").write_text("x")

@@ -197,3 +197,6 @@ a.btn, a.chip { text-decoration: none; }
 .empty-note { font-size: var(--fs-read); color: var(--ink-body); padding: var(--sp-4) 0; }
 .mcp-note { padding: 0 16px 12px; }
 .opt { max-width: 100%; overflow-wrap: anywhere; }
+.sync-card .progress-line { margin-top: var(--sp-2); color: var(--ink); font-variant-numeric: tabular-nums; }
+.sync-card .bar { margin-top: var(--sp-2); }
+.sync-card .sync-now { margin-top: var(--sp-2); width: 100%; justify-content: center; }

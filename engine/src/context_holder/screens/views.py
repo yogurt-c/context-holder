@@ -227,14 +227,41 @@ def build_today(
     )
 
 
-def sidebar(wiki: Wiki, index: Index, device: str, clock: Clock) -> dict[str, Any]:
-    """모든 화면의 사이드바: 오늘 수집 현황과 Inbox 건수."""
+def sidebar(
+    wiki: Wiki, index: Index, device: str, clock: Clock, scheduler: Any = None
+) -> dict[str, Any]:
+    """모든 화면의 사이드바: 오늘 수집 현황과 Inbox 건수. 앱이 띄웠으면 스케줄러 상태도."""
     today = clock().astimezone().date()
     inbox = index.select("WHERE bucket = ?", (Bucket.INBOX.value,))
     return {
         "status": run_status(wiki, today, device, True),
         "inbox_total": len(inbox),
         "decision_total": sum(n for _, n in index.topics()),
+        "sync": sync_state(scheduler) if scheduler is not None else None,
+    }
+
+
+def sync_state(scheduler: Any) -> dict[str, Any]:
+    """사이드바 카드의 수집 진행 · 지금 수집 버튼 (scheduler.Scheduler)."""
+    progress = scheduler.progress
+    paused = scheduler.paused_until()
+    if paused == "forever":
+        paused_label = "다시 켤 때까지"
+    elif paused:
+        paused_label = f"{paused.astimezone():%H:%M}까지"
+    else:
+        paused_label = None
+    return {
+        "running": scheduler.running,
+        "progress": progress.label if progress else None,
+        "ratio": round(100 * progress.done / progress.total)
+        if progress and progress.total and progress.stage != "classify"
+        else None,
+        "started": scheduler.started_at.astimezone().strftime("%H:%M")
+        if scheduler.started_at
+        else "",
+        "can_run": scheduler.can_run_now(),
+        "paused": paused_label,
     }
 
 

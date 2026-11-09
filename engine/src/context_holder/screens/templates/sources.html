@@ -19,7 +19,7 @@
     <div class="toolbar"><span class="title">Sources</span><span class="sub"><span>{{ total }}곳</span><span>국내 {{ view.domestic | length }}</span><span>해외 {{ view.overseas | length }}</span></span></div>
     <div class="scroll"><div class="sources-page stack-narrow">
       <section>
-        {% if alerts %}<div class="alerts">{{ alert_banners(alerts) }}</div>{% endif %}
+        {% if alerts %}<div class="alerts">{{ alert_banners(alerts, side.sync) }}</div>{% endif %}
         {% if view.failures %}
         <div class="banner error" role="alert">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg>

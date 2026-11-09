@@ -11,7 +11,7 @@
     </div>
 
     <div class="scroll"><div class="page">
-      {% if alerts %}<div class="alerts">{{ alert_banners(alerts) }}</div>{% endif %}
+      {% if alerts %}<div class="alerts">{{ alert_banners(alerts, side.sync) }}</div>{% endif %}
       <header class="masthead">
         <h1>{% if view.is_today %}오늘의 브리프{% else %}{{ short_day(view.day) }} 브리프{% endif %}</h1>
         <div class="meta">관련도, 신선도, 회사 가중치 순{% if view.status.counts %}<br>저장 {{ view.status.counts["저장"] }}건, 보류 {{ view.status.counts["보류"] }}건, 제외 {{ view.status.counts["제외"] }}건{% endif %}</div>

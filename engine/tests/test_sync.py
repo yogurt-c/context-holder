@@ -83,9 +83,18 @@ def test_sync_collects_classifies_enriches_and_writes(make_client, tmp_path: Pat
     ]
     llm = ScriptedLlm([0.9, 0.45, 0.1])
 
-    report = run_sync(wiki, feed_client(make_client, links), llm, now=NOW, days=7)
+    steps = []
+    report = run_sync(
+        wiki,
+        feed_client(make_client, links),
+        llm,
+        now=NOW,
+        days=7,
+        progress=lambda *step: steps.append(step),
+    )
 
     assert (report.saved, report.inboxed, report.dropped) == (1, 1, 1)
+    assert steps == [("collect", 1, 1), ("classify", 0, 3), ("enrich", 1, 2), ("enrich", 2, 2)]
     assert statuses(tmp_path, "wiki") == ["done"]
     assert statuses(tmp_path, "inbox") == ["done"]
     assert llm.enrich_calls == 2  # 버린 글은 요약하지 않는다
@@ -118,11 +127,18 @@ def test_enrich_failure_writes_pending_and_next_sync_completes_it(make_client, t
     assert statuses(tmp_path, "wiki") == ["pending"]
 
     page = {link: httpx.Response(200, text=article_page("글", LONG_BODY))}
+    steps = []
     second = run_sync(
-        wiki, feed_client(make_client, [link], page), ScriptedLlm([]), now=NOW, days=7
+        wiki,
+        feed_client(make_client, [link], page),
+        ScriptedLlm([]),
+        now=NOW,
+        days=7,
+        progress=lambda *step: steps.append(step),
     )
 
     assert second.completed == 1
+    assert steps[0] == ("retry", 1, 1)
     assert statuses(tmp_path, "wiki") == ["done"]
 
 

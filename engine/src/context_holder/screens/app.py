@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
@@ -52,6 +53,7 @@ class ScreenContext:
     token: str
     hosts: frozenset[str]  # 허용하는 Host 헤더 (127.0.0.1:<port>)
     embedder: Callable[[], Embedder | None] = field(default=lambda: None)  # 첫 검색 때 불러온다
+    scheduler: Any = None  # 앱이 띄웠을 때만 (scheduler.Scheduler): 지금 수집 · 진행률
 
 
 def new_token() -> str:
@@ -81,7 +83,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return {s.id: s.name for s in views.configured_sources(ctx.wiki)}
 
     def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
-        side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock)
+        side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
         return templates.TemplateResponse(
             request, name, {"active": active, "side": side, "pages": PAGES, **values}
         )
@@ -142,6 +144,26 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     def sources(request: Request) -> HTMLResponse:
         view = sourcesview.build_sources(ctx.wiki, ctx.mcp_log, ctx.clock())
         return page(request, "sources.html", "sources", view=view, alerts=current_alerts())
+
+    def sync_card(request: Request) -> HTMLResponse:
+        side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
+        return templates.TemplateResponse(request, "_sync_card.html", {"side": side})
+
+    @app.get("/sync-card", response_class=HTMLResponse)
+    def sync_card_poll(request: Request) -> HTMLResponse:
+        response = sync_card(request)
+        if ctx.scheduler is None or not ctx.scheduler.running:
+            response.headers["HX-Refresh"] = (
+                "true"  # 수집이 끝났다: 새 글을 보이게 화면을 새로 고친다
+            )
+        return response
+
+    @app.post("/sync", response_class=HTMLResponse)
+    def sync_now(request: Request) -> Response:
+        if ctx.scheduler is None:
+            return PlainTextResponse("앱에서만 수집할 수 있다", status_code=409)
+        ctx.scheduler.run_now()
+        return sync_card(request)
 
     @app.get("/{name}", response_class=HTMLResponse)
     def placeholder(request: Request, name: str) -> Response:

@@ -1,3 +1,5 @@
+import json
+
 from typer.testing import CliRunner
 
 from context_holder import __version__
@@ -275,8 +277,11 @@ def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path)
     (home / "etag-cache.json").write_text('{"toss": "\\"old\\""}', encoding="utf-8")
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None):
+    def fake_run_sync(
+        wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None, progress=None
+    ):
         seen.update(root=wiki.root, days=days, etags=dict(etags), model=llm.model)
+        progress("collect", 1, 1)  # --events가 없으면 쓰지 않는다
         return SyncReport(
             sources=(SourceReport("toss", found=3, new=2),),
             saved=1,
@@ -299,7 +304,7 @@ def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path)
     assert result.exit_code == 0, result.output
     assert seen == {"root": wiki, "days": 3, "etags": {"toss": '"old"'}, "model": "haiku"}
     assert "저장 1 · 보류 1 · 버림 0" in result.output
-    assert "새 글 0건" not in result.output
+    assert "새 글 0건" not in result.output and '"event"' not in result.output
     assert "요약 대기 1" in result.output and "이전 대기 완료 2" in result.output
     assert "Claude 호출을 멈췄다: limit: 한도" in result.output
     assert json.loads((home / "etag-cache.json").read_text()) == {"toss": '"new"'}
@@ -312,16 +317,21 @@ def test_sync_defaults_to_wiki_in_home_and_first_run_window(monkeypatch, tmp_pat
     monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
     seen = {}
 
-    def fake_run_sync(wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None):
+    def fake_run_sync(
+        wiki, client, llm, now, days, etags=None, embedder=None, checkpoint=None, progress=None
+    ):
         seen.update(root=wiki.root, days=days)
+        progress("collect", 2, 13)
         return SyncReport((), 0, 0, 0, 0, 0, 0, 0, 0.0, {}, None)
 
     monkeypatch.setattr(cli, "run_sync", fake_run_sync)
 
-    result = runner.invoke(app, ["sync"])
+    result = runner.invoke(app, ["sync", "--events"])
 
     assert result.exit_code == 0, result.output
     assert seen == {"root": tmp_path / "wiki", "days": FIRST_SYNC_DAYS}
+    line = next(json.loads(x) for x in result.output.splitlines() if x.startswith("{"))
+    assert line == {"event": "progress", "stage": "collect", "done": 2, "total": 13}
 
 
 def _init_state(tmp_path):

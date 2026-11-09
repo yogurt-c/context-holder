@@ -1,0 +1,15 @@
+[package]
+name = "context-holder"
+version = "0.1.0"
+edition = "2021"
+description = "빅테크 기술 결정 사례 위키 (메뉴바 앱)"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

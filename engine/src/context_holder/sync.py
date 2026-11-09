@@ -2,6 +2,7 @@
 
 Git 동기화(pull · 수집 잠금 · push)는 이 단계 밖에서 감싼다 (collectrun).
 checkpoint는 글을 하나 쓸 때마다 부른다. 일정 건수마다 커밋 · push하는 데 쓴다.
+progress(단계, 끝낸 수, 전체)는 앱의 진행률 표시에 쓴다. 단계: retry · collect · classify · enrich.
 """
 
 import logging
@@ -20,6 +21,8 @@ from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
 log = logging.getLogger(__name__)
+
+Progress = Callable[[str, int, int], None]
 
 FIRST_SYNC_DAYS = 30  # 처음에는 한 달치를 모아 첫 브리프를 채운다
 DAILY_SYNC_DAYS = 7  # 며칠 수집을 못 해도 따라잡을 수 있게 넉넉히 본다
@@ -54,6 +57,7 @@ def run_sync(
     etags: Mapping[str, str] | None = None,
     embedder: Embedder | None = None,
     checkpoint: Callable[[], None] = lambda: None,
+    progress: Progress = lambda stage, done, total: None,
 ) -> SyncReport:
     wiki.ensure_config()
     sources = {s.id: s for s in wiki.sources()}
@@ -61,7 +65,7 @@ def run_sync(
     state = Budget()
 
     completed, still_pending = _retry_pending(
-        wiki, client, llm, sources, now, state, embedder, checkpoint
+        wiki, client, llm, sources, now, state, embedder, checkpoint, progress
     )
 
     pending_urls = {p.url for p in wiki.pending()}
@@ -72,20 +76,21 @@ def run_sync(
         seen_urls=wiki.seen_urls() | pending_urls,
         etags=etags,
         seen_hashes=wiki.seen_hashes(),
+        on_source=lambda done, total: progress("collect", done, total),
     )
     by_url = {a.url: a for a in collected.articles}
 
     if state.stopped:
         decisions, pending_classify = (), len(collected.articles)
     else:
+        progress("classify", 0, len(collected.articles))
         result = classify(llm, collected.articles, profile)
         state.note_classify(result)
         decisions, pending_classify = result.decisions, len(result.pending)
 
     pending_enrich = 0
-    for decision in decisions:
-        if decision.bucket is Bucket.DROP:
-            continue
+    kept = [d for d in decisions if d.bucket is not Bucket.DROP]
+    for n, decision in enumerate(kept, 1):
         article = by_url[decision.url]
         enrichment, reason = state.try_enrich(llm, article)
         wiki.write_article(article, decision, enrichment, collected=now, reason=reason)
@@ -93,6 +98,7 @@ def run_sync(
             try_write_vectors(wiki, embedder, article)
         pending_enrich += enrichment is None
         checkpoint()
+        progress("enrich", n, len(kept))
     wiki.record_seen(
         decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
     )
@@ -123,9 +129,13 @@ def _saved_by_source(decisions, by_url) -> dict[str, int]:
     return counts
 
 
-def _retry_pending(wiki, client, llm, sources, now, state, embedder, checkpoint) -> tuple[int, int]:
+def _retry_pending(
+    wiki, client, llm, sources, now, state, embedder, checkpoint, progress
+) -> tuple[int, int]:
     completed = still = 0
-    for pending in wiki.pending():
+    waiting = wiki.pending()
+    for n, pending in enumerate(waiting, 1):
+        progress("retry", n, len(waiting))
         source = sources.get(pending.source_id)
         if source is None or state.stopped:
             still += 1

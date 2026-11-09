@@ -388,9 +388,30 @@ def test_ready_line_and_bound_socket():
 
 
 def test_stops_when_stdin_closes():
-    stopped = []
-    serve_module.watch_stdin(io.StringIO("ping\n"), lambda: stopped.append(True))
-    assert stopped == [True]
+    stopped, lines = [], []
+    serve_module.watch_stdin(io.StringIO("ping\n\nsync_now\n"), lambda: stopped.append(True))
+    serve_module.watch_stdin(io.StringIO("pause 1h\n\n"), lambda: None, lines.append)
+    assert stopped == [True] and lines == ["pause 1h"]
+
+
+def test_serve_app_mode_turns_on_scheduler_and_menu_commands(tmp_path, monkeypatch):
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path / "home"))
+    wiki = Wiki(tmp_path / "wiki")
+    seen = {}
+
+    def fake_serve(make_context, out, stdin, on_ready, warm, on_line, background):
+        seen.update(ctx=make_context(1), stdin=stdin, background=background)
+        on_line("pause forever")
+
+    monkeypatch.setattr(cli, "serve", fake_serve)
+    monkeypatch.setattr(cli, "device_name", lambda home: "air")
+    result = CliRunner().invoke(cli.app, ["serve", "--wiki", str(wiki.root), "--app"])
+
+    assert result.exit_code == 0, result.output
+    assert seen["ctx"].scheduler is not None and seen["stdin"] is not None
+    assert seen["background"] is not None
+    assert seen["ctx"].scheduler.paused_until() == "forever"
+    assert (tmp_path / "home/logs/sync.log").exists()
 
 
 def test_serve_command_wires_context_and_warm_up(tmp_path, monkeypatch):
@@ -401,7 +422,7 @@ def test_serve_command_wires_context_and_warm_up(tmp_path, monkeypatch):
     add(wiki, "https://t/a", "글")
     seen = {}
 
-    def fake_serve(make_context, out, stdin, on_ready, warm):
+    def fake_serve(make_context, out, stdin, on_ready, warm, on_line, background):
         seen["ctx"] = make_context(4321)
         seen["stdin"] = stdin
         on_ready("http://x")

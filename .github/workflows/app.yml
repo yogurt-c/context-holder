@@ -1,0 +1,26 @@
+name: app
+
+on:
+  push:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+
+defaults:
+  run:
+    working-directory: app/src-tauri
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked

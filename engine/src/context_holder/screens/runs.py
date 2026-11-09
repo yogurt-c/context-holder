@@ -27,6 +27,7 @@ class Alert:
     tone: str  # error | busy (components.css .banner)
     title: str
     body: str
+    action: str | None = None  # "sync": 앱이 띄웠으면 지금 수집 버튼을 단다
 
 
 def run_records(wiki: Wiki) -> list[tuple[date, dict[str, Any]]]:
@@ -67,6 +68,7 @@ def alerts(wiki: Wiki, pending: int, now: datetime) -> list[Alert]:
                 f"마지막 수집이 {gap}일 전이에요.",
                 f"{last_day.month}월 {last_day.day}일 뒤로 새 글을 모으지 않았어요. "
                 "모든 기기가 꺼져 있었을 수 있어요.",
+                action="sync",
             )
         )
     return found
