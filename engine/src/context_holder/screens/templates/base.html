@@ -12,7 +12,7 @@
 <body{% if in_app %} class="in-app"{% endif %}>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>Context Holder</div>
     <nav class="nav" aria-label="주 메뉴">
       <a href="/today"{% if active == "today" %} class="active" aria-current="page"{% endif %}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M4.5 5.5h7M4.5 8h7M4.5 10.5h4"/></svg><span>Today</span></a>
       <a href="/search"{% if active == "search" %} class="active" aria-current="page"{% endif %}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg><span>Search</span></a>
