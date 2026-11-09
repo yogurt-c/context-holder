@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
@@ -360,7 +361,7 @@ def sync_command(
         _index().sync(wiki, make_embedder(wiki.search_model()))
 
 
-def _sync_summary(report: SyncReport) -> dict[str, int | float]:
+def _sync_summary(report: SyncReport) -> dict:
     return {
         "saved": report.saved,
         "inboxed": report.inboxed,
@@ -369,6 +370,18 @@ def _sync_summary(report: SyncReport) -> dict[str, int | float]:
         "sources": len(report.sources),  # 확인한 소스
         "failed_sources": sum(1 for s in report.sources if s.error),
         "cost_usd": round(report.cost_usd, 4),  # Claude 사용량 환산
+        "by_source": {  # Sources 화면: 소스별 확인 결과
+            s.source_id: {
+                "found": s.found,
+                "new": s.new,
+                "failed": s.failed,
+                "saved": report.saved_by_source.get(s.source_id, 0),
+                "error": s.error,
+            }
+            for s in report.sources
+        },
+        # 멈춘 까닭의 종류만 남긴다 (auth · limit · not_installed). 자세한 메시지는 로그에 있다
+        "stopped": report.stopped_reason.split(":")[0] if report.stopped_reason else None,
     }
 
 
@@ -661,6 +674,7 @@ def serve_command(
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
     wiki = Wiki(wiki_path or default_wiki())
     token = new_token()
+    embedder = _shared_embedder(wiki)  # 인덱스 맞추기와 화면 검색이 모델 하나를 나눠 쓴다
 
     def make_context(port: int) -> ScreenContext:
         return ScreenContext(
@@ -671,6 +685,7 @@ def serve_command(
             clock=lambda: datetime.now(UTC),
             token=token,
             hosts=frozenset({f"127.0.0.1:{port}"}),
+            embedder=embedder,
         )
 
     serve(
@@ -678,17 +693,31 @@ def serve_command(
         out=sys.stdout,
         stdin=sys.stdin if exit_on_stdin_eof else None,
         on_ready=_open_url if open_browser else lambda url: None,
-        warm=lambda: _warm_index(wiki),
+        warm=lambda: _warm_index(wiki, embedder),
     )
 
 
-def _warm_index(wiki: Wiki) -> None:
+def _shared_embedder(wiki: Wiki):
+    """이 기기에 있는 검색 모델을 처음 부를 때 한 번만 불러온다. 내려받지 않는다."""
+    lock = threading.Lock()
+    loaded: list[Embedder] = []
+
+    def get() -> Embedder:
+        with lock:
+            if not loaded:
+                loaded.append(make_embedder(wiki.search_model(), local_only=True))
+            return loaded[0]
+
+    return get
+
+
+def _warm_index(wiki: Wiki, embedder_of=None) -> None:
     """시작할 때 인덱스를 위키에 맞춘다. 검색 모델이 이 기기에 없으면 건드리지 않는다.
 
     모델 없이 sync하면 글마다 다시 색인하며 벡터를 지운다.
     """
     try:
-        embedder = make_embedder(wiki.search_model(), local_only=True)
+        embedder = (embedder_of or _shared_embedder(wiki))()
         embedder.query("warm up")  # 모델 파일이 없으면 여기서 실패한다
     except Exception as e:  # 모델이 없거나 깨졌다: 화면은 지금 인덱스로 보여 준다
         logging.warning("검색 모델이 없어 인덱스를 맞추지 않았다: %s", e)

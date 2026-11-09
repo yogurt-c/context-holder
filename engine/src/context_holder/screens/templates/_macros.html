@@ -1,0 +1,36 @@
+{# 여러 화면이 함께 쓰는 조각 #}
+{% macro feedback(article) -%}
+<span class="feedback">
+  <button type="button" class="btn" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "bookmark"}' hx-target="closest .feedback" hx-swap="innerHTML">북마크</button>
+  <button type="button" class="btn ghost" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "not_relevant"}' hx-target="closest .feedback" hx-swap="innerHTML">관련없음</button>
+</span>
+{%- endmacro %}
+
+{% macro badges(a) -%}
+{% if a.media %}<span class="badge video">영상{% if a.media == "summary_only" %}, 요약만{% endif %}</span>{% endif %}
+{% if a.decision_topic %}<span class="badge decision">결정 사례</span>{% endif %}
+{%- endmacro %}
+
+{% macro decision_card(d) -%}
+<dl class="decision-card" aria-label="결정 기록">
+  <div class="label">결정 기록: {{ d.topic }}<span class="conf">신뢰도 {{ {"high": "높음", "medium": "중간", "low": "낮음"}.get(d.confidence, d.confidence) }}<span class="confidence" aria-hidden="true">{% for i in range(3) %}<i{% if i < {"high": 3, "medium": 2, "low": 1}.get(d.confidence, 0) %} class="on"{% endif %}></i>{% endfor %}</span></span></div>
+  <dt>문제</dt><dd>{{ d.problem }}</dd>
+  <dt>선택지</dt><dd>{% for o in d.options or [] %}<span class="opt{% if o == d.chosen %} chosen{% endif %}">{{ o }}</span>{% endfor %}{% if d.chosen not in (d.options or []) %}<span class="opt chosen">{{ d.chosen }}</span>{% endif %}</dd>
+  {% if d.tradeoffs %}<dt>트레이드오프</dt><dd>{{ d.tradeoffs | join(" ") }}</dd>{% endif %}
+  {% if d.outcome %}<dt>결과</dt><dd>{{ d.outcome }}</dd>{% endif %}
+  <p class="evidence">원문 근거 문장 {{ (d.evidence or []) | length }}개{% if d.unverified %}, 원문에서 확인하지 못한 문장 {{ d.unverified | length }}개{% else %}, 원문 대조 통과{% endif %}</p>
+</dl>
+{%- endmacro %}
+
+{% macro segments(parts) -%}
+{% for text, on in parts %}{% if on %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}
+{%- endmacro %}
+
+{% macro alert_banners(items) -%}
+{% for a in items %}
+<div class="banner {{ a.tone }}" role="{{ 'alert' if a.tone == 'error' else 'status' }}">
+  {% if a.tone == "error" %}<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8 15 14H1z" stroke-linejoin="round"/><path d="M8 6.5v3.3M8 11.8v.2" stroke-linecap="round"/></svg>{% else %}<span class="dot busy" aria-hidden="true"></span>{% endif %}
+  <span class="grow"><b>{{ a.title }}</b> {{ a.body }}</span>
+</div>
+{% endfor %}
+{%- endmacro %}

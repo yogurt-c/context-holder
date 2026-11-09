@@ -183,6 +183,10 @@ class WikiTools:
         hits, notes = self._search(queries, company, since)
         return hits[: max(1, min(limit, 20))], notes
 
+    def all_hits(self, queries: Sequence[str]) -> tuple[list[SearchHit], list[str]]:
+        """후보 전체 (화면 검색: 회사 · 태그 · 기간은 화면이 거른다)."""
+        return self._search(queries, None, None)
+
     def decision_hits(
         self, topic: str | None = None, problem: str | None = None, limit: int = 5
     ) -> tuple[list[SearchHit], list[str]]:

@@ -343,8 +343,8 @@ def test_rejects_foreign_host_and_writes_without_htmx(wiki, tmp_path):
 def test_home_placeholder_pages_and_unknown(wiki, tmp_path):
     c = client(wiki, tmp_path)
     assert c.get("/").headers["location"] == "/today"
-    page = c.get("/inbox").text
-    assert "보류 글 분류는 다음 업데이트에서" in page and 'aria-current="page"' in page
+    page = c.get("/decisions").text
+    assert "주제별 결정 사례 비교는 다음 업데이트에서" in page and 'aria-current="page"' in page
     assert c.get("/nothing").status_code == 404
     assert c.get("/static/htmx.min.js").status_code == 200
 
@@ -416,6 +416,7 @@ def test_serve_command_wires_context_and_warm_up(tmp_path, monkeypatch):
     ctx = seen["ctx"]
     assert ctx.hosts == frozenset({"127.0.0.1:4321"}) and ctx.device == "air"
     assert seen["stdin"] is not None
+    assert ctx.embedder() is ctx.embedder()  # 인덱스 맞추기와 화면 검색이 모델 하나를 나눠 쓴다
     assert Index(tmp_path / "home/index.db").select()[0].title == "글"  # 시작할 때 인덱스를 맞췄다
 
 

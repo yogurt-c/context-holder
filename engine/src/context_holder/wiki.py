@@ -1,6 +1,8 @@
 """위키 레포(`context-wiki`)에 글 · 설정 · 상태를 읽고 쓴다 (plan 레포 구조).
 
-글 파일은 한 번 쓰고 고치지 않는다. 요약 대기(pending) 글만 나중에 완료로 바꾼다.
+글 파일은 한 번 쓰고 고치지 않는다. 예외는 둘이다.
+- 요약 대기(pending) 글을 나중에 완료로 바꾼다.
+- Inbox에서 사용자가 고른 보류 글: 저장이면 wiki/로 옮기고, 관련없음이면 지운다.
 원문 전문은 저장하지 않는다: 요약, 핵심 내용, Decision Record, 원문 링크만 쓴다.
 """
 
@@ -49,6 +51,7 @@ class StoredArticle:
     collected: datetime | None = None
     relevance: float | None = None
     media: dict[str, Any] | None = None  # 영상 글: url, provider, status
+    reasons: dict[str, Any] | None = None  # Claude 판정: topic, plus, minus (Inbox "왜 보류됐나")
 
 
 @dataclass(frozen=True)
@@ -241,6 +244,28 @@ class Wiki:
         keep = {k: meta[k] for k in keys if k in meta}
         pending.path.write_text(_render(keep, pending.relevance, enrichment, ""), encoding="utf-8")
 
+    def save_from_inbox(self, path: Path) -> Path:
+        """보류 글을 저장으로 바꿔 wiki/로 옮긴다. 새 경로를 돌려준다."""
+        text = path.read_text(encoding="utf-8")
+        _, header, body = text.split("---\n", 2)
+        meta = yaml.safe_load(header) or {}
+        meta["relevance"]["bucket"] = Bucket.SAVE.value
+        target = self.root / FOLDER[Bucket.SAVE] / path.parent.relative_to(self.root / "inbox")
+        target = target / path.name
+        if target.exists():
+            target = target.with_name(f"{path.stem}-{meta['id'][:6]}.md")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        dumped = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False)
+        target.write_text(f"---\n{dumped}---\n{body}", encoding="utf-8")
+        path.unlink()
+        return target
+
+    def remove_article(self, path: Path, article_id: str) -> None:
+        """관련없음으로 고른 보류 글과 원문 단락 벡터를 지운다. 본 글 기록은 남긴다."""
+        path.unlink(missing_ok=True)
+        for vec in (self.root / "vectors").glob(f"*/{article_id}.*"):
+            vec.unlink()
+
     def _path_for(self, article: Article, bucket: Bucket, collected: datetime) -> Path:
         if bucket not in FOLDER:
             raise ValueError(f"{bucket} 글은 위키에 쓰지 않는다")
@@ -361,6 +386,7 @@ def _stored(path: Path) -> StoredArticle:
         collected=_parse_time(meta.get("collected")),
         relevance=meta["relevance"].get("score"),
         media=meta.get("media"),
+        reasons={k: meta["relevance"].get(k) for k in ("topic", "plus", "minus")},
     )
 
 

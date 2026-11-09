@@ -15,6 +15,7 @@ from context_holder.wiki import Wiki, article_id
 class Kind(Enum):
     NOT_RELEVANT = "not_relevant"
     BOOKMARK = "bookmark"
+    SAVE = "save"  # Inbox에서 보류 글을 저장으로 골랐다 (분류기의 저장 예시)
     SUGGEST_SOURCE = "suggest_source"  # MCP: 웹에서 찾은 좋은 글을 다음 수집 대상으로
 
 

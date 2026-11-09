@@ -175,7 +175,7 @@ def mcp_entries(log_path: Path, now: datetime) -> list[McpEntry]:
             continue
         if row.get("tool") not in ("search_wiki", "find_decision_cases") or at < since:
             continue
-        entries.append(McpEntry(_call_text(row["tool"], row.get("args") or {}), len(row["ids"])))
+        entries.append(McpEntry(call_text(row["tool"], row.get("args") or {}), len(row["ids"])))
     return entries[-MCP_SIZE:][::-1]
 
 
@@ -200,7 +200,7 @@ def build_today(
     now = clock()
     today = now.astimezone().date()
     day = day or today
-    sources = _sources(wiki)
+    sources = configured_sources(wiki)
     weights = {s.id: s.weight for s in sources}
     names = {s.id: s.name for s in sources}
     saved = [a for a in index.select("WHERE bucket = ?", (Bucket.SAVE.value,)) if a.collected]
@@ -279,7 +279,7 @@ def _rail(index: Index, mcp_log: Path, now: datetime) -> Rail:
     )
 
 
-def _sources(wiki: Wiki) -> tuple:
+def configured_sources(wiki: Wiki) -> tuple:
     try:
         return wiki.sources()
     except (OSError, SourceConfigError):  # 설정이 아직 없는 위키
@@ -296,7 +296,7 @@ def _clock_time(value: str | None) -> str:
     return datetime.fromisoformat(value).astimezone().strftime("%H:%M")
 
 
-def _call_text(tool: str, args: dict[str, Any]) -> str:
+def call_text(tool: str, args: dict[str, Any]) -> str:
     if tool == "search_wiki":
         queries = [_clip(q) for q in (args.get("queries") or [])[:2]]
         return f"search_wiki({json.dumps(queries, ensure_ascii=False)})"

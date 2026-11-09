@@ -30,9 +30,7 @@ aside.rail-right { display: flex; flex-direction: column; gap: var(--sp-4); }
 .mcp .miss { font-family: var(--mono); font-size: 11.5px; color: var(--today); font-weight: 700; }
 .pending-line { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: 12.5px; color: var(--ink-soft); }
 .more summary { cursor: pointer; padding: var(--sp-3) 0; font-size: 13px; color: var(--ink-soft); }
-.empty-note { font-size: var(--fs-read); color: var(--ink-body); padding: var(--sp-4) 0; }
 .recent li .day { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); margin-right: var(--sp-2); }
-.mcp-note { padding: 0 16px 12px; }
 .done-label { font-size: 13px; color: var(--ink-soft); align-self: center; }
 .briefs h3 a { color: inherit; text-decoration: none; }
 .briefs h3 a:hover, .briefs h3 a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }

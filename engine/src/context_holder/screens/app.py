@@ -7,8 +7,9 @@
 """
 
 import secrets
+import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
@@ -20,9 +21,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
-from context_holder.screens import views
+from context_holder.mcptools import WikiTools
+from context_holder.screens import inboxview, searchview, sourcesview, views
+from context_holder.screens.runs import alerts
 from context_holder.wiki import Wiki
 
 COOKIE = "ch_token"
@@ -32,10 +36,7 @@ CSP = (
     "base-uri 'none'; form-action 'self'"
 )
 PAGES = {  # 다음 커밋에서 채울 화면
-    "search": ("Search", "검색은 다음 업데이트에서 열린다."),
     "decisions": ("Decisions", "주제별 결정 사례 비교는 다음 업데이트에서 열린다."),
-    "inbox": ("Inbox", "보류 글 분류는 다음 업데이트에서 열린다."),
-    "sources": ("Sources", "소스별 수집 현황은 다음 업데이트에서 열린다."),
     "settings": ("설정", "설정은 다음 업데이트에서 열린다."),
 }
 FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했다", Kind.NOT_RELEVANT: "관련없음으로 남겼다"}
@@ -50,6 +51,7 @@ class ScreenContext:
     clock: Callable[[], datetime]
     token: str
     hosts: frozenset[str]  # 허용하는 Host 헤더 (127.0.0.1:<port>)
+    embedder: Callable[[], Embedder | None] = field(default=lambda: None)  # 첫 검색 때 불러온다
 
 
 def new_token() -> str:
@@ -61,16 +63,32 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     templates = Jinja2Templates(
         directory=str(resources.files("context_holder.screens").joinpath("templates"))
     )
-    templates.env.globals.update(short_day=views.short_day, long_day=views.long_day)
+    templates.env.globals.update(
+        short_day=views.short_day,
+        long_day=views.long_day,
+        kinds=searchview.KINDS,
+        periods=searchview.PERIODS,
+    )
     static = resources.files("context_holder.screens").joinpath("static")
     app.mount("/static", StaticFiles(directory=str(static)), name="static")
     app.add_middleware(BaseHTTPMiddleware, dispatch=_guard(ctx))
+
+    tools = WikiTools(ctx.index, ctx.wiki, ctx.embedder, ctx.device, ctx.mcp_log, ctx.clock)
+    search_lock = threading.Lock()  # 검색 모델과 인덱스 연결을 요청끼리 나눠 쓰지 않게
+    write_lock = threading.Lock()  # Inbox 파일 이동이 겹치지 않게
+
+    def names() -> dict[str, str]:
+        return {s.id: s.name for s in views.configured_sources(ctx.wiki)}
 
     def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
         side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock)
         return templates.TemplateResponse(
             request, name, {"active": active, "side": side, "pages": PAGES, **values}
         )
+
+    def current_alerts() -> list:
+        pending = len(ctx.index.select("WHERE status = ?", ("pending",)))
+        return alerts(ctx.wiki, pending, ctx.clock())
 
     @app.get("/")
     def home() -> RedirectResponse:
@@ -80,7 +98,50 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     def today(request: Request, date: str | None = None) -> HTMLResponse:
         day = _parse_day(date)
         view = views.build_today(ctx.wiki, ctx.index, ctx.device, ctx.mcp_log, day, ctx.clock)
-        return page(request, "today.html", "today", view=view)
+        return page(request, "today.html", "today", view=view, alerts=current_alerts())
+
+    @app.get("/search", response_class=HTMLResponse)
+    def search(request: Request) -> HTMLResponse:
+        params = request.query_params
+        query = searchview.parse_query(params, {k: params.getlist(k) for k in ("company", "tag")})
+        with search_lock:
+            view = searchview.build_search(tools, ctx.wiki, ctx.index, query, names(), ctx.clock())
+        if request.headers.get("hx-request") == "true":  # 검색어 · 필터가 바뀌면 결과만 다시 그린다
+            return templates.TemplateResponse(request, "search_body.html", {"view": view})
+        return page(request, "search.html", "search", view=view)
+
+    @app.get("/inbox", response_class=HTMLResponse)
+    def inbox(request: Request, sel: str | None = None, confirm: str | None = None) -> Response:
+        view = inboxview.build_inbox(ctx.wiki, ctx.index, names(), sel)
+        return page(request, "inbox.html", "inbox", view=view, confirm=confirm == "init")
+
+    @app.post("/inbox/decide", response_class=HTMLResponse)
+    def inbox_decide(
+        request: Request, article_id: str = Form(...), choice: str = Form(...)
+    ) -> Response:
+        if choice not in ("save", "dismiss"):
+            return PlainTextResponse("잘못된 요청", status_code=400)
+        with write_lock:
+            article = inboxview.pending_inbox(ctx.index, article_id)
+            if article is None:
+                return PlainTextResponse("이미 정리했거나 없는 글", status_code=404)
+            recent, init = inboxview.inbox_items(ctx.index, {})
+            following = inboxview.neighbor([i.article for i in [*recent, *init]], article_id)
+            inboxview.decide(
+                ctx.wiki, ctx.index, ctx.device, article, choice == "save", ctx.clock()
+            )
+        return inbox(request, sel=following)
+
+    @app.post("/inbox/dismiss-init", response_class=HTMLResponse)
+    def inbox_dismiss_init(request: Request) -> Response:
+        with write_lock:
+            inboxview.dismiss_init(ctx.wiki, ctx.index, ctx.device, ctx.clock())
+        return inbox(request)
+
+    @app.get("/sources", response_class=HTMLResponse)
+    def sources(request: Request) -> HTMLResponse:
+        view = sourcesview.build_sources(ctx.wiki, ctx.mcp_log, ctx.clock())
+        return page(request, "sources.html", "sources", view=view, alerts=current_alerts())
 
     @app.get("/{name}", response_class=HTMLResponse)
     def placeholder(request: Request, name: str) -> Response:

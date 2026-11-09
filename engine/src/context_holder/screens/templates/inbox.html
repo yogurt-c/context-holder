@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Inbox · context-holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/inbox.css">{% endblock %}
+{% macro row(item, s) -%}
+{% set a = item.article %}
+<li{% if s and s.id == a.id %} class="sel" aria-current="true"{% endif %}>
+  <a href="/inbox?sel={{ a.id }}">
+    <span class="meta meta-row"><span>{{ item.company }}</span>{% if item.day %}<span>{{ short_day(item.day) }}</span>{% endif %}</span>
+    <span class="title">{{ a.title }}</span>
+    <span class="score-pill">{{ "%.2f" | format(a.relevance or 0) }}</span>
+  </a>
+</li>
+{%- endmacro %}
+{% block content %}
+    <div class="toolbar"><span class="title">Inbox</span><span class="sub">관련도 0.3~0.6, 판단이 필요한 글{% if view.total %} {{ view.total }}건{% endif %}</span></div>
+    <div class="scroll inbox-scroll">
+    {% if not view.total %}
+      <div class="page"><p class="empty-note">검토할 보류 글이 없어요. 새로 보류한 글은 수집 뒤에 여기로 와요.</p></div>
+    {% else %}
+    <div class="panes stack-narrow">
+      <section class="queue" aria-label="보류 글 목록">
+        {% if view.recent %}
+        <h3 class="queue-head">수집에서 보류한 글 <span>{{ view.recent | length }}건</span></h3>
+        <ol class="row-list">{% for item in view.recent %}{{ row(item, view.selected) }}{% endfor %}</ol>
+        {% endif %}
+        {% if view.init %}
+        <details class="init-group"{% if view.selected_in_init or not view.recent or confirm %} open{% endif %}>
+          <summary class="queue-head">초기 수집 보류 <span>{{ view.init | length }}건</span></summary>
+          <div class="bulk">
+            {% if confirm %}
+            <p>첫 실행에서 보류한 {{ view.init | length }}건을 모두 관련없음으로 남기고 지울까요?</p>
+            <form hx-post="/inbox/dismiss-init" hx-target=".app" hx-select=".app" hx-swap="outerHTML">
+              <button class="btn sm drop-all">모두 관련없음</button>
+              <a class="btn sm ghost" href="/inbox">취소</a>
+            </form>
+            {% else %}
+            <p class="note">첫 실행 때 1년 치를 훑으며 보류한 글이에요. 한꺼번에 정리할 수 있어요.</p>
+            <a class="btn sm" href="/inbox?confirm=init">모두 관련없음…</a>
+            {% endif %}
+          </div>
+          <ol class="row-list">{% for item in view.init %}{{ row(item, view.selected) }}{% endfor %}</ol>
+        </details>
+        {% endif %}
+      </section>
+
+      {% set s = view.selected %}
+      {% if s %}
+      <article class="detail" aria-label="선택한 글">
+        {% set why = s.reasons or {} %}
+        <div class="kicker"><span class="co-brand">{{ view.company }}</span>{% if why.topic %}<span>{{ why.topic }}</span>{% endif %}{% if s.published %}<span class="score">{{ s.published.strftime("%Y.%m.%d") }}</span>{% endif %}</div>
+        <h2>{{ s.title }}</h2>
+        {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% else %}<p class="note">아직 요약하지 못한 글이에요. 원문을 열어 보세요.</p>{% endif %}
+        <p><a class="btn sm" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">원문 열기</a></p>
+
+        {% set score = s.relevance or 0 %}
+        <section class="why" aria-label="왜 보류됐나">
+          <h3><span>왜 보류됐나</span><span>Claude 판정, 기준 profile.yaml</span></h3>
+          <div class="gauge" role="img" aria-label="관련도 {{ '%.2f' | format(score) }}">
+            <span class="needle" style="left:{{ (100 * score) | round(1) }}%"><b>{{ "%.2f" | format(score) }}</b></span>
+            <span class="tick" style="left:30%">0.3 보류</span><span class="tick" style="left:60%">0.6 저장</span>
+          </div>
+          {% if why.plus or why.minus %}
+          <ul class="criteria">
+            {% for p in why.plus or [] %}<li><span class="sign plus" aria-label="맞는 점">+</span>{{ p }}</li>{% endfor %}
+            {% for m in why.minus or [] %}<li><span class="sign minus" aria-label="안 맞는 점">−</span>{{ m }}</li>{% endfor %}
+          </ul>
+          {% else %}<p class="note">판정 이유가 남아 있지 않아요.</p>{% endif %}
+        </section>
+
+        <form class="decide" hx-post="/inbox/decide" hx-target=".app" hx-select=".app" hx-swap="outerHTML">
+          <input type="hidden" name="article_id" value="{{ s.id }}">
+          <button class="btn keep" name="choice" value="save">저장</button>
+          <button class="btn drop" name="choice" value="dismiss">관련없음</button>
+          {% if view.next_id %}<a class="btn" href="/inbox?sel={{ view.next_id }}">나중에</a>{% endif %}
+        </form>
+        <p class="learn">저장하면 위키로 옮기고, 관련없음은 글을 지워요. 고른 결과는 피드백으로 남고 다음 수집 때 GitHub에 올라가요.</p>
+      </article>
+      {% endif %}
+    </div>
+    {% endif %}
+    </div>
+{% endblock %}

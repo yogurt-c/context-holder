@@ -179,6 +179,23 @@ class Index:
         rows = self.db.execute(f"SELECT {COLUMNS} FROM articles {where}", params)
         return [IndexedArticle(*r[:5], Bucket(r[5]), *r[6:]) for r in rows]
 
+    def move(self, article_id: str, stored: StoredArticle) -> None:
+        """Inbox에서 저장으로 옮긴 글의 행만 고친다. 다시 색인하지 않아 벡터가 그대로 남는다."""
+        row = self.db.execute("SELECT signature FROM articles WHERE id = ?", (article_id,))
+        old = (row.fetchone() or ("",))[0] or ""
+        vec = old[old.index("|") :] if "|" in old else ""  # 벡터 파일 표시는 그대로 둔다
+        with self.db:
+            self.db.execute(
+                "UPDATE articles SET path = ?, bucket = ?, signature = ? WHERE id = ?",
+                (str(stored.path), stored.bucket.value, stored.signature + vec, article_id),
+            )
+
+    def remove(self, article_id: str) -> None:
+        with self.db:
+            for table, key in (("articles", "id"), ("fts", "id"), ("chunks", "article_id")):
+                self.db.execute(f"DELETE FROM {table} WHERE {key} = ?", (article_id,))
+        self._matrix = None
+
     def _migrate(self) -> bool:
         """예전 스키마면 화면용 컬럼을 붙인다. 다음 sync에서 채워야 하면 True."""
         have = {row[1] for row in self.db.execute("PRAGMA table_info(articles)")}

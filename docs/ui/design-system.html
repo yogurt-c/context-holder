@@ -21,6 +21,9 @@
   .swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
   .sw { border: 1px solid var(--rule); border-radius: var(--r-paper); overflow: hidden; background: var(--surface); }
   .sw .c { height: 54px; }
+  .dark-swatches .sw { background: #23211D; border-color: #3A3732; color: #EDE7DA; }
+  .dark-swatches .sw .l code { color: #9D9587; }
+  .h2-note { font-weight: 400; color: var(--ink-faint); margin-left: 8px; }
   .sw .l { padding: 8px 8px; font-size: 11.5px; line-height: 1.35; }
   .sw .l b { display: block; font-size: 12px; }
   .sw .l code { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
@@ -71,6 +74,24 @@
       <div class="sw"><div class="c" style="background:var(--busy)"></div><div class="l"><b>수집 중, 대기</b><code>--busy #A8740B</code></div></div>
       <div class="sw"><div class="c" style="background:var(--error)"></div><div class="l"><b>오류</b><code>--error #C42B2B</code></div></div>
       <div class="sw"><div class="c" style="background:var(--mark)"></div><div class="l"><b>하이라이트</b><code>--mark #FFE7A3</code></div></div>
+    </div>
+  </section>
+
+  <section class="full">
+    <h2>다크 색 <span class="h2-note">macOS 화면 모드를 따른다. 종이 대신 따뜻한 먹색, 의미 색은 같은 계열에서 밝기만 올린다. 글자와 바탕 대비 4.5:1 이상</span></h2>
+    <div class="swatches dark-swatches">
+      <div class="sw"><div class="c" style="background:#1B1A17"></div><div class="l"><b>Paper</b><code>--paper #1B1A17</code></div></div>
+      <div class="sw"><div class="c" style="background:#24221E"></div><div class="l"><b>Paper deep</b><code>--paper-deep #24221E</code></div></div>
+      <div class="sw"><div class="c" style="background:#23211D"></div><div class="l"><b>Surface</b><code>--surface #23211D</code></div></div>
+      <div class="sw"><div class="c" style="background:#201F1C"></div><div class="l"><b>Chrome</b><code>--chrome #201F1C</code></div></div>
+      <div class="sw"><div class="c" style="background:#3A3732"></div><div class="l"><b>Rule</b><code>--rule #3A3732</code></div></div>
+      <div class="sw"><div class="c" style="background:#EDE7DA"></div><div class="l"><b>Ink</b><code>--ink #EDE7DA</code></div></div>
+      <div class="sw"><div class="c" style="background:#EC8A66"></div><div class="l"><b>Today, 붉은 잉크</b><code>--today #EC8A66</code></div></div>
+      <div class="sw"><div class="c" style="background:#7DBDCC"></div><div class="l"><b>Decision, 청록</b><code>--decision #7DBDCC</code></div></div>
+      <div class="sw"><div class="c" style="background:#86C47F"></div><div class="l"><b>완료</b><code>--ok #86C47F</code></div></div>
+      <div class="sw"><div class="c" style="background:#DDA845"></div><div class="l"><b>수집 중, 대기</b><code>--busy #DDA845</code></div></div>
+      <div class="sw"><div class="c" style="background:#F2857B"></div><div class="l"><b>오류</b><code>--error #F2857B</code></div></div>
+      <div class="sw"><div class="c" style="background:#6A5317"></div><div class="l"><b>하이라이트</b><code>--mark #6A5317</code></div></div>
     </div>
   </section>
 

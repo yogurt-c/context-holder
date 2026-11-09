@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Search · context-holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/search.css">{% endblock %}
+{% block content %}
+    <div class="toolbar"><span class="title">Search</span><span class="sub"><span>글 {{ view.article_total }}건</span><span>결정 사례 {{ view.decision_total }}건</span></span></div>
+    <form class="search-form" action="/search" method="get" role="search"
+          hx-get="/search" hx-target="#search-body" hx-push-url="true"
+          hx-trigger="input changed delay:350ms from:#q, change, submit">
+      <div class="query-bar">
+        <label class="search-field lg">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          <span class="sr-only">검색어</span>
+          <input id="q" name="q" type="search" value="{{ view.query.q }}" placeholder="기술 주제, 회사, 결정을 찾아요" autocomplete="off" autofocus>
+        </label>
+      </div>
+      <div id="search-body" class="search-body">{% include "search_body.html" %}</div>
+    </form>
+{% endblock %}

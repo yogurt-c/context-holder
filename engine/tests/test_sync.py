@@ -92,6 +92,7 @@ def test_sync_collects_classifies_enriches_and_writes(make_client, tmp_path: Pat
     assert wiki.seen_urls() == frozenset(links)
     assert report.etags == {"ex": '"e1"'}
     assert report.cost_usd > 0
+    assert report.saved_by_source == {"ex": 1}
 
 
 def test_second_sync_skips_seen_articles(make_client, tmp_path: Path):

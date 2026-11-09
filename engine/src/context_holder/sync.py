@@ -6,7 +6,7 @@ checkpoint는 글을 하나 쓸 때마다 부른다. 일정 건수마다 커밋 
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 import httpx
@@ -38,6 +38,7 @@ class SyncReport:
     cost_usd: float
     etags: dict[str, str]
     stopped_reason: str | None  # Claude 호출을 멈춘 이유 (로그인 · 한도 · 미설치)
+    saved_by_source: dict[str, int] = field(default_factory=dict)  # 소스별 저장 수 (통과율)
 
 
 def default_days(wiki: Wiki) -> int:
@@ -109,7 +110,17 @@ def run_sync(
         cost_usd=state.cost,
         etags={**dict(etags or {}), **collected.etags},
         stopped_reason=state.stopped,
+        saved_by_source=_saved_by_source(decisions, by_url),
     )
+
+
+def _saved_by_source(decisions, by_url) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for d in decisions:
+        if d.bucket is Bucket.SAVE:
+            sid = by_url[d.url].source_id
+            counts[sid] = counts.get(sid, 0) + 1
+    return counts
 
 
 def _retry_pending(wiki, client, llm, sources, now, state, embedder, checkpoint) -> tuple[int, int]:

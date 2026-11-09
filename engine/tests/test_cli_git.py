@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from context_holder import cli
 from context_holder.cli import app
+from context_holder.collect import SourceReport
 from context_holder.github import Account, GitHubError, WikiRemote
 from context_holder.gitsync import GitSyncError, WikiRepo
 from context_holder.init import InitResult, Progress
@@ -236,6 +237,8 @@ def test_sync_takes_the_lock_and_pushes_results(tmp_path, github, make_device, m
         "sources": 0,
         "failed_sources": 0,
         "cost_usd": 0.0,
+        "by_source": {},
+        "stopped": None,
     }
     assert len(list((other.root / "wiki").iterdir())) == 3
 
@@ -247,10 +250,25 @@ def test_sync_takes_the_lock_and_pushes_results(tmp_path, github, make_device, m
 def test_sync_stopped_by_limit_releases_the_lock(tmp_path, github, monkeypatch):
     repo = connected(tmp_path, github)
     monkeypatch.setattr(cli, "_index", lambda: FakeIndex([], (0, 0)))
-    monkeypatch.setattr(cli, "run_sync", lambda *a, **k: report(stopped_reason="limit: 한도"))
+    sources = (
+        SourceReport("toss", found=5, new=3, failed=1),
+        SourceReport("d2", error="시간 초과"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_sync",
+        lambda *a, **k: report(
+            sources=sources, saved=2, saved_by_source={"toss": 2}, stopped_reason="limit: 한도"
+        ),
+    )
     runner.invoke(app, ["sync", "--wiki", str(repo.root)])
     lock = json.loads((repo.root / f"state/runs/{daily_lock(datetime.now(UTC))}.json").read_text())
     assert lock["status"] == "stopped"
+    assert lock["result"]["stopped"] == "limit"
+    assert lock["result"]["by_source"] == {
+        "toss": {"found": 5, "new": 3, "failed": 1, "saved": 2, "error": None},
+        "d2": {"found": 0, "new": 0, "failed": 0, "saved": 0, "error": "시간 초과"},
+    }
 
 
 def test_sync_waits_for_another_device(tmp_path, github, make_device, monkeypatch):
