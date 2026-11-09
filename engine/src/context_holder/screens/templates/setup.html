@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}시작하기 · context-holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/setup.css">{% endblock %}
+{% block content %}
+    <div class="toolbar"><span class="title">시작하기</span><span class="sub">GitHub와 Claude를 한 번 연결하면 다시 묻지 않아요</span></div>
+    <div class="scroll"><div class="setup-page">
+      <ul class="prereq"><li>macOS</li><li>GitHub 계정</li><li>Claude Pro/Max 구독</li><li class="muted">git과 Python은 앱에 들어 있어요</li></ul>
+      {% include "_setup_panel.html" %}
+    </div></div>
+{% endblock %}

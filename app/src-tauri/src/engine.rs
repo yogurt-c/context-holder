@@ -54,6 +54,9 @@ pub enum Line {
         body: String,
         open: String,
     },
+    Autostart {
+        enabled: bool,
+    },
 }
 
 /// 엔진 stdout 한 줄을 읽는다. 모르는 줄은 None.
@@ -85,8 +88,20 @@ pub fn parse(line: &str) -> Option<Line> {
                 .unwrap_or("/today")
                 .to_string(),
         }),
+        Some("autostart") => Some(Line::Autostart {
+            enabled: value.get("enabled")?.as_bool()?,
+        }),
         Some(_) => None,
     }
+}
+
+/// 창 안에서 열어도 되는 주소인가: 엔진 화면(127.0.0.1)만. 나머지는 기본 브라우저로 연다.
+pub fn is_internal(url: &str) -> bool {
+    url.strip_prefix("http://127.0.0.1:").is_some_and(|rest| {
+        rest.split(['/', '?'])
+            .next()
+            .is_some_and(|port| port.parse::<u16>().is_ok())
+    })
 }
 
 #[derive(Clone)]
@@ -221,6 +236,24 @@ mod tests {
                 open: "/today".into()
             })
         );
+    }
+
+    #[test]
+    fn autostart_line() {
+        let line = r#"{"event": "autostart", "enabled": false}"#;
+        assert_eq!(parse(line), Some(Line::Autostart { enabled: false }));
+        assert_eq!(parse(r#"{"event": "autostart"}"#), None);
+    }
+
+    #[test]
+    fn internal_urls_are_only_the_engine() {
+        assert!(is_internal("http://127.0.0.1:51234/today"));
+        assert!(is_internal("http://127.0.0.1:51234/?token=t"));
+        assert!(is_internal("http://127.0.0.1:51234"));
+        assert!(!is_internal("https://github.com/login/device"));
+        assert!(!is_internal("http://127.0.0.1.evil.com/"));
+        assert!(!is_internal("http://127.0.0.1:abc/"));
+        assert!(!is_internal("https://127.0.0.1:51234/"));
     }
 
     #[test]

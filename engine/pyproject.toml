@@ -10,6 +10,7 @@ dependencies = [
     "feedparser>=6.0.14",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
+    "keyring>=25.7.0",
     "mcp>=1.20",
     "numpy>=2.5.4",
     "pygit2>=1.18",

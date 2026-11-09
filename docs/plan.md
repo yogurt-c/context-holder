@@ -167,6 +167,14 @@ GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해
 - GitHub 토큰은 내 모든 레포에 접근할 수 있다. 간편함을 위한 선택이다. 권한을 위키 레포 하나로 좁히는 fine-grained token 입력은 고급 설정으로만 둔다.
 - 이미 `gh` CLI나 Claude Code에 로그인된 사용자라면 그 로그인을 감지해 승인 단계를 건너뛴다.
 
+구현:
+- 첫 실행 설정은 엔진 화면(`/setup`)이다. 위키 · GitHub 로그인 · Claude 로그인 · MCP 등록 중 하나라도 없으면 Today 대신 띄운다. 이미 다 갖춘 기기(다른 방법으로 연결)는 건너뛴다.
+- GitHub OAuth App(client ID `Ov23liLDrGVpOxrV5EwI`, 공개 값)은 토큰 만료를 켰다. 접근 토큰 8시간, 리프레시 토큰 6개월(쓰면 바뀐다). Device Flow 토큰은 client secret 없이 갱신된다. 키체인에 접근 토큰 · 만료 시각 · 리프레시 토큰을 함께 두고 만료 5분 전부터 갱신한다. 화면 서버 · 수집 · `ctx mcp`가 동시에 갱신하지 않게 기기 로컬 잠금 파일(`github-token.lock`)을 쓴다. 갱신이 실패하면 다시 로그인을 요청한다. push할 때마다 토큰을 다시 받아 긴 첫 수집 중에도 만료되지 않는다.
+- 키체인 읽기 · 쓰기는 `keyring`(macOS Security 프레임워크)으로 한다. `security` 명령에 토큰을 인자로 넘기지 않는다.
+- Claude: `claude auth status`로 확인하고, 없으면 공식 설치 프로그램(claude.ai/install.sh)을 사용자가 눌렀을 때 실행한다. 로그인은 `claude auth login --claudeai`.
+- MCP 등록은 `claude mcp add --scope user`로 한다. Claude Code가 자기 설정을 병합하므로 `~/.claude`를 직접 고치거나 백업하지 않는다. 등록 명령은 지금 돌고 있는 엔진이다. 설정 화면에서 등록된 경로가 지금 엔진과 다르면 알리고 다시 등록할 수 있다.
+- Finder · 로그인 자동 실행으로 뜬 앱은 PATH가 짧다. `claude` · `gh`는 PATH, 흔한 설치 위치(`~/.local/bin`, `/opt/homebrew/bin` 등), 로그인 셸 순으로 찾는다.
+
 ### 레포 구조 (`context-wiki`)
 
 ```
@@ -186,7 +194,7 @@ state/sources.json                # 소스별 마지막으로 본 글
 state/init.json                   # 초기 수집 대기열 · 진행 상태 (URL · 제목 · 날짜만, 본문 없음)
 ```
 
-기기 로컬 (커밋 안 함): `~/.context-holder/index.db`, `~/.context-holder/logs/`, `~/.context-holder/etag-cache.json`, `~/.context-holder/mcp-queries.jsonl`, `~/.context-holder/app-state.json`(일시정지), `~/.context-holder/notices.json`(보낸 알림)
+기기 로컬 (커밋 안 함): `~/.context-holder/index.db`, `~/.context-holder/logs/`, `~/.context-holder/etag-cache.json`, `~/.context-holder/mcp-queries.jsonl`, `~/.context-holder/app-state.json`(설정 · 일시정지), `~/.context-holder/github-token.lock`, `~/.context-holder/notices.json`(보낸 알림)
 
 ## 4. LLM Gateway
 
@@ -328,7 +336,7 @@ media:
 | **Decisions** | 주제별 결정 사례 모음. 같은 문제에 회사별로 무엇을 골랐는지 나란히 비교 |
 | **Inbox** | 보류 글을 저장 또는 관련없음으로 분류. 이 클릭이 곧 ⑤의 피드백. 초기 수집에서 온 보류 글(`origin: init`)은 "초기 수집 보류 N건"으로 접어 두고 일괄 처리 버튼을 둔다 |
 | **Sources** | 소스별 최근 수집 성공 여부, 신규 글 수, 필터 통과율. Claude 검색 0건 질의와 `suggest_source` 글을 소스 추가 후보로 보여 준다 |
-| **설정** | 수집 시각, 알림, 계정 연결, 검색 모델 바꾸기와 다시 인덱싱 진행률 (6장) |
+| **설정** | 수집 시각(주말 포함 여부), 수집 완료 알림, 로그인 시 자동 실행, 화면 모드(시스템 · 라이트 · 다크), 연결 상태(GitHub · Claude · Claude Code MCP)와 다시 연결, 검색 모델 내려받기. 기기 로컬 `app-state.json`에 둔다. 검색 모델 바꾸기와 다시 인덱싱은 아직 `ctx reembed`로 한다 (6장) |
 
 주요 동작:
 - 원문 열기, 북마크, 관련없음(→ `feedback/`)
@@ -346,7 +354,7 @@ media:
 - Inbox에서 저장을 고르면 글 파일을 `inbox/`에서 `wiki/`로 옮기고 피드백 `save`를, 관련없음이면 피드백 `not_relevant`를 남기고 파일을 지운다(본 글 기록은 남아 다시 모으지 않는다). 인덱스는 그 행만 고쳐 벡터를 그대로 둔다. 위키 변경은 다음 수집이 커밋하고 push한다.
 - Sources는 수집 기록(`state/runs`)의 소스별 결과(`result.by_source`: 확인 · 새 글 · 저장 · 실패 이유)를 30일치 읽어 계산한다. 통과율 = 저장 ÷ 새 글. 지금은 읽기 전용이고, 소스 추가 · 수정은 M3에서 연다.
 - 상태 알림: 마지막 수집이 이틀 이상 지났을 때, 마지막 수집이 Claude 로그인 · 한도 문제로 멈췄을 때(`result.stopped`) Today와 Sources 위에 띄운다.
-- 다크 모드: macOS 화면 모드를 따른다(`prefers-color-scheme`). 토큰만 바꾸고, 글자와 바탕 조합의 대비 4.5:1을 테스트로 지킨다.
+- 다크 모드: 기본은 macOS 화면 모드를 따르고(`prefers-color-scheme`), 설정에서 라이트 · 다크로 고정할 수 있다(`<html data-theme>`). 토큰만 바꾸고, 글자와 바탕 조합의 대비 4.5:1을 테스트로 지킨다.
 - 결정 사례 주제 패널은 사례가 2건 이상인 주제만 보여 준다. 주제 정규화(16번 커밋) 전에는 대부분 1건이라 비어 있다.
 - "Claude에 문맥으로 보내기"(클립보드)와 알림은 Tauri API로 처리한다.
 - 디자인: 종이 톤 배경, 제목과 본문 모두 Pretendard(굵고 촘촘한 제목), 붉은 잉크(오늘 · 영상) / 청록(결정 사례) 의미 색상.

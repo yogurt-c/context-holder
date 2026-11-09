@@ -1,7 +1,8 @@
 """앱이 띄운 엔진(`ctx serve --app`)의 매일 수집 스케줄러 (plan 3장).
 
-계기: 앱 시작, 잠자기 해제, 평일 09:30 이후. 계기가 오면 오늘 수집이 안 됐을 때만 `ctx sync`를
-자식 프로세스로 띄운다. 잠금 · pull · push는 `ctx sync`가 맡는다.
+계기: 앱 시작, 잠자기 해제, 설정한 시각(기본 평일 09:30) 이후. 계기가 오면 오늘 수집이
+안 됐을 때만 `ctx sync`를 자식 프로세스로 띄운다 (첫 수집 전이면 `ctx init`).
+잠금 · pull · push는 그 명령이 맡는다.
 
 - 오늘 기록이 done이거나 다른 기기가 수집 중이면 띄우지 않는다.
 - 실패하거나 멈췄으면 RETRY_AFTER가 지난 뒤 다음 계기에 다시 한다.
@@ -16,22 +17,29 @@ import sys
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
+from context_holder.appsettings import Settings
+from context_holder.init import load_state
 from context_holder.runlock import RUNS_DIR, STALE_AFTER
 from context_holder.wiki import Wiki
 
 log = logging.getLogger(__name__)
 
-DAILY_AT = time(9, 30)
 RETRY_AFTER = timedelta(minutes=30)
 WAKE_GAP = timedelta(minutes=3)  # 1분마다 보는데 이만큼 건너뛰면 잠들었다 깬 것이다
 TICK_SECONDS = 60
 FOREVER = "forever"
 PAUSES = {"1h": "1시간", "today": "오늘 하루", FOREVER: "다시 켤 때까지"}
-STAGES = {"retry": "요약 대기 다시 만들기", "collect": "소스", "classify": "분류", "enrich": "요약"}
+STAGES = {
+    "retry": "요약 대기 다시 만들기",
+    "collect": "소스",
+    "classify": "분류",
+    "enrich": "요약",
+    "init": "첫 수집",
+}
 
 Clock = Callable[[], datetime]
 
@@ -73,6 +81,8 @@ class Scheduler:
         on_change: Callable[[], None] = lambda: None,
         on_finish: Callable[[], None] = lambda: None,
         background: Callable[[Callable[[], None]], None] | None = None,
+        settings: Callable[[], Settings] = Settings,
+        ready: Callable[[], bool] = lambda: True,
     ):
         self.wiki = wiki
         self.state_path = state_path
@@ -82,6 +92,8 @@ class Scheduler:
         self.on_change = on_change  # 메뉴 · 화면을 다시 그린다
         self.on_finish = on_finish  # 알림을 판단한다
         self.background = background or _thread
+        self.settings = settings  # 수집 시각 · 주말
+        self.ready = ready  # 위키와 GitHub 로그인이 준비됐나 (첫 실행 설정 전에는 띄우지 않는다)
         self.progress: Progress | None = None
         self.started_at: datetime | None = None
         self.last: Attempt | None = None
@@ -138,14 +150,16 @@ class Scheduler:
         woke = self._last_tick is not None and now - self._last_tick > WAKE_GAP
         self._last_tick = now
         local = now.astimezone()
-        daily = local.weekday() < 5 and local.time() >= DAILY_AT
+        chosen = self.settings()
+        workday = local.weekday() < 5 or chosen.weekends
+        daily = workday and local.time() >= chosen.daily_time
         if (woke or daily) and self.trigger("wake" if woke else "daily"):
             return
         self.on_change()  # 띄우지 않았어도 시각이 들어간 메뉴 문구를 새로 그린다
 
     def trigger(self, reason: str) -> bool:
         """계기가 왔다. 오늘 수집이 필요하면 띄운다."""
-        if self.paused_until() or not self.can_run_now():
+        if self.paused_until() or not self.can_run_now() or not self.ready():
             return False
         if self.last and self.last.ok is not True and self.clock() - self.last.at < RETRY_AFTER:
             return False
@@ -153,7 +167,7 @@ class Scheduler:
         return self.start()
 
     def run_now(self) -> bool:
-        return self.can_run_now() and self.start()
+        return self.can_run_now() and self.ready() and self.start()
 
     # ---------- 일시정지 ----------
 
@@ -251,21 +265,27 @@ def run_forever(
         every()
 
 
-def sync_argv(wiki_root: Path) -> list[str]:
-    """`ctx sync --events`를 띄우는 명령. 묶은 앱(PyInstaller)에서는 실행 파일이 곧 ctx다."""
-    head = (
-        [sys.executable]
-        if getattr(sys, "frozen", False)
-        else [sys.executable, "-m", "context_holder"]
-    )
-    return [*head, "sync", "--events", "--wiki", str(wiki_root)]
+def needs_init(wiki: Wiki) -> bool:
+    """첫 수집(ctx init)을 할 차례인가: 하다 멈췄거나, 글이 하나도 없는 위키."""
+    state = load_state(wiki)
+    if state:
+        return not state.get("finished")
+    return not any(wiki.articles())
+
+
+def sync_argv(wiki_root: Path, command: str = "sync") -> list[str]:
+    """`ctx sync|init --events`를 띄우는 명령. 묶은 앱(PyInstaller)에서는 실행 파일이 곧 ctx다."""
+    frozen = getattr(sys, "frozen", False)
+    head = [sys.executable] if frozen else [sys.executable, "-m", "context_holder"]
+    return [*head, command, "--events", "--wiki", str(wiki_root)]
 
 
 def spawn_sync(wiki_root: Path, log_path: Path) -> Child:  # pragma: no cover - 실제 프로세스
     log_path.parent.mkdir(parents=True, exist_ok=True)
     errors = log_path.open("a", encoding="utf-8")
+    command = "init" if needs_init(Wiki(wiki_root)) else "sync"
     return subprocess.Popen(
-        sync_argv(wiki_root),
+        sync_argv(wiki_root, command),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=errors,

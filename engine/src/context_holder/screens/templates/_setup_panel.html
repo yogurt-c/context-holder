@@ -1,0 +1,81 @@
+{# 첫 실행 설정 단계. 기다리는 일이 있으면 2초마다 다시 그린다 #}
+<section id="setup-panel" class="setup-panel"{% if s.busy %} hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% set gh = s.github %}
+  <article class="setup-step{% if not s.github_done %} cur{% endif %}">
+    <span class="ic {{ 'done' if s.github_done else ('run' if gh.state in ('waiting', 'connecting') else 'todo') }}">{% if s.github_done %}✓{% else %}1{% endif %}</span>
+    <div class="body">
+      <h2>GitHub 로그인과 위키 레포</h2>
+      {% if s.github_done %}
+        <p class="lede">{% if gh.connected %}{{ gh.connected.login }} 계정, context-wiki {{ "새로 만듦" if gh.connected.created else "찾음" }}{% else %}연결됨{% endif %}{% if s.token_source == "gh" %} · GitHub CLI 로그인을 써요{% endif %}</p>
+      {% elif gh.state == "waiting" and gh.code %}
+        <p class="lede">브라우저에서 이 코드를 넣고 승인하세요.</p>
+        <code class="device-code">{{ gh.code.user_code }}</code>
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>승인 기다리는 중</div>
+        <button type="button" class="btn primary lg" hx-post="/setup/github/open" hx-target="#setup-panel" hx-swap="outerHTML">코드 복사하고 브라우저 열기</button>
+        <p class="tiny">권한은 레포 읽기와 쓰기예요. 토큰은 macOS 키체인에만 저장해요.</p>
+      {% elif gh.state == "connecting" %}
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>위키 레포를 준비하는 중</div>
+      {% else %}
+        <p class="lede">수집한 글은 내 계정의 private 레포 <code>context-wiki</code>에 저장돼요. 레포가 없으면 새로 만들어요.</p>
+        {% if gh.state == "error" %}<p class="error-line" role="alert">{{ gh.message }}</p>{% endif %}
+        <button type="button" class="btn primary lg" hx-post="/setup/github" hx-target="#setup-panel" hx-swap="outerHTML">{{ "위키 받기" if s.token_source else "GitHub로 로그인" }}</button>
+      {% endif %}
+    </div>
+  </article>
+
+  {% set cl = s.claude %}{% set job = s.claude_job %}
+  <article class="setup-step{% if s.github_done and not cl.logged_in %} cur{% endif %}">
+    <span class="ic {{ 'done' if cl.logged_in else ('run' if job.state in ('installing', 'logging_in') else 'todo') }}">{% if cl.logged_in %}✓{% else %}2{% endif %}</span>
+    <div class="body">
+      <h2>Claude 연결</h2>
+      {% if cl.logged_in %}
+        <p class="lede">연결됨{% if cl.detail %} · {{ cl.detail }}{% endif %}</p>
+      {% elif job.state == "installing" %}
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>Claude Code 설치 중 (공식 설치 프로그램, 약 30초)</div>
+      {% elif job.state == "logging_in" %}
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 Claude 로그인을 승인하세요</div>
+      {% else %}
+        <p class="lede">요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요.</p>
+        {% if job.state == "error" %}<p class="error-line" role="alert">{{ job.message }}</p>{% endif %}
+        {% if not cl.installed %}
+        <p class="tiny">Claude Code가 없어요. 공식 설치 프로그램(claude.ai/install.sh)을 실행해요.</p>
+        <button type="button" class="btn primary" hx-post="/setup/claude/install" hx-target="#setup-panel" hx-swap="outerHTML">Claude Code 설치</button>
+        {% else %}
+        <button type="button" class="btn primary" hx-post="/setup/claude/login" hx-target="#setup-panel" hx-swap="outerHTML">Claude 로그인</button>
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="setup-step{% if cl.logged_in and not s.mcp_ok %} cur{% endif %}">
+    <span class="ic {{ 'done' if s.mcp_ok else 'todo' }}">{% if s.mcp_ok %}✓{% else %}3{% endif %}</span>
+    <div class="body">
+      <h2>Claude Code에 위키 검색 연결</h2>
+      {% if s.mcp_ok %}
+        <p class="lede">연결됨. Claude Code가 기술 결정 전에 위키를 찾아봐요.</p>
+      {% else %}
+        <p class="lede">Claude Code 설정에 이 명령으로 MCP 서버를 등록해요. 설정 파일은 Claude Code가 직접 고쳐요.</p>
+        <code class="command">{{ s.mcp_preview }}</code>
+        <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>등록</button>
+      {% endif %}
+    </div>
+  </article>
+
+  {% set st = s.settings %}
+  <article class="setup-step{% if s.can_finish %} cur{% endif %}">
+    <span class="ic todo">4</span>
+    <div class="body">
+      <h2>완료와 첫 수집</h2>
+      <p class="lede">새 위키면 소스마다 최근 글을 가져와 위키를 채워요(몇십 분 걸려요). 다른 기기에서 쓰던 위키면 받아서 바로 써요.</p>
+      <form hx-post="/setup/finish">
+        <ul class="toggles">
+          <li><label><input type="checkbox" name="autostart" value="true"{% if st.autostart %} checked{% endif %}> 로그인할 때 자동 실행</label></li>
+          <li><label>매일 수집 <small>꺼져 있었다면 켤 때 수집</small> <input class="time" type="time" name="daily_at" value="{{ st.daily_at }}" required></label></li>
+          <li><label><input type="checkbox" name="notify" value="true"{% if st.notify %} checked{% endif %}> 수집 완료 알림</label></li>
+        </ul>
+        <button class="btn primary lg finish"{% if not s.can_finish %} disabled{% endif %}>시작하기</button>
+        {% if not s.can_finish %}<p class="tiny">GitHub와 Claude를 연결하면 시작할 수 있어요.</p>{% endif %}
+      </form>
+    </div>
+  </article>
+</section>

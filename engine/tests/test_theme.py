@@ -50,7 +50,14 @@ PAIRS = [
 def _tokens() -> dict[str, dict[str, str]]:
     css = resources.files("context_holder.screens").joinpath("static/tokens.css").read_text("utf-8")
     light_block = re.search(r"^:root \{(.*?)^\}", css, re.S | re.M).group(1)
-    dark_block = re.search(r"prefers-color-scheme: dark\) \{\s*:root \{(.*?)\}", css, re.S).group(1)
+    dark_block = re.search(r':root\[data-theme="dark"\] \{(.*?)\}', css, re.S).group(1)
+    system = re.search(
+        r'prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{(.*?)\}',
+        css,
+        re.S,
+    )
+    found = dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", system.group(1)))
+    assert found == dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", dark_block))  # 같은 값
     light = dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", light_block))
     dark = {**light, **dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", dark_block))}
     return {"light": light, "dark": dark}

@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import typer
 
-from context_holder import __version__
+from context_holder import __version__, appsettings
 from context_holder.auth import TokenMissing, github_token
 from context_holder.classify import (
     Bucket,
@@ -27,11 +27,11 @@ from context_holder.classify import (
 )
 from context_holder.collect import Article, CollectResult, SourceReport, collect
 from context_holder.collectrun import Checkpoint, LockedRun, Work, run_locked
+from context_holder.connect import ConnectError, connect_wiki
 from context_holder.device import device_name
 from context_holder.embed import Embedder, FastEmbedder, model_spec
 from context_holder.evaluate import LabelError, Report, evaluate, load_labels, sweep_thresholds
 from context_holder.feedback import Kind, record_feedback
-from context_holder.github import GitHubError, account, find_or_create_wiki
 from context_holder.gitsync import GitSyncError, WikiRepo
 from context_holder.index import Index
 from context_holder.init import (
@@ -55,6 +55,7 @@ from context_holder.screens.app import ScreenContext, new_token
 from context_holder.screens.serve import serve
 from context_holder.search import search
 from context_holder.searcheval import evaluate_search, load_queries
+from context_holder.setupflow import SetupFlow
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 from context_holder.sync import SyncReport, default_days, run_sync
 from context_holder.tray import AppBridge, NoticeLog
@@ -432,6 +433,9 @@ def init_command(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Claude 없이 소스별로 가져올 글 수만 본다."
     ),
+    events: bool = typer.Option(
+        False, "--events", help="진행률을 JSON 한 줄씩 쓴다 (앱의 스케줄러가 읽는다)."
+    ),
 ) -> None:
     """첫 실행: 소스마다 최근 글을 가져와 위키를 채운다. 멈추면 다시 실행해 이어서 한다."""
     wiki = Wiki(wiki_path or default_wiki())
@@ -456,6 +460,8 @@ def init_command(
 
     def on_progress(p: Progress) -> None:
         processed = p.total - p.remaining
+        if events:
+            _progress_line("init", processed, p.total)
         line = f"[{processed} / {p.total}] {_counts(p.counts)} · 남은 {p.remaining}"
         done_now = processed - baseline
         if p.remaining and done_now > 0:
@@ -530,7 +536,8 @@ LOCK_MESSAGE = {
 def _open_repo(path: Path) -> WikiRepo | None:
     repo = WikiRepo.open(path)
     if repo is not None and repo.remote_url.startswith("https://"):
-        repo.token = _token()
+        _token()  # 로그인이 없으면 여기서 멈춘다
+        repo.token = github_token  # push마다 다시 받는다 (만료 전 갱신)
     return repo
 
 
@@ -581,37 +588,15 @@ def connect_command(
 ) -> None:
     """GitHub 계정에서 context-wiki를 찾아 받는다. 없으면 private으로 만든다."""
     path = wiki_path or default_wiki()
-    token = _token()
+    _token()  # 로그인이 없으면 여기서 멈춘다
     try:
-        with httpx.Client(timeout=30) as client:
-            me = account(client, token)
-            remote = find_or_create_wiki(client, token, me.login)
-    except GitHubError as e:
+        done = connect_wiki(path, github_token)
+    except ConnectError as e:
         typer.echo(str(e), err=True)
-        raise typer.Exit(code=1) from e
-
-    repo = WikiRepo.open(path, token)
-    if repo is None:
-        if path.exists() and any(path.iterdir()):
-            typer.echo(f"{path}에 이미 다른 파일이 있다. 빈 폴더를 지정한다.", err=True)
-            raise typer.Exit(code=2)
-        repo = WikiRepo.create(path, remote.url, token)
-    elif repo.remote_url != remote.url:
-        typer.echo(f"{path}는 다른 레포({repo.remote_url})에 연결돼 있다.", err=True)
-        raise typer.Exit(code=2)
-    if not repo.has_identity():
-        repo.set_identity(me.name, me.noreply_email)
-    try:
-        repo.pull()
-        if repo.head() is None:  # 빈 레포: 기본 설정을 넣어 시작한다
-            Wiki(path).ensure_config()
-            repo.commit_all("위키 시작")
-        repo.push()
-    except GitSyncError as e:
-        typer.echo(f"위키를 받지 못했다: {e}", err=True)
-        raise typer.Exit(code=1) from e
-    made = "만들었다" if remote.created else "찾았다"
-    typer.echo(f"{me.login}/context-wiki를 {made} (private). 위키 폴더: {path}")
+        code = 2 if "폴더" in str(e) or "다른 레포" in str(e) else 1
+        raise typer.Exit(code=code) from e
+    made = "만들었다" if done.created else "찾았다"
+    typer.echo(f"{done.login}/context-wiki를 {made} (private). 위키 폴더: {path}")
 
 
 @app.command("pull")
@@ -691,7 +676,9 @@ def serve_command(
     wiki = Wiki(wiki_path or default_wiki())
     token = new_token()
     embedder = _shared_embedder(wiki)  # 인덱스 맞추기와 화면 검색이 모델 하나를 나눠 쓴다
-    bridge, scheduler = _app_bridge(wiki) if app_mode else (None, None)
+    settings_path = home() / "app-state.json"
+    flow = SetupFlow(wiki.root, settings_path)
+    bridge, scheduler = _app_bridge(wiki, flow) if app_mode else (None, None)
 
     def make_context(port: int) -> ScreenContext:
         return ScreenContext(
@@ -704,6 +691,12 @@ def serve_command(
             hosts=frozenset({f"127.0.0.1:{port}"}),
             embedder=embedder,
             scheduler=scheduler,
+            flow=flow,
+            settings_path=settings_path,
+            app_mode=app_mode,
+            model=lambda: (home() / "models", wiki.search_model()),
+            download_model=lambda: _download_model(wiki),
+            on_settings=bridge.apply_settings if bridge else lambda settings: None,
         )
 
     serve(
@@ -721,7 +714,7 @@ def serve_command(
     )
 
 
-def _app_bridge(wiki: Wiki) -> tuple[AppBridge, Scheduler]:
+def _app_bridge(wiki: Wiki, flow: SetupFlow) -> tuple[AppBridge, Scheduler]:
     """앱 모드: 메뉴 · 알림 이벤트를 stdout에 쓰고 매일 수집을 맡는다."""
     sync_log = home() / "logs" / "sync.log"
     sync_log.parent.mkdir(parents=True, exist_ok=True)
@@ -731,18 +724,31 @@ def _app_bridge(wiki: Wiki) -> tuple[AppBridge, Scheduler]:
         handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
         sched_log.addHandler(handler)
     sched_log.setLevel(logging.INFO)
-    bridge = AppBridge(sys.stdout, _index(), NoticeLog(home() / "notices.json"))
+    settings_path = home() / "app-state.json"
+    bridge = AppBridge(
+        sys.stdout,
+        _index(),
+        NoticeLog(home() / "notices.json"),
+        settings=lambda: appsettings.load(settings_path),
+    )
     scheduler = Scheduler(
         wiki,
-        home() / "app-state.json",
+        settings_path,
         device_name(home()),
         lambda: datetime.now(UTC),
         spawn=lambda: spawn_sync(wiki.root, sync_log),
         on_change=bridge.refresh,
         on_finish=bridge.check_notices,
+        settings=lambda: appsettings.load(settings_path),
+        ready=flow.ready,
     )
     bridge.scheduler = scheduler
+    flow.on_ready = lambda: scheduler.trigger("setup")  # 설정을 마치면 바로 첫 수집
     return bridge, scheduler
+
+
+def _download_model(wiki: Wiki) -> None:  # pragma: no cover - 실제 모델 (약 570MB)
+    make_embedder(wiki.search_model()).query("warm up")
 
 
 def _shared_embedder(wiki: Wiki):

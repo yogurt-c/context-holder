@@ -1,7 +1,8 @@
 //! context-holder 메뉴바 앱 (plan 2장). 엔진이 정한 메뉴 · 알림을 그리고, 엔진 화면을 창에 띄운다.
 //!
 //! - 창을 닫아도 앱은 메뉴바에 남는다. 창이 열려 있을 때만 Dock 아이콘을 보인다.
-//! - 로그인 시 자동 실행은 묶은 앱에서만 등록한다 (`--background`로 창 없이 시작).
+//! - 로그인 시 자동 실행은 엔진 설정을 따르고, release 빌드에서만 등록한다 (`--background`).
+//! - 바깥 주소(원문, GitHub 승인)는 창 안에서 열지 않고 기본 브라우저로 연다.
 //! - 화면에는 IPC 권한을 주지 않는다. 앱과 엔진은 stdin · stdout으로만 주고받는다.
 //! - 키보드 단축키는 두지 않는다.
 
@@ -167,9 +168,28 @@ fn open_window(app: &AppHandle, shell: &Shared, path: &str) {
     create_window(app, &format!("{base}{path}?token={token}"), true);
 }
 
+/// 원문 · GitHub 승인 같은 바깥 주소는 기본 브라우저로 연다.
+fn open_outside(url: &str) {
+    let _ = std::process::Command::new("open").arg(url).spawn();
+}
+
 fn create_window(app: &AppHandle, url: &str, visible: bool) {
     let Ok(parsed) = url.parse() else { return };
     let built = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(parsed))
+        .on_navigation(|url| {
+            let internal = engine::is_internal(url.as_str());
+            if !internal {
+                open_outside(url.as_str());
+            }
+            internal
+        })
+        .on_new_window(|url, _| {
+            // target=_blank 링크: 창을 새로 만들지 않고 바깥 주소는 브라우저로 연다
+            if !engine::is_internal(url.as_str()) {
+                open_outside(url.as_str());
+            }
+            tauri::webview::NewWindowResponse::Deny
+        })
         .title("context-holder")
         .inner_size(1280.0, 840.0)
         .min_inner_size(900.0, 600.0)
@@ -221,6 +241,17 @@ fn on_engine_line(app: &AppHandle, shell: &Shared, line: Line, show_on_ready: bo
                 let _ = tray.set_icon_as_template(true);
             }
         }
+        Line::Autostart { enabled } => {
+            // 개발 빌드는 등록하지 않는다 (개발 실행 파일을 로그인 항목에 넣지 않게)
+            if !cfg!(debug_assertions) {
+                let launcher = app.autolaunch();
+                let _ = if enabled {
+                    launcher.enable()
+                } else {
+                    launcher.disable()
+                };
+            }
+        }
         Line::Notify { title, body, open } => {
             shell.lock().unwrap().pending = Some(open);
             let _ = app.notification().builder().title(title).body(body).show();
@@ -256,9 +287,6 @@ fn main() {
             let handle = app.handle().clone();
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            if !cfg!(debug_assertions) {
-                let _ = app.autolaunch().enable(); // 설정 화면(14번 커밋)에서 끌 수 있게 한다
-            }
 
             let engine = Engine::new(engine_path(&handle));
             *setup_engine.lock().unwrap() = Some(engine.clone());

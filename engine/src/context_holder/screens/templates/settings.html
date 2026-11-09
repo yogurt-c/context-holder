@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}설정 · context-holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/setup.css">{% endblock %}
+{% block content %}
+    {% set st = v.settings %}
+    <div class="toolbar"><span class="title">설정</span><span class="sub">이 기기에만 적용돼요</span></div>
+    <div class="scroll"><div class="settings-page">
+      <form class="panel settings-group" hx-post="/settings" hx-trigger="change" hx-target="#saved" hx-swap="innerHTML">
+        <h2 class="panel-head">수집과 앱 <span id="saved" aria-live="polite"></span></h2>
+        <ul class="toggles body">
+          <li><label>매일 수집 시각 <input class="time" type="time" name="daily_at" value="{{ st.daily_at }}" required></label></li>
+          <li><label><input type="checkbox" name="weekends" value="true"{% if st.weekends %} checked{% endif %}> 주말에도 수집</label></li>
+          <li><label><input type="checkbox" name="notify" value="true"{% if st.notify %} checked{% endif %}> 수집 완료 알림</label></li>
+          <li><label><input type="checkbox" name="autostart" value="true"{% if st.autostart %} checked{% endif %}> 로그인할 때 자동 실행</label></li>
+          <li class="theme"><span>화면 모드</span>
+            {% for value, label in [("system", "시스템"), ("light", "라이트"), ("dark", "다크")] %}<label class="radio"><input type="radio" name="theme" value="{{ value }}"{% if st.theme == value %} checked{% endif %}> {{ label }}</label>{% endfor %}
+          </li>
+        </ul>
+        <p class="note settings-note">Mac이 꺼져 있었다면 켜거나 깨울 때 수집해요. 하루 한 번만, 먼저 맡은 기기가 수집해요.</p>
+      </form>
+
+      <section class="panel settings-group" aria-label="연결">
+        <h2 class="panel-head">연결</h2>
+        <dl class="kv body">
+          <dt>GitHub</dt>
+          <dd>{% if v.token_source == "app" %}앱으로 로그인{% elif v.token_source == "gh" %}GitHub CLI 로그인 사용{% else %}<span class="warn">로그인 필요</span>{% endif %}{% if v.remote %} · <code>{{ v.remote | replace("https://github.com/", "") | replace(".git", "") }}</code>{% endif %}
+            <span class="act"><button type="button" class="btn sm" hx-post="/settings/github">다시 로그인</button></span></dd>
+          <dt>Claude</dt>
+          <dd>{% if v.claude.logged_in %}연결됨{% if v.claude.detail %} · {{ v.claude.detail }}{% endif %}{% elif v.claude.installed %}<span class="warn">로그인 필요</span>{% else %}<span class="warn">Claude Code 없음</span>{% endif %}
+            <span class="act" id="claude-act">{% if v.claude.installed %}<button type="button" class="btn sm" hx-post="/settings/claude" hx-target="#claude-act">다시 연결</button>{% else %}<a class="btn sm" href="/setup">설치하기</a>{% endif %}</span></dd>
+          <dt>Claude Code 검색</dt>
+          <dd>{% if v.mcp_ok %}연결됨{% elif v.registered %}<span class="warn">다른 엔진이 등록돼 있어요</span> <code>{{ v.registered }}</code>{% else %}<span class="warn">등록 안 됨</span>{% endif %}
+            <span class="act" id="mcp-act">{% if v.claude.installed %}<button type="button" class="btn sm" hx-post="/settings/mcp" hx-target="#mcp-act">다시 등록</button>{% endif %}</span></dd>
+        </dl>
+      </section>
+
+      <section class="panel settings-group" aria-label="검색 모델">
+        <h2 class="panel-head">검색 모델</h2>
+        <dl class="kv body">
+          <dt>모델</dt><dd><code>{{ v.model_id }}</code> · {% if v.model_ready %}이 기기에 있어요{% else %}<span class="warn">아직 내려받지 않았어요</span> (약 570MB, 그동안 키워드로만 찾아요){% endif %}
+            {% if not v.model_ready %}<span class="act" id="model-act"><button type="button" class="btn sm" hx-post="/settings/model" hx-target="#model-act">내려받기</button></span>{% endif %}</dd>
+        </dl>
+        <p class="note settings-note">모델 바꾸기와 다시 인덱싱은 터미널의 <code>ctx reembed</code>로 해요.</p>
+      </section>
+    </div></div>
+{% endblock %}

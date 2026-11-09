@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, NamedTuple
 
+from context_holder.tools import tool
+
 
 class ErrorKind(StrEnum):
     NOT_INSTALLED = "not_installed"  # claude 명령이 없다
@@ -71,12 +73,12 @@ class ClaudeCli:
         self,
         model: str = "sonnet",
         runner: Runner = subprocess_runner,
-        executable: str = "claude",
+        executable: str | None = None,  # 없으면 찾는다 (앱은 PATH가 짧다)
         timeout: float = 300.0,
     ):
         self.model = model
         self.runner = runner
-        self.executable = executable
+        self.executable = executable or tool("claude")
         self.timeout = timeout
 
     def structured(self, prompt: str, system: str, schema: dict[str, Any]) -> LlmResult:

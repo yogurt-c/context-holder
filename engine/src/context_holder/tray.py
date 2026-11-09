@@ -12,11 +12,13 @@
 
 import json
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from context_holder.appsettings import Settings
 from context_holder.classify import Bucket
 from context_holder.index import Index
 from context_holder.scheduler import FOREVER, PAUSES, Scheduler
@@ -259,10 +261,17 @@ def _clip(text: str, size: int = 40) -> str:
 class AppBridge:
     """엔진 stdout으로 앱에 이벤트를 보내고, stdin으로 온 메뉴 명령을 스케줄러에 넘긴다."""
 
-    def __init__(self, out, index: Index, log: NoticeLog):
+    def __init__(
+        self,
+        out,
+        index: Index,
+        log: NoticeLog,
+        settings: Callable[[], Settings] = Settings,
+    ):
         self.out = out
         self.index = index
         self.log = log
+        self.settings = settings
         self.scheduler: Scheduler | None = None
         self._last_status: dict[str, Any] | None = None
         self._lock = threading.Lock()
@@ -280,14 +289,25 @@ class AppBridge:
             return
         event = status_event(self.scheduler, self.index)
         if event != self._last_status:
+            if self._last_status is None:  # 첫 메뉴와 함께 자동 실행 설정을 알린다
+                self.apply_settings(self.settings())
             self._last_status = event
             self.emit(event)
+
+    def apply_settings(self, settings: Settings) -> None:
+        """설정이 바뀌었다. 앱이 맡은 것(자동 실행)을 알리고 메뉴를 다시 그린다."""
+        self.emit({"event": "autostart", "enabled": settings.autostart})
+        if self._last_status is not None:
+            self.refresh()
 
     def check_notices(self) -> None:
         if self.scheduler is None:
             return
         today = self.scheduler.clock().astimezone().date()
-        for notice in self.log.take(notices(self.scheduler, self.index), today):
+        found = notices(self.scheduler, self.index)
+        if not self.settings().notify:  # 수집 완료 알림을 껐다. 문제 알림은 그대로 보낸다
+            found = [n for n in found if n.kind != "brief"]
+        for notice in self.log.take(found, today):
             self.emit(notice.event())
 
     def command(self, line: str) -> None:

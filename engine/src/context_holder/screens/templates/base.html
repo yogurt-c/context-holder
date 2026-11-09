@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko"{% if theme and theme != "system" %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 <title>{% block title %}context-holder{% endblock %}</title>
@@ -9,7 +9,7 @@
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
 </head>
-<body>
+<body{% if in_app %} class="in-app"{% endif %}>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20"><rect x="2.5" y="3" width="15" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7h8M6 10h8M6 13h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="4" r="2.6" fill="var(--today)" stroke="var(--chrome)" stroke-width="1.2"/></svg>context-holder</div>

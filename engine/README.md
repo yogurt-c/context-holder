@@ -28,7 +28,7 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx eval-search` | 평가셋으로 키워드만 쓸 때와 모델별 검색 recall@5를 비교한다 ([eval](eval/README.md)) |
 | `ctx eval-mcp` | 결정 질문 평가셋을 MCP tool 경로 그대로 넣어 recall@5를 잰다 ([eval](eval/README.md)) |
 
-GitHub 토큰은 macOS 키체인(`context-holder`)에서, 없으면 `gh auth token`에서 가져온다. 파일에는 쓰지 않는다.
+GitHub 토큰은 macOS 키체인(`context-holder`)에서, 없으면 `gh auth token`에서 가져온다. 파일에는 쓰지 않는다. 앱의 첫 실행 설정(`/setup`)이 Device Flow로 로그인해 키체인에 저장하고, 8시간마다 리프레시 토큰으로 갱신한다.
 
 기기 로컬 파일은 `~/.context-holder`(`CONTEXT_HOLDER_HOME`으로 변경)에 둔다. 위키 기본 위치는 그 아래 `wiki/`다. 검색 모델은 처음 쓸 때 `models/`에 내려받는다(bge-m3 약 570MB).
 
@@ -40,7 +40,7 @@ CONTEXT_HOLDER_HOME=../.tmp/home uv run ctx sync --wiki ../.tmp/dev-wiki --days 
 ## Claude Code에 연결
 
 ```bash
-# 앱이 나오기 전 개발용: 모든 프로젝트에서 쓰도록 사용자 범위로 등록한다
+# 앱의 첫 실행 설정 · 설정 화면이 같은 명령으로 등록한다. 개발 중 손으로 할 때:
 claude mcp add context-holder --scope user -- "$(pwd)/.venv/bin/ctx" mcp
 claude mcp list   # context-holder: ✔ Connected
 ```

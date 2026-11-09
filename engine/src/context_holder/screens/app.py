@@ -22,11 +22,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from context_holder import appsettings
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
 from context_holder.mcptools import WikiTools
-from context_holder.screens import inboxview, searchview, sourcesview, views
+from context_holder.screens import inboxview, searchview, setuproutes, sourcesview, views
 from context_holder.screens.runs import alerts
 from context_holder.wiki import Wiki
 
@@ -54,6 +55,12 @@ class ScreenContext:
     hosts: frozenset[str]  # 허용하는 Host 헤더 (127.0.0.1:<port>)
     embedder: Callable[[], Embedder | None] = field(default=lambda: None)  # 첫 검색 때 불러온다
     scheduler: Any = None  # 앱이 띄웠을 때만 (scheduler.Scheduler): 지금 수집 · 진행률
+    flow: Any = None  # setupflow.SetupFlow: 첫 실행 설정 · 연결 상태
+    settings_path: Path | None = None  # app-state.json (화면 모드 등)
+    app_mode: bool = False  # 앱 창 안: 사이드바 위 여백을 줄인다
+    model: Callable[[], tuple[Path, str]] = field(default=lambda: (Path("models"), "bge-m3"))
+    download_model: Callable[[], None] = field(default=lambda: None)
+    on_settings: Callable[[Any], None] = field(default=lambda settings: None)
 
 
 def new_token() -> str:
@@ -84,8 +91,10 @@ def create_app(ctx: ScreenContext) -> FastAPI:
 
     def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
         side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
+        theme = appsettings.load(ctx.settings_path).theme if ctx.settings_path else "system"
+        shell = {"theme": theme, "in_app": ctx.app_mode}
         return templates.TemplateResponse(
-            request, name, {"active": active, "side": side, "pages": PAGES, **values}
+            request, name, {"active": active, "side": side, "pages": PAGES, **shell, **values}
         )
 
     def current_alerts() -> list:
@@ -94,7 +103,13 @@ def create_app(ctx: ScreenContext) -> FastAPI:
 
     @app.get("/")
     def home() -> RedirectResponse:
-        return RedirectResponse("/today", status_code=303)
+        needed = ctx.flow is not None and ctx.flow.needed()
+        return RedirectResponse("/setup" if needed else "/today", status_code=303)
+
+    if ctx.flow is not None:
+        setuproutes.add_routes(
+            app, ctx.flow, templates, page, ctx.model, ctx.download_model, ctx.on_settings
+        )
 
     @app.get("/today", response_class=HTMLResponse)
     def today(request: Request, date: str | None = None) -> HTMLResponse:

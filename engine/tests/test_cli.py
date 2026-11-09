@@ -385,10 +385,13 @@ def test_init_runs_and_prints_progress(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_init", fake_run_init)
     monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
 
-    result = runner.invoke(app, ["init", "--per-source", "30", "--days", "180", "--model", "haiku"])
+    result = runner.invoke(
+        app, ["init", "--per-source", "30", "--days", "180", "--model", "haiku", "--events"]
+    )
 
     assert result.exit_code == 0, result.output
     assert seen == {"per_source": 30, "days": 180, "model": "haiku"}
+    assert '{"event": "progress", "stage": "init", "done": 20, "total": 40}' in result.output
     assert "20 / 40" in result.output and "저장 12" in result.output and "남은 20" in result.output
     assert "멈췄다: limit: 한도" in result.output
 

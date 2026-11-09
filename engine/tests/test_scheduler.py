@@ -270,3 +270,37 @@ def test_tick_redraws_menu_when_nothing_runs(setup):
     record(wiki, clock.now, status="done")
     scheduler.tick()
     assert spawned == [] and changes == [1]
+
+
+def test_tick_follows_settings_time_and_weekends(setup):
+    from context_holder.appsettings import Settings
+
+    scheduler, _, clock, children, spawned, _, _ = setup
+    children.append(FakeChild(code=1))
+    clock.now = datetime(2026, 11, 14, 0, tzinfo=UTC)  # 토요일 09:00 (서울)
+    scheduler.settings = lambda: Settings(daily_at="08:30", weekends=True)
+    scheduler.tick()
+    assert len(spawned) == 1
+
+
+def test_not_ready_blocks_triggers_and_run_now(setup):
+    scheduler, _, _, _, spawned, _, _ = setup
+    scheduler.ready = lambda: False
+    assert not scheduler.trigger("start") and not scheduler.run_now()
+    assert spawned == []
+
+
+def test_needs_init_for_empty_or_unfinished_wiki(tmp_path):
+    from context_holder.init import save_state
+    from context_holder.scheduler import needs_init
+    from tests.test_screens import add
+
+    wiki = Wiki(tmp_path / "wiki")
+    assert needs_init(wiki)
+    add(wiki, "https://t/a", "글")
+    assert not needs_init(wiki)
+    save_state(wiki, {"items": [], "finished": False})
+    assert needs_init(wiki)
+    save_state(wiki, {"items": [], "finished": True})
+    assert not needs_init(wiki)
+    assert sync_argv(tmp_path, "init")[3] == "init"

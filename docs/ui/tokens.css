@@ -114,10 +114,70 @@
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-/* 다크: macOS 화면 모드를 따른다. 종이 대신 따뜻한 먹색, 의미 색은 같은 계열에서 밝기만 올린다.
+/* 다크: macOS 화면 모드를 따른다. 설정에서 라이트 · 다크로 고정할 수 있다 (<html data-theme>). 종이 대신 따뜻한 먹색, 의미 색은 같은 계열에서 밝기만 올린다.
  * 글자와 바탕 조합은 대비 4.5:1 이상이다 (engine/tests/test_theme.py). */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1B1A17;
+  --paper-deep: #24221E;
+  --surface: #23211D;
+  --surface-hover: #292723;
+  --ink: #EDE7DA;
+  --ink-hover: #D8D1C3;
+  --ink-body: #DCD5C7;
+  --ink-soft: #B9B1A3;
+  --ink-faint: #9D9587;
+  --rule: #3A3732;
+  --rule-strong: #4D4943;
+  --rule-soft: #2E2C28;
+  --on-ink: #1B1A17;
+  --on-ink-soft: #3E3B35;
+  --on-ink-line: #B9B1A3;
+
+  --chrome: #201F1C;
+  --chrome-top: #23221F;
+  --chrome-line: #34322D;
+  --chrome-ink: #D9D3C7;
+  --chrome-selected: rgba(255, 248, 235, 0.09);
+  --chrome-hover: rgba(255, 248, 235, 0.05);
+  --chrome-card: rgba(43, 41, 37, 0.7);
+
+  --today: #EC8A66;
+  --today-tint: #3A231A;
+  --today-line: #6B3D2B;
+  --decision: #7DBDCC;
+  --decision-tint: #182A2F;
+  --decision-line: #305A65;
+  --decision-ink: #B4DCE5;
+  --decision-mid: #568F9C;
+  --decision-soft: #3F6E7A;
+  --on-decision-soft: #1B1A17;
+  --ok: #86C47F;
+  --ok-tint: #1D2B1C;
+  --ok-line: #375733;
+  --busy: #DDA845;
+  --busy-ink: #E6BC66;
+  --busy-deep: #F1D497;
+  --busy-tint: #33290F;
+  --busy-line: #5F4B1D;
+  --error: #F2857B;
+  --error-deep: #F8BDB6;
+  --error-tint: #3A1D1B;
+  --error-row: #2A1B19;
+  --error-line: #6C322D;
+  --mark: #6A5317;
+  --strike: rgba(157, 149, 135, 0.6);
+
+  --backdrop: #121110;
+  --caption: #C9C1B3;
+
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 22px -16px rgba(0, 0, 0, 0.8);
+  --shadow-panel: 0 18px 40px -24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #1B1A17;
     --paper-deep: #24221E;
     --surface: #23211D;

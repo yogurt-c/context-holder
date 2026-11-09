@@ -11,12 +11,13 @@ CTX_ENGINE=/path/to/ctx cargo run   # 다른 엔진으로
 
 | 주고받기 | 내용 |
 |---|---|
-| 엔진 stdout | 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event":"status","icon","items"}` · `{"event":"notify","title","body","open"}` |
+| 엔진 stdout | 준비 줄 `{"port","token","url"}`, 그 뒤 `{"event":"status","icon","items"}` · `{"event":"notify","title","body","open"}` · `{"event":"autostart","enabled"}` |
 | 엔진 stdin | 메뉴 명령 한 줄: `sync_now`, `pause 1h`, `pause today`, `pause forever`, `resume` |
 
 - 창을 닫아도 앱은 메뉴바에 남는다. 창이 열려 있을 때만 Dock 아이콘을 보인다.
 - 화면(웹뷰)에는 IPC 권한을 주지 않는다. 키보드 단축키는 두지 않는다.
-- 로그인 시 자동 실행은 release 빌드에서만 등록한다(`--background`로 창 없이 시작).
+- 로그인 시 자동 실행은 엔진 설정(`autostart` 이벤트)을 따르고, release 빌드에서만 등록한다(`--background`로 창 없이 시작).
+- 창 안에서는 엔진 화면(`http://127.0.0.1:<port>`)만 연다. 원문 · GitHub 승인 같은 바깥 주소와 `target=_blank` 링크는 기본 브라우저로 연다.
 - 엔진이 비정상 종료하면 다시 띄운다(최대 3번). 앱이 끝나면 stdin을 닫아 엔진을 끈다.
 - 메뉴바 아이콘은 단색 template 이미지다: `uv run --with pillow python app/scripts/tray_icons.py`.
 - 엔진을 앱 안에 묶는 일(PyInstaller, resources)은 패키징에서 한다. 그 전에는 개발 엔진을 띄운다.

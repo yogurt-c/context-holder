@@ -5,6 +5,7 @@ pull은 `git pull --rebase`처럼 동작한다: 로컬 커밋을 원격 최신 �
 같은 파일이 충돌하면 원격 내용을 우선한다. 로컬 변경은 다음 실행에서 다시 만든다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,22 +31,25 @@ class PullResult:
     dropped: int  # 원격 내용과 같아져 버린 로컬 커밋 수 (충돌에서 원격 우선)
 
 
+Token = str | Callable[[], str] | None
+
+
 class WikiRepo:
-    def __init__(self, repo: pygit2.Repository, token: str | None = None):
+    def __init__(self, repo: pygit2.Repository, token: Token = None):
         self.repo = repo
-        self.token = token
+        self.token = token  # 문자열이거나, push할 때마다 부르는 함수 (8시간 만료 토큰)
 
     # ---------- 열기 ----------
 
     @classmethod
-    def open(cls, path: Path, token: str | None = None) -> "WikiRepo | None":
+    def open(cls, path: Path, token: Token = None) -> "WikiRepo | None":
         """위키 폴더가 git 레포가 아니면 None. 로컬 폴더만 쓰는 개발 모드다."""
         if not (path / ".git").exists():
             return None
         return cls(pygit2.Repository(str(path)), token)
 
     @classmethod
-    def create(cls, path: Path, url: str, token: str | None = None) -> "WikiRepo":
+    def create(cls, path: Path, url: str, token: Token = None) -> "WikiRepo":
         """빈 레포를 만들고 원격을 연결한다. 내용은 pull로 받는다 (빈 원격도 같은 흐름)."""
         repo = pygit2.init_repository(str(path), initial_head=BRANCH)
         repo.remotes.create(REMOTE, url)
@@ -197,6 +201,7 @@ class WikiRepo:
             raise GitSyncError(f"원격에 연결하지 못했다: {e}") from e
 
     def _callbacks(self) -> pygit2.RemoteCallbacks | None:
-        if not self.token:
+        token = self.token() if callable(self.token) else self.token
+        if not token:
             return None
-        return pygit2.RemoteCallbacks(credentials=pygit2.UserPass("x-access-token", self.token))
+        return pygit2.RemoteCallbacks(credentials=pygit2.UserPass("x-access-token", token))

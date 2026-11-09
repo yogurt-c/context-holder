@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from typer.testing import CliRunner
 
-from context_holder import cli
+from context_holder import cli, connect
 from context_holder.cli import app
 from context_holder.collect import SourceReport
 from context_holder.github import Account, GitHubError, WikiRemote
@@ -29,11 +29,14 @@ def github(monkeypatch, remote):
     """GitHub 대신 로컬 bare 레포를 위키 원격으로 돌려준다."""
     created = {"created": True}
     monkeypatch.setattr(cli, "_token", lambda: "token")
+    monkeypatch.setattr(cli, "github_token", lambda: "token")
     monkeypatch.setattr(
-        cli, "account", lambda client, token: Account("me", "Me", "1+me@users.noreply.github.com")
+        connect,
+        "account",
+        lambda client, token: Account("me", "Me", "1+me@users.noreply.github.com"),
     )
     monkeypatch.setattr(
-        cli, "find_or_create_wiki", lambda client, token, login: WikiRemote(remote, **created)
+        connect, "find_or_create_wiki", lambda client, token, login: WikiRemote(remote, **created)
     )
     return created
 
@@ -117,7 +120,7 @@ def test_connect_github_error(tmp_path, github, monkeypatch):
     def fail(client, token):
         raise GitHubError("토큰이 만료됐다")
 
-    monkeypatch.setattr(cli, "account", fail)
+    monkeypatch.setattr(connect, "account", fail)
     result = runner.invoke(app, ["connect", "--wiki", str(tmp_path / "wiki")])
     assert result.exit_code == 1
     assert "만료" in result.output
@@ -136,7 +139,7 @@ def test_connect_git_error(tmp_path, github, monkeypatch):
 def test_https_wiki_needs_a_token(tmp_path, monkeypatch):
     WikiRepo.create(tmp_path / "wiki", "https://github.com/me/context-wiki.git")
     monkeypatch.setattr(cli, "github_token", lambda: "secret")
-    assert cli._open_repo(tmp_path / "wiki").token == "secret"
+    assert cli._open_repo(tmp_path / "wiki").token() == "secret"  # push마다 새로 받는다
 
     def missing():
         raise cli.TokenMissing("로그인하지 않았다")

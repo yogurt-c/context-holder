@@ -134,3 +134,50 @@ def make_device(tmp_path, remote):
         return repo
 
     return _make
+
+
+class MemoryKeychain:
+    """테스트용 키체인 저장소. keyring 함수를 이것으로 바꿔 진짜 macOS 키체인을 건드리지 않는다."""
+
+    def __init__(self):
+        self.secret: str | None = None
+
+    def get(self, service, account):
+        return self.secret
+
+    def set(self, service, account, value):
+        self.secret = value
+
+    def delete(self, service, account):
+        import keyring.errors
+
+        if self.secret is None:
+            raise keyring.errors.PasswordDeleteError("없음")
+        self.secret = None
+
+
+@pytest.fixture(autouse=True)
+def no_real_keychain(monkeypatch: pytest.MonkeyPatch) -> MemoryKeychain:
+    """모든 테스트에서 키체인과 gh 로그인을 가짜로 바꾼다."""
+    memory = MemoryKeychain()
+    monkeypatch.setattr("context_holder.auth.keyring.get_password", memory.get)
+    monkeypatch.setattr("context_holder.auth.keyring.set_password", memory.set)
+    monkeypatch.setattr("context_holder.auth.keyring.delete_password", memory.delete)
+    monkeypatch.setattr("context_holder.auth.gh_lookup", lambda: None)
+    return memory
+
+
+@pytest.fixture(autouse=True)
+def plain_tool_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """외부 명령은 이름 그대로 쓴다. 테스트가 이 기기에 무엇이 설치됐는지에 기대지 않게."""
+    plain = _PlainNames()
+    for module in ("llm", "claudesetup", "setupflow", "auth"):
+        monkeypatch.setattr(f"context_holder.{module}.tool", plain)
+
+
+class _PlainNames:
+    def __call__(self, name: str) -> str:
+        return name
+
+    def cache_clear(self) -> None:
+        pass
