@@ -10,7 +10,7 @@ from context_holder.classify import Bucket
 from context_holder.index import Index
 from context_holder.scheduler import Progress
 from context_holder.tray import AppBridge, Notice, NoticeLog, notices, status_event
-from tests.test_scheduler import MONDAY_8, FakeChild, record, setup  # noqa: F401
+from tests.test_scheduler import MONDAY_8, FakeChild, record, seoul_time, setup  # noqa: F401
 from tests.test_screens import SOURCES, add
 
 FRIDAY_8 = MONDAY_8 + timedelta(days=4)

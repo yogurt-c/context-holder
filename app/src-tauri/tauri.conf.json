@@ -3,7 +3,7 @@
   "productName": "context-holder",
   "version": "0.1.0",
   "identifier": "dev.contextholder.app",
-  "build": { "frontendDist": "../dist" },
+  "build": { "frontendDist": "../shell" },
   "app": {
     "windows": [],
     "security": { "csp": null }

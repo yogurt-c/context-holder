@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,6 +18,16 @@ from context_holder.wiki import Wiki
 
 # 2026-11-09은 월요일. 서울 기준 08:00 (UTC 23:00 전날)
 MONDAY_8 = datetime(2026, 11, 8, 23, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def seoul_time(monkeypatch):
+    """요일 · 09:30 판단은 기기 현지 시각이다. CI(UTC)에서도 서울 시각으로 돌린다."""
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
 
 
 class FakeChild:
