@@ -1,6 +1,6 @@
 # sidecar 패키징 스파이크
 
-PyInstaller로 묶은 엔진에서 pygit2(libgit2)가 동작하는지 미리 확인한다. Tauri sidecar로 띄우는 확인은 Rust 설치 후 Tauri 셸 커밋에서 한다.
+PyInstaller로 묶은 엔진에서 pygit2(libgit2)가 동작하는지 미리 확인한다. Tauri가 띄우는 확인은 [tauri-sidecar](../tauri-sidecar/README.md)에서 했다.
 
 ```bash
 cd spikes/sidecar

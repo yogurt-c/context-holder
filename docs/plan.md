@@ -410,7 +410,7 @@ media:
 | 리스크 | 대응 |
 |---|---|
 | 여러 기기가 동시에 수집 · 커밋 | push를 잠금으로 쓰는 하루 1회 수집, 글 파일 1회 쓰기, 기기별 피드백 파일 (3.1) |
-| 엔진 프로세스가 죽거나 포트 충돌 | 앱이 sidecar를 감시해 재시작하고, 메뉴바를 오류 상태로 표시. 포트는 임의 할당 |
+| 엔진 프로세스가 죽거나 포트 충돌 | 앱이 sidecar를 감시해 재시작하고, 메뉴바를 오류 상태로 표시. 포트는 임의 할당. 스파이크로 resources의 onedir 엔진 실행 · 재시작 · 앱 종료 시 정리 확인 ([spikes/tauri-sidecar](../spikes/tauri-sidecar/README.md)) |
 | 엔진 번들 크기와 패키징 복잡도 | 엔진(PyInstaller onedir, 약 26MB)과 git(pygit2)을 앱에 포함. 스파이크로 HTTPS clone · push 동작 확인 ([spikes/sidecar](../spikes/sidecar/README.md)). Whisper 등 M4 도구는 필요할 때 설치 |
 | Claude Code 설치 · 로그인 실패 | 설정 화면에서 상태 확인 · 다시 연결. 연결 전 수집 글은 pending으로 보관 |
 | Claude 의존 (한도 · 장애 · 약관) | 하루 호출 수가 작음. 실패 시 pending 후 재처리. 자동화 사용 범위는 현재 약관 확인 |

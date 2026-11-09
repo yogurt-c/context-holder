@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ctx-spike",
+  "version": "0.0.1",
+  "identifier": "dev.contextholder.spike",
+  "build": { "frontendDist": "../dist" },
+  "app": {
+    "windows": [{ "title": "sidecar spike", "visible": false }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": ["icons/icon.png"],
+    "resources": { "binaries/ctx-engine/": "engine/" }
+  }
+}

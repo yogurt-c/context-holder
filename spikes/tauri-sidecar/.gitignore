@@ -1,0 +1,5 @@
+# 빌드 산출물 (PyInstaller 엔진, Rust target, 생성 스키마)
+src-tauri/binaries/
+src-tauri/target/
+src-tauri/gen/
+build/
