@@ -1,0 +1,19 @@
+{# Search 첫 화면: Claude Code에서 이 위키를 쓰는 법. 명령어 없이 이렇게 물으면 된다 #}
+<section class="ask-claude" aria-labelledby="ask-claude-title">
+  <header class="ask-head">
+    <h2 id="ask-claude-title">Claude Code에서 묻기</h2>
+    {% if view.connected is true %}<span class="ask-status">연결됨</span>
+    {% elif view.connected is false %}<span class="ask-status off">연결되지 않았어요 · <a href="/settings">설정에서 연결</a></span>{% endif %}
+  </header>
+  <p class="ask-lede">{% if view.connected is false %}연결하면 이렇게 물을 수 있어요. {% endif %}기술 선택을 물으면 Claude가 이 위키의 결정 사례부터 찾아봐요. 따로 외울 명령어는 없어요.</p>
+  <ol class="ask-list">
+    {% for label, text in view.ask %}
+    <li>
+      <span class="ask-label">{{ label }}</span>
+      <q class="ask-text">{{ text }}</q>
+      <template id="ask-claude-{{ loop.index }}">{{ text }}</template>
+      <button type="button" class="btn sm ask-copy" data-copy="ask-claude-{{ loop.index }}">복사</button>
+    </li>
+    {% endfor %}
+  </ol>
+</section>

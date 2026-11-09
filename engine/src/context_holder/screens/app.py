@@ -137,12 +137,17 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         view = views.build_today(ctx.wiki, ctx.index, ctx.device, ctx.mcp_log, day, ctx.clock)
         return page(request, "today.html", "today", view=view, alerts=current_alerts())
 
+    def mcp_connected() -> bool | None:
+        return ctx.flow.mcp_ok() if ctx.flow is not None else None
+
     @app.get("/search", response_class=HTMLResponse)
     def search(request: Request) -> HTMLResponse:
         params = request.query_params
         query = searchview.parse_query(params, {k: params.getlist(k) for k in ("company", "tag")})
         with search_lock:
-            view = searchview.build_search(tools, ctx.wiki, ctx.index, query, names(), ctx.clock())
+            view = searchview.build_search(
+                tools, ctx.wiki, ctx.index, query, names(), ctx.clock(), mcp_connected
+            )
         if request.headers.get("hx-request") == "true":  # 검색어 · 필터가 바뀌면 결과만 다시 그린다
             return templates.TemplateResponse(request, "search_body.html", {"view": view})
         return page(request, "search.html", "search", view=view)

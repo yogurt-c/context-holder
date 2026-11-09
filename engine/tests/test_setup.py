@@ -425,6 +425,14 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     assert c.seen["downloads"] == 1
 
 
+def test_search_start_shows_claude_code_link_state(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    page = c.get("/search").text
+    assert "연결되지 않았어요" in page and 'href="/settings"' in page
+    register(flow, "/a/ctx")
+    assert "연결됨" in c.get("/search").text
+
+
 def test_reconnect_redraws_mcp_status(flow, tmp_path):
     """다시 연결하면 '다른 위치' 경고가 바로 사라진다 (버튼 자리만 바꾸지 않는다)."""
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})

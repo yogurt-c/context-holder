@@ -3,6 +3,7 @@
 {% if not query.q %}
 <div class="search-empty">
   <p class="empty-note">모은 글의 요약, 핵심 내용, 결정 기록을 키워드와 뜻으로 함께 찾아요.</p>
+  {% if view.ask %}{% include "_ask_claude.html" %}{% endif %}
   {% if view.browse %}
   <h3 class="panel-head">주제별로 결정 비교하기</h3>
   <dl class="topic-browse">

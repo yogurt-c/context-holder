@@ -241,6 +241,23 @@ def test_search_without_query_offers_decision_topics(wiki, tmp_path):
     )
 
 
+def test_search_start_shows_how_to_ask_claude(wiki, tmp_path):
+    """검색어 없는 첫 화면: 내 위키에 있는 주제로 만든 Claude Code 질문 예시를 복사할 수 있다."""
+    add(wiki, "https://t/a", "사이드카 운영", topic="사이드카 관리")
+    c, _ = make_client(wiki, tmp_path)
+    page = c.get("/search").text
+    assert "Claude Code에서 묻기" in page
+    assert "Context Holder 위키에서 사이드카 관리 사례를 찾아서" in page
+    assert page.count('data-copy="ask-claude-') == 3
+    assert "ask-status" not in page  # 연결 상태를 모르는 화면(개발 모드)은 상태를 비운다
+    assert "Claude Code에서 묻기" not in c.get("/search?q=사이드카").text
+
+
+def test_claude_prompts_without_topics_use_examples():
+    prompts = searchview.claude_prompts([])
+    assert len(prompts) == 3 and "메시지 큐" in prompts[0][1]
+
+
 def test_search_highlights_filters_and_opens_detail(wiki, tmp_path):
     a = add(wiki, "https://t/a", "사이드카 버전 관리", topic="사이드카 관리", source="toss")
     b = add(wiki, "https://t/b", "사이드카 없이 운영하기", topic="사이드카 관리")

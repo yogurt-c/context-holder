@@ -7,7 +7,7 @@
 
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -89,6 +89,32 @@ class SearchView:
     decision_total: int = 0
     # 검색어가 없을 때 보여 줄 주제: (분야, [(이름, 주소)]). 정리한 주제는 Decisions 비교표로 간다
     browse: list[tuple[str, list[tuple[str, str]]]] = field(default_factory=list)
+    # 검색어가 없을 때 보여 줄 Claude Code 질문 예시: (설명, 문장)
+    ask: list[tuple[str, str]] = field(default_factory=list)
+    connected: bool | None = None  # Claude Code가 이 위키를 쓰나. None이면 모른다 (개발 모드)
+
+
+# 위키에 주제가 아직 없을 때 예시에 쓰는 주제
+EXAMPLE_TOPICS = ("메시지 큐 선택", "캐시 전략")
+
+
+def claude_prompts(browse: list[tuple[str, list[tuple[str, str]]]]) -> list[tuple[str, str]]:
+    """Claude Code에 그대로 붙여 넣을 질문. 내 위키에 있는 주제로 채워 바로 결과가 나오게 한다."""
+    names = [name for _, links in browse for name, _ in links] or list(EXAMPLE_TOPICS)
+    first, second = names[0], names[1] if len(names) > 1 else names[0]
+    return [
+        (
+            "그냥 물어보기",
+            f"{first} 관련 결정을 앞두고 있어. "
+            "다른 회사들은 어떤 선택지를 두고 뭘 따졌는지 정리해 줘",
+        ),
+        (
+            "위키 지정",
+            f"Context Holder 위키에서 {second} 사례를 찾아서 "
+            "선택지와 트레이드오프를 표로 비교해 줘",
+        ),
+        ("더 깊이", "찾은 사례 중 하나의 결정 기록과 원문 근거 문장을 보여 줘"),
+    ]
 
 
 def _browse(wiki: Wiki, index: Index, query: Query) -> list[tuple[str, list[tuple[str, str]]]]:
@@ -113,14 +139,23 @@ def parse_query(params: Mapping[str, str], lists: Mapping[str, list[str]]) -> Qu
 
 
 def build_search(
-    tools: WikiTools, wiki: Wiki, index: Index, query: Query, names: dict[str, str], now: datetime
+    tools: WikiTools,
+    wiki: Wiki,
+    index: Index,
+    query: Query,
+    names: dict[str, str],
+    now: datetime,
+    connected: Callable[[], bool | None] = lambda: None,
 ) -> SearchView:
     totals = {
         "article_total": len(index.select()),
         "decision_total": sum(n for _, n in index.topics()),
     }
     if not query.q:
-        return SearchView(query, browse=_browse(wiki, index, query), **totals)
+        browse = _browse(wiki, index, query)
+        return SearchView(
+            query, browse=browse, ask=claude_prompts(browse), connected=connected(), **totals
+        )
     started = time.perf_counter()
     hits, notes = tools.all_hits([query.q])
     notes = [NO_MODEL_SCREEN if n == NO_MODEL_NOTE else n for n in notes]
