@@ -29,7 +29,7 @@
     <div class="body">
       <h2>Claude 연결</h2>
       {% if cl.logged_in %}
-        <p class="lede">연결됨{% if cl.detail %} · {{ cl.detail }}{% endif %}</p>
+        <p class="lede">연결됨{% if cl.label %} · {{ cl.label }}{% endif %}</p>
       {% elif job.state == "installing" %}
         <div class="wait"><span class="spinner" aria-hidden="true"></span>Claude Code 설치 중 (공식 설치 프로그램, 약 30초)</div>
       {% elif job.state == "logging_in" %}

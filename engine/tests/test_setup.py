@@ -22,7 +22,7 @@ CODE = {
     "verification_uri": "https://github.com/login/device",
     "interval": 5,
 }
-LOGGED_IN = json.dumps({"loggedIn": True, "subscriptionType": "max"})
+LOGGED_IN = json.dumps({"loggedIn": True, "subscriptionType": "max", "email": "me@example.com"})
 
 
 def register(flow, command: str) -> None:
@@ -410,7 +410,9 @@ def test_reconnect_redraws_mcp_status(flow, tmp_path):
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     register(flow, "/old/ctx")
     c = screen(flow, tmp_path)
-    assert "다른 위치로 연결돼 있어요" in c.get("/settings/connections").text
+    first = c.get("/settings/connections").text
+    assert "다른 위치로 연결돼 있어요" in first
+    assert "연결됨 · me@example.com (max)" in first  # 어느 계정인지 보인다 (계정을 바꿨는지 확인)
 
     class Registering(FakeRun):
         def __call__(self, args, timeout):

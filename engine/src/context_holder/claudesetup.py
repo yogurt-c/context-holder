@@ -28,7 +28,17 @@ Run = Callable[[Sequence[str], float], tuple[int, str]]  # (명령, 제한 시�
 class ClaudeStatus:
     installed: bool
     logged_in: bool
-    detail: str = ""  # 구독 종류 등 (이메일은 보여 주지 않는다)
+    detail: str = ""  # 구독 종류 (max, pro, team 등)
+    account: str = ""  # 로그인한 계정 이메일. 이 기기의 설정 화면에만 보인다 (계정을 바꿨는지 확인)
+    org: str = ""  # 팀 · 조직 계정이면 조직 이름
+
+    @property
+    def label(self) -> str:
+        """화면에 보일 계정 표시: "me@x.com · 조직 (max)". 아는 것만 붙인다."""
+        who = " · ".join(part for part in (self.account, self.org) if part)
+        if who and self.detail:
+            return f"{who} ({self.detail})"
+        return who or self.detail
 
 
 def run_command(args: Sequence[str], timeout: float) -> tuple[int, str]:  # pragma: no cover
@@ -52,7 +62,13 @@ def status(
     except ValueError:
         return ClaudeStatus(True, False)
     kind = data.get("subscriptionType") or data.get("authMethod") or ""
-    return ClaudeStatus(True, bool(data.get("loggedIn")), str(kind))
+    return ClaudeStatus(
+        True,
+        bool(data.get("loggedIn")),
+        str(kind),
+        str(data.get("email") or ""),
+        str(data.get("orgName") or ""),
+    )
 
 
 def install_command() -> list[str]:

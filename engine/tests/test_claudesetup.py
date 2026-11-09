@@ -18,9 +18,15 @@ class FakeRun:
 
 def test_status_states():
     logged = json.dumps({"loggedIn": True, "subscriptionType": "max", "email": "me@x"})
-    assert claudesetup.status(FakeRun((0, logged)), lambda: "claude") == claudesetup.ClaudeStatus(
-        True, True, "max"
+    status = claudesetup.status(FakeRun((0, logged)), lambda: "claude")
+    assert status == claudesetup.ClaudeStatus(True, True, "max", "me@x")
+    assert status.label == "me@x (max)"
+    team = json.dumps(
+        {"loggedIn": True, "subscriptionType": "team", "email": "a@b", "orgName": "회사"}
     )
+    assert claudesetup.status(FakeRun((0, team)), lambda: "claude").label == "a@b · 회사 (team)"
+    assert claudesetup.ClaudeStatus(True, True, "max").label == "max"  # 이메일을 모르면 요금제만
+    assert claudesetup.ClaudeStatus(True, True).label == ""
     out = claudesetup.status(FakeRun((1, json.dumps({"loggedIn": False}))), lambda: "claude")
     assert out == claudesetup.ClaudeStatus(True, False, "")
     assert claudesetup.status(FakeRun((127, "")), lambda: "claude").installed is False
