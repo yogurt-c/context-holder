@@ -381,6 +381,27 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     assert c.seen["downloads"] == 1
 
 
+def test_reconnect_redraws_mcp_status(flow, tmp_path):
+    """다시 연결하면 '다른 위치' 경고가 바로 사라진다 (버튼 자리만 바꾸지 않는다)."""
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    register(flow, "/old/ctx")
+    c = screen(flow, tmp_path)
+    assert "다른 위치로 연결돼 있어요" in c.get("/settings/connections").text
+
+    class Registering(FakeRun):
+        def __call__(self, args, timeout):
+            if args[1:3] == ["mcp", "add"]:
+                command, *rest = args[args.index("--") + 1 :]
+                servers = {"mcpServers": {"context-holder": {"command": command, "args": rest}}}
+                flow.claude_config.write_text(json.dumps(servers))
+            return super().__call__(args, timeout)
+
+    flow.run = Registering({"auth status": (0, LOGGED_IN)})
+    panel = c.post("/settings/mcp", headers=HTMX).text
+    assert 'id="connections"' in panel and "다시 연결했어요" in panel
+    assert "다른 위치" not in panel and "이 위키를 찾아봐요" in panel
+
+
 def test_settings_without_wiki_or_claude(flow, tmp_path):
     flow.run = FakeRun({"auth status": (127, "")})
     panel = screen(flow, tmp_path).get("/settings/connections").text

@@ -165,10 +165,12 @@ def add_routes(
         return HTMLResponse('<span class="done-label">브라우저에서 승인하세요</span>')
 
     @app.post("/settings/mcp", response_class=HTMLResponse)
-    def settings_mcp() -> HTMLResponse:
+    def settings_mcp(request: Request) -> HTMLResponse:
+        """다시 등록하고 연결 영역을 통째로 다시 그린다 (상태 문구도 바뀌어야 한다)."""
         ok, out = flow.register_mcp()
-        text = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
-        return HTMLResponse(f'<span class="done-label">{_escape(text)}</span>')
+        view = connections_view(flow)
+        view["mcp_message"] = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
+        return templates.TemplateResponse(request, "_connections.html", {"c": view})
 
     @app.post("/settings/model", response_class=HTMLResponse)
     def settings_model() -> HTMLResponse:
@@ -183,9 +185,3 @@ def add_routes(
 def _time(hour: str, minute: str) -> str | None:
     """고른 시 · 분. 목록에 없는 값이면 None."""
     return f"{hour}:{minute}" if hour in HOURS and minute in MINUTES else None
-
-
-def _escape(text: str) -> str:
-    import html
-
-    return html.escape(text)
