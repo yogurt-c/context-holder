@@ -46,6 +46,9 @@ class StoredArticle:
     key_points: tuple[str, ...]
     decision: dict[str, Any] | None
     signature: str  # 파일이 바뀌었는지 비교하는 값
+    collected: datetime | None = None
+    relevance: float | None = None
+    media: dict[str, Any] | None = None  # 영상 글: url, provider, status
 
 
 @dataclass(frozen=True)
@@ -355,6 +358,9 @@ def _stored(path: Path) -> StoredArticle:
         key_points=_section(body, "핵심 내용"),
         decision=meta.get("decision"),
         signature=f"{stat.st_mtime_ns}:{stat.st_size}",
+        collected=_parse_time(meta.get("collected")),
+        relevance=meta["relevance"].get("score"),
+        media=meta.get("media"),
     )
 
 

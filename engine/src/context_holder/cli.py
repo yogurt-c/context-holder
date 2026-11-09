@@ -49,6 +49,8 @@ from context_holder.mcptools import WikiTools
 from context_holder.paths import default_wiki, etag_cache, home
 from context_holder.reembed import run_reembed
 from context_holder.runlock import INIT_LOCK, Outcome, RunLock, daily_lock
+from context_holder.screens.app import ScreenContext, new_token
+from context_holder.screens.serve import serve
 from context_holder.search import search
 from context_holder.searcheval import evaluate_search, load_queries
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
@@ -358,12 +360,15 @@ def sync_command(
         _index().sync(wiki, make_embedder(wiki.search_model()))
 
 
-def _sync_summary(report: SyncReport) -> dict[str, int]:
+def _sync_summary(report: SyncReport) -> dict[str, int | float]:
     return {
         "saved": report.saved,
         "inboxed": report.inboxed,
         "dropped": report.dropped,
         "pending": report.pending_enrich + report.still_pending,
+        "sources": len(report.sources),  # 확인한 소스
+        "failed_sources": sum(1 for s in report.sources if s.error),
+        "cost_usd": round(report.cost_usd, 4),  # Claude 사용량 환산
     }
 
 
@@ -642,6 +647,59 @@ def make_embedder(model_id: str, local_only: bool = False) -> Embedder:
 
 def _index() -> Index:
     return Index(home() / "index.db")
+
+
+@app.command("serve")
+def serve_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    open_browser: bool = typer.Option(False, "--open", help="토큰이 붙은 주소로 브라우저를 연다."),
+    exit_on_stdin_eof: bool = typer.Option(
+        False, "--exit-on-stdin-eof", help="stdin이 닫히면 끝낸다 (앱이 띄울 때)."
+    ),
+) -> None:
+    """화면 서버를 127.0.0.1의 임의 포트로 띄운다. 준비되면 주소와 토큰을 JSON 한 줄로 쓴다."""
+    logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
+    wiki = Wiki(wiki_path or default_wiki())
+    token = new_token()
+
+    def make_context(port: int) -> ScreenContext:
+        return ScreenContext(
+            wiki=wiki,
+            index=_index(),
+            device=device_name(home()),
+            mcp_log=home() / "mcp-queries.jsonl",
+            clock=lambda: datetime.now(UTC),
+            token=token,
+            hosts=frozenset({f"127.0.0.1:{port}"}),
+        )
+
+    serve(
+        make_context,
+        out=sys.stdout,
+        stdin=sys.stdin if exit_on_stdin_eof else None,
+        on_ready=_open_url if open_browser else lambda url: None,
+        warm=lambda: _warm_index(wiki),
+    )
+
+
+def _warm_index(wiki: Wiki) -> None:
+    """시작할 때 인덱스를 위키에 맞춘다. 검색 모델이 이 기기에 없으면 건드리지 않는다.
+
+    모델 없이 sync하면 글마다 다시 색인하며 벡터를 지운다.
+    """
+    try:
+        embedder = make_embedder(wiki.search_model(), local_only=True)
+        embedder.query("warm up")  # 모델 파일이 없으면 여기서 실패한다
+    except Exception as e:  # 모델이 없거나 깨졌다: 화면은 지금 인덱스로 보여 준다
+        logging.warning("검색 모델이 없어 인덱스를 맞추지 않았다: %s", e)
+        return
+    _index().sync(wiki, embedder)  # 화면 요청과 다른 연결로 쓴다 (WAL)
+
+
+def _open_url(url: str) -> None:  # pragma: no cover - 브라우저를 연다
+    import webbrowser
+
+    webbrowser.open(url)
 
 
 @app.command("search")

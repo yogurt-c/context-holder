@@ -16,6 +16,7 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx pull` | 다른 기기의 변경을 받아 바뀐 글만 다시 인덱싱한다 |
 | `ctx init` | 첫 실행: 소스마다 최근 50개(1년 이내)를 가져와 위키를 채운다. `--status`, `--dry-run` |
 | `ctx sync` | 요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다. 위키가 git 레포면 수집 잠금을 잡고 20건마다 push한다 |
+| `ctx serve` | 화면 서버를 `127.0.0.1`의 임의 포트로 띄우고 주소와 토큰을 JSON 한 줄로 쓴다. `--open`으로 브라우저를 연다 |
 | `ctx mcp` | Claude Code용 MCP 서버 (stdio). tool 6개와 질의 로그 `~/.context-holder/mcp-queries.jsonl` |
 | `ctx feedback` | 관련 없음 · 북마크를 이 기기의 피드백 파일에 남긴다 |
 | `ctx collect` | 소스에서 새 글만 모아 소스별 결과를 본다. `--out`으로 JSONL 저장 |

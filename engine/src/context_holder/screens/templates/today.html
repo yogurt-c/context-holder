@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Today · context-holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/today.css">{% endblock %}
+{% macro feedback(article) -%}
+<span class="feedback">
+  <button class="btn" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "bookmark"}' hx-target="closest .feedback" hx-swap="innerHTML">북마크</button>
+  <button class="btn ghost" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "not_relevant"}' hx-target="closest .feedback" hx-swap="innerHTML">관련없음</button>
+</span>
+{%- endmacro %}
+{% macro badges(a) -%}
+{% if a.media %}<span class="badge video">영상{% if a.media == "summary_only" %}, 요약만{% endif %}</span>{% endif %}
+{% if a.decision_topic %}<span class="badge decision">결정 사례</span>{% endif %}
+{%- endmacro %}
+{% block content %}
+    <div class="toolbar">
+      {% if view.prev_day %}<a class="btn sm ghost" href="/today?date={{ view.prev_day.isoformat() }}" aria-label="이전 날 보기">‹ {{ short_day(view.prev_day) }}</a>{% endif %}
+      <span class="title">{{ long_day(view.day) }}</span>
+      {% if view.next_day %}<a class="btn sm ghost" href="/today?date={{ view.next_day.isoformat() }}" aria-label="다음 날 보기">{{ short_day(view.next_day) }} ›</a>{% endif %}
+      <div class="spacer"></div>
+    </div>
+
+    <div class="scroll"><div class="page">
+      <header class="masthead">
+        <h1>{% if view.is_today %}오늘의 브리프{% else %}{{ short_day(view.day) }} 브리프{% endif %}</h1>
+        <div class="meta">관련도, 신선도, 회사 가중치 순{% if view.status.counts %}<br>저장 {{ view.status.counts["저장"] }}건, 보류 {{ view.status.counts["보류"] }}건, 제외 {{ view.status.counts["제외"] }}건{% endif %}</div>
+      </header>
+      <div class="rule-double"></div>
+
+      <div class="layout stack-narrow">
+        <section aria-label="오늘의 주요 이슈">
+        {% if view.lead %}
+          {% set r = view.lead.ranked %}{% set s = view.lead.stored %}
+          <article class="lead">
+            <div class="kicker"><span class="co-brand">{{ r.company }}</span>{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}<span class="score">relevance {{ "%.2f" | format(r.article.relevance or 0) }}</span></div>
+            <h2>{{ s.title }}</h2>
+            {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+            {% if s.decision %}{% set d = s.decision %}
+            <dl class="decision-card" aria-label="결정 기록">
+              <div class="label">결정 기록: {{ d.topic }}<span class="conf">신뢰도 {{ {"high": "높음", "medium": "중간", "low": "낮음"}.get(d.confidence, d.confidence) }}<span class="confidence" aria-hidden="true">{% for i in range(3) %}<i{% if i < {"high": 3, "medium": 2, "low": 1}.get(d.confidence, 0) %} class="on"{% endif %}></i>{% endfor %}</span></span></div>
+              <dt>문제</dt><dd>{{ d.problem }}</dd>
+              <dt>선택지</dt><dd>{% for o in d.options or [] %}<span class="opt{% if o == d.chosen %} chosen{% endif %}">{{ o }}</span>{% endfor %}{% if d.chosen not in (d.options or []) %}<span class="opt chosen">{{ d.chosen }}</span>{% endif %}</dd>
+              {% if d.tradeoffs %}<dt>트레이드오프</dt><dd>{{ d.tradeoffs | join("; ") }}</dd>{% endif %}
+              <p class="evidence">원문 근거 문장 {{ (d.evidence or []) | length }}개{% if d.unverified %}, 원문에서 확인하지 못한 문장 {{ d.unverified | length }}개{% else %}, 원문 대조 통과{% endif %}</p>
+            </dl>
+            <template id="decision-md">{{ view.lead.decision_markdown }}</template>
+            {% endif %}
+            <div class="actions">
+              <a class="btn primary" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">원문 열기</a>
+              {% if s.decision %}<button class="btn decision" data-copy="decision-md">Claude에 문맥으로 보내기</button>{% endif %}
+              {{ feedback(r.article) }}
+            </div>
+          </article>
+
+          <ol class="briefs">
+          {% for b in view.briefs %}
+            <li>
+              <h3><a href="{{ b.article.url }}" target="_blank" rel="noopener noreferrer">{{ b.article.title }}</a></h3>
+              <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
+              <div class="side">{{ badges(b.article) }}<span class="score">{{ "%.2f" | format(b.article.relevance or 0) }}</span></div>
+            </li>
+          {% endfor %}
+          </ol>
+          {% if view.more %}
+          <details class="more">
+            <summary>{{ view.more | length }}건 더 보기</summary>
+            <ol class="briefs">
+            {% for b in view.more %}
+              <li>
+                <h3><a href="{{ b.article.url }}" target="_blank" rel="noopener noreferrer">{{ b.article.title }}</a></h3>
+                <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
+                <div class="side">{{ badges(b.article) }}<span class="score">{{ "%.2f" | format(b.article.relevance or 0) }}</span></div>
+              </li>
+            {% endfor %}
+            </ol>
+          </details>
+          {% endif %}
+        {% else %}
+          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이다. 끝나면 여기에 글이 올라온다.{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
+          {% if view.recent %}
+          <h3 class="panel-head">최근 7일 상위 글</h3>
+          <ol class="briefs recent">
+          {% for day, b in view.recent %}
+            <li>
+              <h3><span class="day">{{ day.strftime("%m.%d") }}</span><a href="{{ b.article.url }}" target="_blank" rel="noopener noreferrer">{{ b.article.title }}</a></h3>
+              <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
+              <div class="side">{{ badges(b.article) }}</div>
+            </li>
+          {% endfor %}
+          </ol>
+          {% endif %}
+        {% endif %}
+          {% if view.pending %}<div class="pending-line"><span class="badge pending">요약 대기 {{ view.pending }}</span> Claude 응답이 없어 다음 수집 때 다시 요약한다.</div>{% endif %}
+        </section>
+
+        <aside class="rail-right">
+          {% set rail = view.rail %}
+          {% if rail.topic_total %}
+          <section class="panel" aria-label="결정 사례 주제">
+            <h3 class="panel-head">결정 사례 주제 <span>누적 {{ rail.topic_total }}건</span></h3>
+            {% if not rail.topics %}<p class="note mcp-note">아직 같은 주제로 묶인 사례가 없다. 주제를 묶는 기능은 Decisions 화면과 함께 들어온다.</p>{% else %}
+            <ul class="row-list body topics">
+            {% set top = rail.topics[0][1] %}
+            {% for name, n in rail.topics %}
+              <li>{{ name }}<b>{{ n }}</b><div class="bar"><i style="width:{{ (100 * n / top) | round | int }}%"></i></div></li>
+            {% endfor %}
+            </ul>{% endif %}
+          </section>
+          {% endif %}
+
+          <section class="panel" aria-label="보류 글">
+            <h3 class="panel-head">Inbox <span>{% if rail.inbox_total %}{{ rail.inbox_total }}건 · {% endif %}관련도 0.3~0.6</span></h3>
+            {% if rail.inbox %}
+            <ul class="row-list body inbox-mini">
+            {% for a in rail.inbox %}
+              <li>{{ a.title }}
+                <div class="row"><span class="note"><span class="score">{{ "%.2f" | format(a.relevance or 0) }}</span></span><a class="btn sm ghost" href="/inbox">분류하기</a></div></li>
+            {% endfor %}
+            </ul>
+            {% else %}<p class="note mcp-note">검토할 보류 글이 없다.</p>{% endif %}
+          </section>
+
+          <section class="panel" aria-label="Claude 검색 기록">
+            <h3 class="panel-head">Claude가 찾아본 것 <span>MCP, 최근 7일</span></h3>
+            {% if rail.mcp %}
+            <ul class="body mcp">
+            {% for m in rail.mcp %}
+              <li><code>{{ m.call }}</code><span class="{{ 'hit' if m.hits else 'miss' }}">{{ m.hits }}건</span></li>
+            {% endfor %}
+            </ul>
+            <p class="note mcp-note">0건 질의는 위키에 없는 주제다. 소스를 늘릴 후보로 본다.</p>
+            {% else %}<p class="note mcp-note">아직 기록이 없다.</p>{% endif %}
+          </section>
+        </aside>
+      </div>
+    </div></div>
+{% endblock %}

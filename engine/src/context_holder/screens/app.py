@@ -1,0 +1,145 @@
+"""엔진 화면 서버 (plan 7장). Tauri 창이 `http://127.0.0.1:<port>`를 띄운다.
+
+보호:
+- 시작할 때 만든 토큰을 앱에만 준다. 첫 요청 `/?token=…`에서 HttpOnly 쿠키로 바꾸고 주소에서 지운다.
+- Host 헤더가 서버 주소가 아니면 거절한다 (DNS rebinding).
+- 쓰기 요청은 HTMX가 붙이는 HX-Request 헤더도 요구한다. 쿠키는 SameSite=Strict다.
+"""
+
+import secrets
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import date, datetime
+from importlib import resources
+from pathlib import Path
+from urllib.parse import urlencode
+
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+from context_holder.feedback import Kind, record_feedback
+from context_holder.index import Index
+from context_holder.screens import views
+from context_holder.wiki import Wiki
+
+COOKIE = "ch_token"
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
+    "base-uri 'none'; form-action 'self'"
+)
+PAGES = {  # 다음 커밋에서 채울 화면
+    "search": ("Search", "검색은 다음 업데이트에서 열린다."),
+    "decisions": ("Decisions", "주제별 결정 사례 비교는 다음 업데이트에서 열린다."),
+    "inbox": ("Inbox", "보류 글 분류는 다음 업데이트에서 열린다."),
+    "sources": ("Sources", "소스별 수집 현황은 다음 업데이트에서 열린다."),
+    "settings": ("설정", "설정은 다음 업데이트에서 열린다."),
+}
+FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했다", Kind.NOT_RELEVANT: "관련없음으로 남겼다"}
+
+
+@dataclass
+class ScreenContext:
+    wiki: Wiki
+    index: Index
+    device: str
+    mcp_log: Path
+    clock: Callable[[], datetime]
+    token: str
+    hosts: frozenset[str]  # 허용하는 Host 헤더 (127.0.0.1:<port>)
+
+
+def new_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def create_app(ctx: ScreenContext) -> FastAPI:
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    templates = Jinja2Templates(
+        directory=str(resources.files("context_holder.screens").joinpath("templates"))
+    )
+    templates.env.globals.update(short_day=views.short_day, long_day=views.long_day)
+    static = resources.files("context_holder.screens").joinpath("static")
+    app.mount("/static", StaticFiles(directory=str(static)), name="static")
+    app.add_middleware(BaseHTTPMiddleware, dispatch=_guard(ctx))
+
+    def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
+        side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock)
+        return templates.TemplateResponse(
+            request, name, {"active": active, "side": side, "pages": PAGES, **values}
+        )
+
+    @app.get("/")
+    def home() -> RedirectResponse:
+        return RedirectResponse("/today", status_code=303)
+
+    @app.get("/today", response_class=HTMLResponse)
+    def today(request: Request, date: str | None = None) -> HTMLResponse:
+        day = _parse_day(date)
+        view = views.build_today(ctx.wiki, ctx.index, ctx.device, ctx.mcp_log, day, ctx.clock)
+        return page(request, "today.html", "today", view=view)
+
+    @app.get("/{name}", response_class=HTMLResponse)
+    def placeholder(request: Request, name: str) -> Response:
+        if name not in PAGES:
+            return PlainTextResponse("없는 화면", status_code=404)
+        title, note = PAGES[name]
+        return page(request, "placeholder.html", name, title=title, note=note)
+
+    @app.post("/feedback", response_class=HTMLResponse)
+    def feedback(article_id: str = Form(...), kind: str = Form(...)) -> Response:
+        article = ctx.index.get(article_id)
+        try:
+            chosen = Kind(kind)
+        except ValueError:
+            chosen = None
+        if article is None or chosen not in FEEDBACK_DONE:
+            return PlainTextResponse("잘못된 요청", status_code=400)
+        record_feedback(ctx.wiki, ctx.device, chosen, article.url, ctx.clock())
+        return HTMLResponse(f'<span class="done-label">{FEEDBACK_DONE[chosen]}</span>')
+
+    return app
+
+
+def _guard(ctx: ScreenContext):
+    async def dispatch(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.headers.get("host") not in ctx.hosts:
+            return PlainTextResponse("허용하지 않은 주소", status_code=403)
+        given = request.query_params.get("token")
+        if given is not None:
+            if not secrets.compare_digest(given, ctx.token):
+                return PlainTextResponse("토큰이 맞지 않다", status_code=403)
+            rest = urlencode(
+                [(k, v) for k, v in request.query_params.multi_items() if k != "token"]
+            )
+            target = request.url.path + (f"?{rest}" if rest else "")
+            response = RedirectResponse(target, status_code=303)
+            response.set_cookie(COOKIE, ctx.token, httponly=True, samesite="strict")
+            return _harden(response)
+        if not secrets.compare_digest(request.cookies.get(COOKIE, ""), ctx.token):
+            return PlainTextResponse("앱에서 열어 주세요", status_code=403)
+        if request.method != "GET" and request.headers.get("hx-request") != "true":
+            return PlainTextResponse("허용하지 않은 요청", status_code=403)
+        return _harden(await call_next(request))
+
+    return dispatch
+
+
+def _harden(response: Response) -> Response:
+    response.headers["Content-Security-Policy"] = CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _parse_day(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None

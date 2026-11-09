@@ -65,6 +65,7 @@ class Source:
     body_api: BodyApi | None = None
     archive: Archive | None = None
     date_pattern: str = ""  # 원문 화면에서 게시일을 찾는 정규식 (연 · 월 · 일 그룹)
+    weight: float = 1.0  # Today 순위의 회사 가중치
 
     def excludes(self, title: str) -> bool:
         return any(re.search(pattern, title) for pattern in self.exclude_title)
@@ -117,6 +118,9 @@ def _parse_one(item: Any, origin: str, index: int) -> Source:
             re.compile(pattern)
         except re.error as e:
             raise SourceConfigError(f"{where}: exclude_title 정규식 오류 {pattern!r}") from e
+    weight = item.get("weight", 1.0)
+    if isinstance(weight, bool) or not isinstance(weight, int | float) or weight <= 0:
+        raise SourceConfigError(f"{where}: weight는 0보다 큰 수")
     return Source(
         id=item["id"],
         name=item["name"],
@@ -127,6 +131,7 @@ def _parse_one(item: Any, origin: str, index: int) -> Source:
         body_api=_parse_body_api(item.get("body_api"), where),
         archive=_parse_archive(item.get("archive"), where),
         date_pattern=_regex(item.get("date_pattern", ""), where, "date_pattern"),
+        weight=float(weight),
     )
 
 

@@ -7,6 +7,7 @@ from context_holder.enrich import Confidence, DecisionRecord, Enrichment
 from context_holder.index import Index
 from context_holder.textproc import search_tokens
 from context_holder.wiki import Wiki, article_id
+from tests.conftest import FakeEmbedder
 
 NOW = datetime(2026, 11, 6, tzinfo=UTC)
 
@@ -135,3 +136,33 @@ def test_pending_articles_are_read_without_sections(tmp_path: Path):
 
     assert stored.status == "pending"
     assert stored.summary == () and stored.key_points == ()
+
+
+def test_old_index_gets_screen_columns_without_recomputing_vectors(tmp_path: Path):
+    import sqlite3
+
+    wiki = Wiki(tmp_path / "wiki")
+    aid = write(wiki, "https://t/a", "Kafka 암호화", ("종단 간 암호화",))
+    embedder = FakeEmbedder()
+    path = tmp_path / "index.db"
+    Index(path).sync(wiki, embedder)
+    # 화면용 컬럼이 없던 예전 인덱스로 되돌린다
+    db = sqlite3.connect(path)
+    for column in ("collected", "relevance", "summary_line", "media"):
+        db.execute(f"ALTER TABLE articles DROP COLUMN {column}")
+    db.execute("DELETE FROM meta WHERE key = 'schema'")
+    db.commit()
+    db.close()
+
+    index = Index(path)
+    assert index.get(aid).collected is None
+    calls = embedder.calls
+    assert index.sync(wiki, embedder) == (0, 0)  # 다시 색인한 글 없음
+
+    article = index.get(aid)
+    assert embedder.calls == calls  # 벡터를 다시 계산하지 않았다
+    assert article.collected == NOW.isoformat()
+    assert article.relevance == 0.9
+    assert article.summary_line == "요약 한 줄"
+    assert article.media is None
+    assert Index(path)._backfill is False  # 다음에 열 때는 다시 채우지 않는다

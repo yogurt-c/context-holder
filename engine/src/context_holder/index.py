@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS articles (
     id TEXT PRIMARY KEY,
     url TEXT, title TEXT, source TEXT, published TEXT,
     bucket TEXT, status TEXT, origin TEXT, decision_topic TEXT,
-    path TEXT, signature TEXT
+    path TEXT, signature TEXT,
+    collected TEXT, relevance REAL, summary_line TEXT, media TEXT
 );
 CREATE TABLE IF NOT EXISTS chunks (article_id TEXT, label TEXT, vec BLOB);
 CREATE INDEX IF NOT EXISTS chunks_article ON chunks(article_id);
@@ -31,6 +32,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
     id UNINDEXED, title, decision, tags, key_points, summary, tokenize = 'unicode61'
 );
 """
+SCHEMA_VERSION = "2"  # 2: 화면용 컬럼(collected, relevance, summary_line, media)
+SCREEN_COLUMNS = ("collected TEXT", "relevance REAL", "summary_line TEXT", "media TEXT")
+COLUMNS = """id, url, title, source, published, bucket, status, origin, decision_topic, path,
+             collected, relevance, summary_line, media"""
 
 
 @dataclass(frozen=True)
@@ -45,6 +50,10 @@ class IndexedArticle:
     origin: str | None
     decision_topic: str | None
     path: str
+    collected: str | None = None
+    relevance: float | None = None
+    summary_line: str | None = None
+    media: str | None = None  # 영상 글이면 상태 (summary_only 등)
 
 
 @dataclass(frozen=True)
@@ -67,6 +76,7 @@ class Index:
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")  # 엔진이 쓰는 동안 ctx mcp가 읽을 수 있게
         self.db.executescript(SCHEMA)
+        self._backfill = self._migrate()
         self._matrix: tuple[np.ndarray, list[str], list[str]] | None = None
         self._version = self._data_version()
 
@@ -99,6 +109,19 @@ class Index:
                 self._insert(article, signature[article.id])
                 if embedder:
                     self._insert_vectors(wiki, article, embedder)
+            if self._backfill:  # 예전 인덱스: 화면용 컬럼만 채운다 (벡터는 그대로 둔다)
+                done = {a.id for a in changed}
+                for article in current.values():
+                    if article.id not in done:
+                        self.db.execute(
+                            "UPDATE articles SET collected = ?, relevance = ?, summary_line = ?,"
+                            " media = ? WHERE id = ?",
+                            (*_screen_fields(article), article.id),
+                        )
+                self.db.execute(
+                    "INSERT OR REPLACE INTO meta VALUES ('schema', ?)", (SCHEMA_VERSION,)
+                )
+                self._backfill = False
         self._matrix = None
         return len(changed), len(removed)
 
@@ -148,15 +171,22 @@ class Index:
         return [KeywordHit(aid, -rank) for aid, rank in rows]
 
     def get(self, article_id: str) -> IndexedArticle | None:
-        row = self.db.execute(
-            """SELECT id, url, title, source, published, bucket, status, origin,
-                      decision_topic, path
-               FROM articles WHERE id = ?""",
-            (article_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return IndexedArticle(*row[:5], Bucket(row[5]), *row[6:])
+        rows = self.select("WHERE id = ?", (article_id,))
+        return rows[0] if rows else None
+
+    def select(self, where: str = "", params: tuple = ()) -> list[IndexedArticle]:
+        """화면용 조회. where는 코드에 고정한 조건만 넣고 값은 params로 넘긴다."""
+        rows = self.db.execute(f"SELECT {COLUMNS} FROM articles {where}", params)
+        return [IndexedArticle(*r[:5], Bucket(r[5]), *r[6:]) for r in rows]
+
+    def _migrate(self) -> bool:
+        """예전 스키마면 화면용 컬럼을 붙인다. 다음 sync에서 채워야 하면 True."""
+        have = {row[1] for row in self.db.execute("PRAGMA table_info(articles)")}
+        with self.db:
+            for column in SCREEN_COLUMNS:
+                if column.split()[0] not in have:
+                    self.db.execute(f"ALTER TABLE articles ADD COLUMN {column}")
+        return self._meta("schema") != SCHEMA_VERSION
 
     def _meta(self, key: str) -> str | None:
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
@@ -217,7 +247,7 @@ class Index:
         d = a.decision or {}
         decision_text = _decision_text(d)
         self.db.execute(
-            "INSERT INTO articles VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO articles VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 a.id,
                 a.url,
@@ -230,6 +260,7 @@ class Index:
                 d.get("topic"),
                 str(a.path),
                 signature,
+                *_screen_fields(a),
             ),
         )
         fields = (
@@ -243,6 +274,15 @@ class Index:
             "INSERT INTO fts VALUES (?,?,?,?,?,?)",
             (a.id, *(" ".join(search_tokens(f)) for f in fields)),
         )
+
+
+def _screen_fields(a: StoredArticle) -> tuple[str | None, float | None, str | None, str | None]:
+    return (
+        a.collected.isoformat() if a.collected else None,
+        a.relevance,
+        a.summary[0] if a.summary else None,
+        (a.media or {}).get("status") if a.media else None,
+    )
 
 
 def normalize_topic(topic: str) -> str:

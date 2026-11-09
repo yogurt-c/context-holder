@@ -1,6 +1,7 @@
 # 새 위키 레포의 config/sources.yaml 초깃값. 선정 기준은 README "수집 대상 블로그"와 plan 5.1.
 # mode: feed  = feed 본문 사용, 본문이 짧으면 원문 페이지를 가져온다
 #       fetch = feed에 요약만 있어 항상 원문 페이지를 가져온다
+# weight: Today 순위에 곱하는 회사 가중치. 없으면 1.0
 # archive: 첫 실행(ctx init) 때 feed보다 오래된 글 목록을 얻는 방법. 없으면 feed만 쓴다.
 #   Medium(당근, 무신사, Airbnb, Netflix)과 Cloudflare는 아카이브를 막거나 목록이 없어 feed만 쓴다.
 sources:

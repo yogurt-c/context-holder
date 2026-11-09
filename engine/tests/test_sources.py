@@ -91,6 +91,18 @@ def test_default_sources_are_the_thirteen_from_readme():
             "정규식",
         ),
         ("sources: [\n", "읽을 수 없다"),
+        (
+            "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', weight: 0}\n",
+            "weight",
+        ),
+        (
+            "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', weight: x}\n",
+            "weight",
+        ),
+        (
+            "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', weight: true}\n",
+            "weight",
+        ),
     ],
 )
 def test_rejects_malformed_items(tmp_path: Path, body: str, message: str):
@@ -217,3 +229,11 @@ def test_rejects_non_string_date_pattern(tmp_path: Path):
     body = "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', date_pattern: 3}\n"
     with pytest.raises(SourceConfigError, match="date_pattern"):
         load_sources(write(tmp_path, body))
+
+
+def test_company_weight_defaults_to_one(tmp_path: Path):
+    body = (
+        "sources:\n  - {id: a, name: A, region: domestic, feed: 'https://a', weight: 1.5}\n"
+        "  - {id: b, name: B, region: domestic, feed: 'https://b'}\n"
+    )
+    assert [s.weight for s in load_sources(write(tmp_path, body))] == [1.5, 1.0]

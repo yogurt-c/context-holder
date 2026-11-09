@@ -228,7 +228,15 @@ def test_sync_takes_the_lock_and_pushes_results(tmp_path, github, make_device, m
     lock = json.loads((other.root / f"state/runs/{daily_lock(datetime.now(UTC))}.json").read_text())
     assert lock["device"] == "air"
     assert lock["status"] == "done"
-    assert lock["result"] == {"saved": 3, "inboxed": 0, "dropped": 0, "pending": 1}
+    assert lock["result"] == {
+        "saved": 3,
+        "inboxed": 0,
+        "dropped": 0,
+        "pending": 1,
+        "sources": 0,
+        "failed_sources": 0,
+        "cost_usd": 0.0,
+    }
     assert len(list((other.root / "wiki").iterdir())) == 3
 
     again = runner.invoke(app, ["sync", "--wiki", str(repo.root)])
