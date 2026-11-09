@@ -25,6 +25,7 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx reindex` | 위키와 `vectors/`에서 검색 인덱스(`index.db`)를 다시 만든다 |
 | `ctx reembed` | 원문을 다시 가져와 단락 벡터를 새 검색 모델로 만든다. `--model`, `--no-switch` |
 | `ctx eval-search` | 평가셋으로 키워드만 쓸 때와 모델별 검색 recall@5를 비교한다 ([eval](eval/README.md)) |
+| `ctx eval-mcp` | 결정 질문 평가셋을 MCP tool 경로 그대로 넣어 recall@5를 잰다 ([eval](eval/README.md)) |
 
 GitHub 토큰은 macOS 키체인(`context-holder`)에서, 없으면 `gh auth token`에서 가져온다. 파일에는 쓰지 않는다.
 

@@ -43,6 +43,7 @@ from context_holder.init import (
     run_init,
 )
 from context_holder.llm import ClaudeCli
+from context_holder.mcpeval import evaluate_mcp, load_decision_queries
 from context_holder.mcpserver import build_server
 from context_holder.mcptools import WikiTools
 from context_holder.paths import default_wiki, etag_cache, home
@@ -748,6 +749,33 @@ def eval_search_command(
             f"{name:<12}{_ratio(r.hits, r.total):>8}  {cols}  {_median(r.answered_top):>9}  "
             f"{_max(r.unanswered_top):>9}"
         )
+
+
+@app.command("eval-mcp")
+def eval_mcp_command(
+    queries_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="결정 질문 평가셋."),
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+) -> None:
+    """결정 질문을 MCP tool 경로 그대로 넣어 recall@5를 잰다. 위키 내용은 출력하지 않는다."""
+    wiki = Wiki(wiki_path or default_wiki())
+    queries = load_decision_queries(queries_path)
+    embedder = make_embedder(wiki.search_model())
+    index = _index()  # MCP가 실제로 읽는 인덱스. 바뀐 글만 다시 색인한다
+    index.sync(wiki, embedder)
+    with tempfile.TemporaryDirectory() as tmp:
+        tools = WikiTools(
+            index=index,
+            wiki=wiki,
+            embedder=lambda: embedder,
+            device="eval",
+            log_path=Path(tmp) / "queries.jsonl",  # 실제 질의 로그에 섞지 않는다
+            clock=lambda: datetime.now(UTC),
+        )
+        scores = evaluate_mcp(tools, queries)
+    for name, score in scores.items():
+        typer.echo(f"{name:<34}{_ratio(score.hits, score.total):>8}")
+        for miss in score.misses:
+            typer.echo(f"  놓침: {miss}")
 
 
 def _ratio(hits: int, total: int) -> str:

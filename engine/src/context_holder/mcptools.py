@@ -86,8 +86,7 @@ class WikiTools:
         limit: int = 8,
     ) -> str:
         args = {"queries": list(queries), "company": company, "since": since, "limit": limit}
-        hits, notes = self._search(queries, company, since)
-        hits = hits[: max(1, min(limit, 20))]
+        hits, notes = self.search_hits(queries, company, since, limit)
         if not hits:
             return self._log("search_wiki", args, [], self._empty(notes))
         lines = [*notes]
@@ -112,15 +111,9 @@ class WikiTools:
         self, topic: str | None = None, problem: str | None = None, limit: int = 5
     ) -> str:
         args = {"topic": topic, "problem": problem, "limit": limit}
-        queries = [q for q in (topic, problem) if q and q.strip()]
-        if not queries:
+        if not any(q and q.strip() for q in (topic, problem)):
             return self._log("find_decision_cases", args, [], "topic이나 problem을 준다.")
-        hits, notes = self._search(queries, None, None)
-        cases = [h for h in hits if h.article.decision_topic]
-        if topic:  # 주제가 정확히 같은 사례를 앞에 둔다
-            key = normalize_topic(topic)
-            cases.sort(key=lambda h: normalize_topic(h.article.decision_topic or "") != key)
-        cases = cases[: max(1, min(limit, 10))]
+        cases, notes = self.decision_hits(topic, problem, limit)
         if not cases:
             return self._log("find_decision_cases", args, [], self._empty(notes))
         lines = [*notes]
@@ -177,6 +170,30 @@ class WikiTools:
         return self._log(
             "suggest_source", args, [], "남겼다. 다음 수집 때 소스 추가 후보로 보여 준다."
         )
+
+    # ---------- 순위 (평가도 같은 경로를 쓴다) ----------
+
+    def search_hits(
+        self,
+        queries: Sequence[str],
+        company: str | None = None,
+        since: str | None = None,
+        limit: int = 8,
+    ) -> tuple[list[SearchHit], list[str]]:
+        hits, notes = self._search(queries, company, since)
+        return hits[: max(1, min(limit, 20))], notes
+
+    def decision_hits(
+        self, topic: str | None = None, problem: str | None = None, limit: int = 5
+    ) -> tuple[list[SearchHit], list[str]]:
+        # 짧은 topic을 따로 검색해 합치면 topic 낱말만 맞는 글이 순위를 흐린다. 한 질의로 묻는다
+        query = " ".join(q.strip() for q in (topic, problem) if q and q.strip())
+        hits, notes = self._search([query], None, None)
+        cases = [h for h in hits if h.article.decision_topic]
+        if topic:  # 주제가 정확히 같은 사례를 앞에 둔다
+            key = normalize_topic(topic)
+            cases.sort(key=lambda h: normalize_topic(h.article.decision_topic or "") != key)
+        return cases[: max(1, min(limit, 10))], notes
 
     # ---------- 내부 ----------
 

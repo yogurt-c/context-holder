@@ -168,6 +168,18 @@ def test_decision_cases_by_problem_and_missing_input(wiki, tmp_path):
     )
 
 
+def test_topic_and_problem_are_searched_as_one_query(wiki, tmp_path, monkeypatch):
+    # 따로 검색해 합치면 짧은 topic의 낱말만 맞는 글이 정답을 밀어냈다 (engine/eval)
+    tools = make_tools(wiki, tmp_path)
+    asked = []
+    monkeypatch.setattr(tools, "_search", lambda queries, *a: (asked.append(queries), ([], []))[1])
+
+    tools.decision_hits(topic=" 데이터 동기화 ", problem="두 서비스 간 동기화")
+    tools.decision_hits(problem="문제만")
+
+    assert asked == [["데이터 동기화 두 서비스 간 동기화"], ["문제만"]]
+
+
 # ---------- get_decision · get_article ----------
 
 

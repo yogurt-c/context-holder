@@ -1,0 +1,113 @@
+# MCP 결정 질문 평가셋. 기술 결정을 앞둔 Claude가 물을 법한 문제 서술이다. kind는 분야.
+# expected: 질문에 직접 답하는 글의 URL. 상위 5위 안에 하나라도 나와야 한다. 비어 있으면 위키에 답이 없다.
+# 2026-11-09 위키(결정 기록 198건) 기준. 앞의 20개는 결정 기록을 보고 만들고 사람이 원문과 대조해 고쳤다.
+# 끝의 3개는 사람이 실제로 고민했던 결정이다.
+# claude_calls: Claude Code에 질문만 줬을 때 실제로 보낸 find_decision_cases 입력. 그대로 다시 넣어 채점한다.
+queries:
+- query: 주문 트랜잭션 안에서 Kafka 이벤트를 바로 발행했더니 롤백돼도 알림이 나간다. 구버전 Spring에서 DB 커밋 이후에만 이벤트를 발행하려면?
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2026-02-23/from-legacy-to-modern-architecture-journey
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "트랜잭셔널 아웃박스"
+    problem: "DB 트랜잭션 커밋 후에만 이벤트/알림을 확실히 발행하고 싶다. 롤백돼도 알림이 나가는 문제."
+- query: 선착순 쿠폰을 메시지 큐로 비동기 발급하는데, 제한 수량보다 많은 사용자에게 발급 성공 응답을 보낸 뒤 워커에서 일부 미발급된다. Redis 수량 검증의 경합을 어떻게 해결할까?
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2025-12-15/fcfs-coupon
+- query: 같은 스케줄러를 서버 여러 대에서 돌리면 한 작업을 두 대가 동시에 집어 처리한다. 중복 처리를 막는 방법은?
+  kind: backend
+  expected:
+  - https://techblog.woowahan.com/27678
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "분산 스케줄러 중복 실행 방지"
+    problem: "같은 스케줄러를 여러 서버에서 실행하면 하나의 작업을 여러 인스턴스가 동시에 집어서 중복 처리한다"
+- query: Kafka 컨슈머에서 30분 넘게 걸리는 작업을 처리하니 리밸런싱이 반복된다. 오래 걸리는 작업은 어떤 큐 구조로 처리할까?
+  kind: backend
+  expected:
+  - https://techblog.woowahan.com/23625
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "Kafka 장시간 작업 컨슈머 리밸런싱"
+    problem: "Kafka 컨슈머가 30분 이상 걸리는 작업을 처리하면서 max.poll.interval.ms 초과로 리밸런싱이 반복된다"
+- query: 외부 메시지 발송 API가 가끔 실패하는데 실패 건을 어떻게 재처리할까? 재시도 큐와 이벤트 구조 사이에서 고민 중이다
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2025-12-30/alimtalk_improve_event_driven_architecture
+- query: DB 변경 알림을 서비스에서 직접 발행해 Elasticsearch 검색 색인을 갱신하는데 이벤트 누락으로 색인 정합성이 깨진다. CDC 전환과 누락·값·지연 검증은 어떻게 설계할까?
+  kind: data
+  expected:
+  - https://tech.kakao.com/posts/845
+- query: Kafka 클라이언트를 고치지 않고 메시지를 종단 간 암호화하려면 어느 단위로 적용해야 할까?
+  kind: infra
+  expected:
+  - https://techblog.lycorp.co.jp/ko/applying-e2ee-to-apache-kafka-in-line-app
+- query: 쿠버네티스에서 파드마다 붙은 사이드카 컨테이너 버전을 애플리케이션 재시작 없이 한꺼번에 바꾸고 싶다
+  kind: infra
+  expected:
+  - https://d2.naver.com/helloworld/2983631
+- query: GPU 한 장을 여러 워크로드가 쪼개 쓰게 할 때 조각을 어떤 정책으로 배치해야 낭비가 적을까?
+  kind: infra
+  expected:
+  - https://toss.tech/article/gpu-native-cluster
+- query: 배치 작업과 스트리밍 컨슈머가 같은 테이블 행을 동시에 갱신해서 값이 덮어써진다. 동시성 제어를 어떻게 할까?
+  kind: data
+  expected:
+  - https://oliveyoung.tech/2026-04-22/display-benefits-migration
+- query: 대형 세일 때 모든 앱이 부르는 화면 구성 API가 병목이 된다. 캐시를 로컬에 둘지 원격에 둘지, 무효화는 어떻게 할지
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2025-11-11/sdui_with_caffein
+- query: Next.js Pages Router 프로젝트를 App Router로 옮겨야 할까? 판단 기준이 궁금하다
+  kind: frontend
+  expected:
+  - https://toss.tech/article/52999
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "Next.js App Router 마이그레이션"
+    problem: "Next.js Pages Router 프로젝트를 App Router로 전환할지 결정"
+- query: 모노레포에서 서비스마다 라이브러리 버전이 제각각이라 업그레이드와 타입 충돌이 잦다. 의존성 버전을 어떻게 통일할까?
+  kind: frontend
+  expected:
+  - https://toss.tech/article/52209
+  - https://techblog.woowahan.com/26128
+- query: 세션 기반 레거시 인증을 쓰는데 새 마이크로서비스들이 중앙 세션 저장소에 의존한다. OAuth2 토큰 기반 인증으로 대규모 트래픽 중 무중단 전환하려면?
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2025-10-28/oliveyoung-zero-downtime-oauth2-migration
+- query: LLM으로 데이터 리포트를 만들게 했더니 수치가 틀리고 결과가 매번 달라진다. LLM이 할 일과 코드가 할 일을 어떻게 나눌까?
+  kind: ai
+  expected:
+  - https://techblog.lycorp.co.jp/ko/ai-agent-ad-report-automation
+- query: 수천 명이 동시에 참가하는 실시간 게임에서 서버가 모든 참가자에게 단계 변경을 알려야 한다. WebSocket을 쓰기 어려운 환경에서 SSE, REST, Redis Pub/Sub으로 어떻게 구성할까?
+  kind: backend
+  expected:
+  - https://techblog.woowahan.com/27268
+- query: 외부에 공개할 API를 GraphQL로 만들지 REST로 만들지 고민이다
+  kind: backend
+  expected: []
+- query: 서비스 메시로 Istio와 Linkerd 중 무엇을 도입할까?
+  kind: infra
+  expected: []
+- query: React 앱의 전역 상태 관리를 Redux에서 Zustand로 바꿀 만한가?
+  kind: frontend
+  expected: []
+- query: 피처 플래그를 직접 만들지 LaunchDarkly 같은 상용 서비스를 쓸지
+  kind: backend
+  expected: []
+- query: MSA 서비스 모니터링에서 주요 위험 지표로 삼아야 하는 건 무엇일까?
+  kind: infra
+  expected:
+  - https://techblog.woowahan.com/24488
+  - https://techblog.lycorp.co.jp/ko/sli-and-slo-for-improving-reliability-3
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "MSA 모니터링 지표"
+    problem: "마이크로서비스 모니터링에서 어떤 지표를 핵심 위험 신호로 삼을지 (SLO, golden signals, RED/USE)"
+- query: 어느 정도 규모부터 Spring Batch를 도입하는 게 맞을까?
+  kind: backend
+  expected: []  # 이미 Spring Batch를 쓰는 병렬 처리 사례(oliveyoung esl-series-2)는 있지만 도입 기준은 없다
+- query: MSA 환경에서 두 서비스 간 데이터 동기화를 해야 할 때 어떻게 구현하는 게 좋을까?
+  kind: backend
+  expected:
+  - https://oliveyoung.tech/2026-03-18/oy-store-data-interconnection-strategy
+  claude_calls:  # Claude Code가 실제로 보낸 find_decision_cases 입력 (2026-11-09)
+  - topic: "서비스 간 데이터 동기화"
+    problem: "MSA 환경에서 두 서비스 간 데이터 정합성/동기화를 어떻게 구현할지 (CDC, outbox, 이벤트 발행, 동기 API 호출 비교)"

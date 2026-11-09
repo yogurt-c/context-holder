@@ -72,3 +72,42 @@ uv run ctx eval-search eval/search-queries.yaml --models minilm,e5-small,bge-m3
 - **결과 없음 기준**: 세 모델 모두 답 없는 질의의 1위 유사도가 답 있는 질의와 비슷하거나 높다. 기준값을 두지 않는다.
 - **질의 단어 포함률도 안 된다** (2026-11-09, bge-m3): 질의를 나눈 검색 단위가 글에 든 비율을 상위 5개 글에서 재고 가장 높은 값을 봤다. 답 있는 질의는 최저 0.22 · 중앙값 0.67, 답 없는 질의(평가셋 3개 + 따로 만든 5개)는 0.38~0.80이라 겹친다. MCP는 판단을 호출한 Claude에 맡긴다 (plan 8장).
 - **bge-m3가 놓친 질의 6개**: 영어로 바꿔 말한 질의 4개(한국어 글을 찾는 질의), 협력사 장애 대비 연동, GPU 나눠 쓰기.
+
+## MCP 결정 질문 (`decision-queries.yaml`)
+
+기술 결정을 앞둔 Claude가 물을 법한 문제 서술 23개다. 답 있음 18개, 답 없음 5개.
+
+- 20개는 위키의 결정 기록 198건에서 분야가 겹치지 않게 골라 만들고, 사람이 원문과 대조해 질문과 정답을 고쳤다.
+- 3개는 사람이 실제로 고민했던 결정이다(MSA 위험 지표, Spring Batch 도입 규모, 서비스 간 데이터 동기화). Spring Batch는 도입 기준을 다룬 글이 없어 답 없음이다.
+- `claude_calls`: Claude Code에 질문만 줬을 때 실제로 보낸 `find_decision_cases` 입력(topic · problem). 6건.
+
+```bash
+uv run ctx eval-mcp eval/decision-queries.yaml
+```
+
+세 가지로 잰다. 위키 내용은 출력하지 않는다.
+
+- `find_decision_cases(problem=질문)`, `search_wiki([질문])`: 질문 그대로 넣는다.
+- Claude 호출: `claude_calls`를 그대로 다시 넣는다. Claude가 topic을 붙이거나 자기가 아는 해법으로 질의를 바꾸는 경우를 잰다.
+
+## MCP 결과 (2026-11-09, bge-m3)
+
+| 방식 | recall@5 |
+|---|---|
+| `find_decision_cases(problem=질문)` | 18/18 |
+| `search_wiki([질문])` | 18/18 |
+| Claude 호출 그대로, topic · problem 따로 검색해 RRF로 합침 (이전) | 5/6 |
+| **Claude 호출 그대로, topic · problem을 한 질의로 (현재)** | **6/6** |
+
+- **놓쳤던 호출**: 서비스 간 데이터 동기화. Claude가 topic "서비스 간 데이터 동기화"와 problem(CDC · outbox 비교)을 줬다. problem만으로는 정답이 1위인데, 짧은 topic을 따로 검색하면 "데이터 동기화" 낱말만 맞는 다른 글이 올라와 합친 순위에서 9위로 밀렸다. 한 질의로 묻게 바꿨다.
+- **한계**: 질문 대부분을 결정 기록을 보고 만들어 단어가 겹친다. 질문 그대로 넣은 두 줄은 상한에 가깝다. MCP 질의 로그에서 실제 호출을 모아 `claude_calls`를 늘린다.
+
+**Claude 판단 확인** (Claude Code `claude -p`, 질문 11개를 하나씩). 위키를 쓰라는 말 없이 질문만 줬고 웹 검색은 막았다. 질문은 평가셋 초안의 표현이다.
+
+| 질문 | MCP 호출 | 답 |
+|---|---|---|
+| 답 없음 5개 (GraphQL · REST, Istio · Linkerd, Redux · Zustand, 피처 플래그, Spring Batch 도입 규모) | 5/5가 스스로 호출: `find_decision_cases` 다음 `search_wiki`에 한·영 질의 4~5개 | 5/5 일반 기준으로 답하고 지어낸 사례는 없었다. 4개는 "위키에 맞는 사례가 없다"고 밝혔다. Spring Batch는 없다고 말하지 않았지만, 관련 글을 "도입한 뒤의 병렬화 사례"처럼 맞는 맥락으로만 인용했다 |
+| 답 있음 6개 (커밋 후 이벤트 발행, 스케줄러 중복 처리, App Router 전환, Kafka 장시간 작업, MSA 위험 지표, 서비스 간 데이터 동기화) | 6/6이 스스로 호출 | 5/6이 정답 글을 원문 URL과 함께 인용했다. 데이터 동기화는 위의 순위 문제로 정답을 받지 못하고 Outbox · CDC 글만 인용했다(개선 전) |
+
+- MCP 서버 안내문과 tool 설명만으로 기술 결정 질문에서 위키를 먼저 찾았다. 전역 CLAUDE.md나 세션 시작 hook으로 따로 알려 줄 필요가 없었다.
+- 웹 검색을 막아서 `suggest_source`는 확인하지 못했다.

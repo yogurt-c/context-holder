@@ -166,8 +166,7 @@ box(985, 195, 485, 139, "srv", "context-holder.app — 메뉴바 + 메인 창", 
     "엔진 sidecar 실행 · 감시 · 재시작",
     "화면 = 엔진이 렌더링한 HTML (127.0.0.1 + 토큰)",
 ], nums=(3, 5))
-box(985, 420, 240, 82, "srv", "SessionStart Hook", ["오늘의 브리프 출력", "앱 꺼져도 index.db 직접 읽기"], nums=(3,))
-box(985, 520, 240, 120, "srv", "ctx CLI", [" ctx search <q>", " ctx digest", " ctx sync", " ctx enrich <id>"], nums=(3,))
+box(985, 420, 240, 120, "srv", "ctx CLI", [" ctx search <q>", " ctx sync", " ctx init", " ctx pull"], nums=(3,))
 box(1240, 420, 230, 196, "srv", "MCP Server (stdio)", [
     " list_topics()", " search_wiki(queries[])", " find_decision_cases()", " get_decision(id)",
     " get_article(id)", " suggest_source(url)", "RRF · 0건 → 유사 토픽", "앱과 독립 실행 (WAL 읽기)",
@@ -179,7 +178,7 @@ X_C, W_C = 1540, 255
 box(X_C, 195, W_C, 101, "con", "나 (메뉴바 · 창)", ["출근 후 오늘의 브리프 확인", "검색 · 결정 사례 비교", "피드백 버튼으로 정리 (⑤)"], nums=(3,))
 box(X_C, 315, W_C, 63, "con", "macOS 알림", ["수집 완료 · 클릭 → 브리프 창"])
 box(X_C, 420, W_C, 120, "con", "Claude Code", [
-    "결정 전 MCP 검색", "질의를 한·영으로 확장해 전송", "→ 사례를 출처와 함께 인용", "세션 시작 시 Digest 표시",
+    "결정 전 MCP 검색", "질의를 한·영으로 확장해 전송", "→ 사례를 출처와 함께 인용", "맞는 사례가 없으면 없다고 답함",
 ], nums=(4,))
 box(X_C, 660, W_C, 63, "con", "Terminal", ["ctx 명령"])
 
@@ -194,14 +193,14 @@ arrow([(790, 296), (790, 312)], C_STO)
 # index.db -> 인터페이스
 arrow([(935, 353), (960, 353), (960, 265), (985, 265)], C_STO)
 arrow([(960, 353), (960, 405), (1355, 405), (1355, 420)], C_STO)
-arrow([(960, 405), (960, 580), (985, 580)], C_STO)
+arrow([(960, 405), (960, 480), (985, 480)], C_STO)
 # 피드백: 웹 → wiki/feedback
 arrow([(1330, 195), (1330, 150), (790, 150), (790, 195)], C_CON, dashed=True,
       label="피드백 · 북마크 · suggest_source", label_at=(1060, 145))
 # 인터페이스 → 사용 채널
 arrow([(1470, 245), (1540, 245)], C_SRV, both=True)
 arrow([(1470, 480), (1540, 480)], C_SRV, both=True, label="MCP", label_at=(1505, 472))
-arrow([(1105, 640), (1105, 690), (1540, 690)], C_SRV, both=True)
+arrow([(1105, 540), (1105, 690), (1540, 690)], C_SRV, both=True)
 
 # ---------- 하단 ----------
 BAND_Y = 840
@@ -218,7 +217,7 @@ box(595, BY, BW, BH, "ops", "운영 · 장애 대응", ["Claude 실패 → pendi
 box(900, BY, BW, BH, "ing", "M4 확장", ["Media Worker: 슬라이드·자막·Whisper", "네이버 클립 추출은 검증 전"])
 box(1205, BY, BW, BH, "con", "저작권 · 보안 (개인용)", ["위키 레포는 private", "전문 미저장 (요약 · 링크)", "구독 자동 사용은 약관 확인"])
 box(1510, BY, BW, BH, "ops", "Feedback Loop", ["웹의 '관련없음' → feedback/", "→ 다음 수집 Classifier 반영", "→ 주간 Pruner 재평가"], nums=(5,))
-text(920, BAND_Y + 212, "데이터 흐름: 외부 블로그 → ctx 엔진 (claude -p) → wiki/ ⇄ GitHub (원본) → index.db → 앱 화면 · MCP · CLI · Hook",
+text(920, BAND_Y + 212, "데이터 흐름: 외부 블로그 → ctx 엔진 (claude -p) → wiki/ ⇄ GitHub (원본) → index.db → 앱 화면 · MCP · CLI",
      size=12.5, weight=600, fill="#495057", anchor="middle")
 text(920, BAND_Y + 237, "실선 = 데이터 흐름 · 점선 = 피드백 · (M4) = 후순위", size=11.5, fill="#868E96", anchor="middle")
 

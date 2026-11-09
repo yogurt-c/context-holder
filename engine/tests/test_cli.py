@@ -522,3 +522,24 @@ def test_eval_search_compares_keyword_and_models(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
     assert "키워드만" in result.output and "e5-small" in result.output
     assert "1/1" in result.output
+
+
+def test_eval_mcp_scores_without_printing_wiki_content(monkeypatch, tmp_path):
+    _search_wiki(monkeypatch, tmp_path)
+    queries = tmp_path / "q.yaml"
+    queries.write_text(
+        "queries:\n  - {query: kafka 암호화, kind: infra, expected: ['https://t/kafka']}\n"
+        "  - {query: istio, kind: infra, expected: []}\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["eval-mcp", str(queries), "--wiki", str(tmp_path / "wiki")])
+
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].startswith("find_decision_cases") and lines[0].endswith("0/1")  # 결정 기록 없음
+    assert any(line.startswith("search_wiki") and line.endswith("1/1") for line in lines)
+    assert any("(Claude 호출)" in line and line.endswith("0/0") for line in lines)
+    assert "놓침: kafka 암호화" in result.output
+    assert "초당 100만 건" not in result.output
+    assert not (tmp_path / "home/mcp-queries.jsonl").exists()  # 실제 질의 로그에 섞지 않는다

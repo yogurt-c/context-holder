@@ -12,7 +12,7 @@
 |---|---|---|
 | ① | 빅테크 기술블로그를 주기적으로 수집해 위키에 저장 | `ctx sync` 수집 워커 |
 | ② | 위키 인덱싱 | Indexer → `index.db` |
-| ③ | 검색 + 당일 주요 이슈를 한눈에 | 데스크톱 앱(메뉴바 + Today / Search 창), SessionStart hook |
+| ③ | 검색 + 당일 주요 이슈를 한눈에 | 데스크톱 앱(메뉴바 + Today / Search 창, 수집 완료 알림) |
 | ④ | 기술 결정 시 빅테크 결정 사례를 문맥으로 주입 | Decision Record + MCP 서버 |
 | ⑤ | 업무와 무관한 기술 정리 | Relevance Classifier, 웹의 피드백 버튼, Pruner |
 
@@ -39,7 +39,6 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 | **ctx 엔진 (Python)** | 스케줄러, 수집 워커, 인덱서, 화면 렌더링 (HTTP, 127.0.0.1) |
 | `ctx mcp` | MCP 서버 (stdio). Claude Code가 직접 실행한다. 앱이 꺼져 있어도 검색할 수 있다 |
 | `ctx` CLI | 터미널 검색과 관리. 엔진과 같은 패키지 |
-| SessionStart hook | Claude Code 세션 시작 시 오늘의 브리프 출력 |
 
 메뉴바 메뉴:
 - 상태 줄: "오늘 09:14 수집 완료 · 신규 5건" / "수집 중 3/14" / "오류: 소스 2개 실패"
@@ -60,7 +59,7 @@ Claude Code ── ctx mcp (stdio) : 앱과 독립 실행, index.db 직접 읽�
 - **실행 시점**: 앱이 로그인 시 자동 실행되고 엔진 스케줄러가 판단한다.
   - 앱 시작, 잠자기 해제, 평일 09:30 중 하나가 발생했을 때 "오늘 미수집"이면 수집한다.
   - 완료되면 macOS 알림을 띄운다(신규 N건, 저장 M건). 알림을 누르면 브리프 창이 열린다.
-  - SessionStart hook은 수집을 실행하지 않는다. 엔진에 오늘의 브리프를 물어 출력만 한다. 앱이 꺼져 있으면 index.db를 직접 읽는다.
+  - 오늘의 글은 앱(Today 창, 메뉴바, 알림)에서만 보여 준다. Claude 세션에는 넣지 않는다. Claude는 필요할 때 MCP로 찾는다(8장).
 - **모든 기기가 꺼져 있던 날**: 다음 실행 때 "마지막으로 본 글 이후"부터 따라잡는다. feed가 최근 글을 보존하므로 누락은 거의 없다.
 - **동시 접근**: index.db는 SQLite WAL 모드다. 엔진이 쓰는 동안에도 `ctx mcp`가 읽을 수 있다. index.db 쓰기는 엔진만 한다.
 
@@ -141,7 +140,7 @@ GitHub의 브랜치 갱신은 원자적이라, 두 기기가 동시에 시도해
 3. Claude 연결        Claude Code가 없으면 앱이 공식 설치 프로그램으로 설치
                        → 로그인 창을 띄움 → 사용자가 브라우저에서 승인
                        → 시험 호출로 연결 확인. 연결 전에는 수집을 시작하지 않는다
-4. Claude Code 연동    MCP 서버 등록 + SessionStart hook 추가
+4. Claude Code 연동    MCP 서버 등록
                        ~/.claude 설정은 덮어쓰지 않고 병합, 변경 내용을 보여 주고 백업 후 적용
 5. 완료                초기 수집(5.4)을 시작하고 진행률을 보여 준다. 검색 모델은 뒤에서 내려받는다
 ```
@@ -361,16 +360,17 @@ media:
 - 서버는 바로 뜨고 검색 모델은 첫 검색 때 불러온다(약 2초, 이후 0.1초 안팎). 모델을 아직 받지 않은 기기에서는 키워드로만 찾고 그렇게 알린다.
 - tool은 작업 스레드에서 불리므로 한 번에 하나씩 처리한다. 엔진이 인덱스를 다시 만들면 다음 검색부터 새 인덱스를 본다.
 - `suggest_source`는 피드백 파일에 쓰기만 하고 git은 건드리지 않는다. 다음 `ctx sync`가 함께 올린다.
+- `find_decision_cases`는 topic과 problem을 한 질의로 검색한다. 따로 검색해 합치면 짧은 topic의 낱말만 맞는 글이 정답을 밀어냈다.
 - 결정 주제는 주제 정규화(16번 커밋) 전까지 대소문자 · 공백만 맞춰 묶는다.
 
 호출 유도:
 - tool description에 "기술 선택, 아키텍처 결정, 트레이드오프 비교 전에 호출"을 명시한다.
-- 전역 CLAUDE.md 또는 skill에 다음 순서를 둔다: `find_decision_cases` → 부족하면 웹 검색 → 좋은 글은 `suggest_source`.
+- 서버 안내문(instructions)에 다음 순서를 둔다: `find_decision_cases` → 부족하면 `search_wiki`를 한·영으로 → 웹 검색 → 좋은 글은 `suggest_source`. 평가에서 이것만으로 Claude가 결정 질문마다 위키를 먼저 찾았다. 전역 CLAUDE.md · hook은 두지 않는다.
 - 응답의 모든 사례에 출처 URL을 넣는다.
 
 품질 관리:
 - MCP 질의 로그를 `~/.context-holder/mcp-queries.jsonl`에 남기고 화면에 보여 준다.
-- 평가셋: 실제 기술 결정 질문 20개 × 기대 사례로 recall@5를 측정한다.
+- 평가셋: 기술 결정 질문 23개(실제 고민 3개, 답 없음 5개 포함) × 기대 사례로 recall@5를 잰다(`ctx eval-mcp`). Claude가 실제로 보낸 호출도 그대로 다시 넣어 잰다. 답 없는 질문은 Claude에 실제로 물어 지어내지 않는지 사람이 확인한다 ([검색 평가](../engine/eval/README.md)).
 
 ## 9. 정리 (⑤)
 
@@ -398,7 +398,6 @@ media:
 - 내장 git: pygit2 (libgit2)
 - Claude Code CLI (`claude -p`). 없으면 앱이 공식 설치 프로그램으로 설치
 - GitHub OAuth App (Device Flow), macOS 키체인
-- Claude Code SessionStart hook
 - M4: whisper.cpp, Playwright, ffmpeg
 - 배포: 개인용 무서명 빌드. 처음 한 번 우클릭 → 열기.
 
@@ -407,7 +406,7 @@ media:
 | 단계 | 범위 | 완료 기준 |
 |---|---|---|
 | **M0 검증** | 평가셋 50개 수동 라벨링, `claude -p` 분류 정확도와 JSON 출력 안정성 확인 | 소스별 수집 방식 확정, 분류 정확도 기준선 확보 |
-| **M1 엔진 · 문맥** | 엔진(수집 · 분류 · 요약 · 혼합 검색 인덱싱 · Git 동기화), `ctx` CLI, **MCP 서버**, SessionStart hook, MCP 질의 로그 | `ctx sync`로 매일 위키가 쌓이고 관련 글 precision 80% 이상. 평가셋 recall@5 70% 이상 |
+| **M1 엔진 · 문맥** | 엔진(수집 · 분류 · 요약 · 혼합 검색 인덱싱 · Git 동기화), `ctx` CLI, **MCP 서버**, MCP 질의 로그 | `ctx sync`로 매일 위키가 쌓이고 관련 글 precision 80% 이상. 평가셋 recall@5 70% 이상<br>**완료 (2026-11-09)**: 실제 위키에 매일 수집 1회(잠금 · push), 저장 정밀도 100%(M0), 결정 질문 recall@5 18/18 · Claude 실제 호출 6/6, 답 없는 질문 5/5에서 Claude가 사례를 지어내지 않음 ([평가](../engine/eval/README.md)) |
 | **M2 앱** | 화면(Today · Search · Inbox), **Tauri 앱(메뉴바 · 자동 실행 · 알림 · 스케줄)**, **첫 실행 설정(GitHub · Claude 연결)**, 패키징, Decisions 화면 · 결정 주제 정규화 | 새 Mac에서 설치 후 일주일간 손대지 않아도 매일 아침 수집 완료 알림이 오고, 실제 기술 결정에서 사례 3건 이상 인용 |
 | **M3 정리** | 피드백의 Classifier 반영, Pruner, Sources 화면 | 관련없음 피드백이 다음 수집에 반영됨 |
 | **M4 확장** | 영상 보강(Media Worker) | 필요성이 확인된 것만 진행 |
