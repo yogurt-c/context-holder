@@ -201,7 +201,10 @@ class WikiRepo:
             raise GitSyncError(f"원격에 연결하지 못했다: {e}") from e
 
     def _callbacks(self) -> pygit2.RemoteCallbacks | None:
-        token = self.token() if callable(self.token) else self.token
+        try:
+            token = self.token() if callable(self.token) else self.token
+        except Exception as e:  # 로그인 만료 · 키체인 오류. 네트워크 실패처럼 다음 실행으로 미룬다
+            raise GitSyncError(f"GitHub 토큰을 받지 못했다: {e}") from e
         if not token:
             return None
         return pygit2.RemoteCallbacks(credentials=pygit2.UserPass("x-access-token", token))

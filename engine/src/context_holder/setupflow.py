@@ -111,6 +111,9 @@ class SetupFlow:
         if self.token_source():
             self._connect()
             return
+        self._start_device_flow()
+
+    def _start_device_flow(self) -> None:
         try:
             with self.http() as client:
                 code = deviceflow.start(client, self.clock())
@@ -129,9 +132,11 @@ class SetupFlow:
         self.open_url(code.verification_uri)
 
     def relogin_github(self) -> None:
-        auth.Keychain().delete()
-        self.github = GitHubLogin()
-        self.start_github()
+        """기존 토큰은 새 토큰을 받을 때 덮어쓴다. 그동안 돌던 수집도 push할 수 있다.
+        GitHub CLI 로그인이 있어도 그 계정으로 넘어가지 않고 브라우저 승인을 받는다."""
+        if self.github.state in ("waiting", "connecting"):
+            return
+        self._start_device_flow()
 
     def _wait(self, code: deviceflow.DeviceCode) -> None:
         interval = code.interval

@@ -7,6 +7,7 @@
       <h2>GitHub 로그인과 위키 레포</h2>
       {% if s.github_done %}
         <p class="lede">{% if gh.connected %}{{ gh.connected.login }} 계정, context-wiki {{ "새로 만듦" if gh.connected.created else "찾음" }}{% else %}연결됨{% endif %}{% if s.token_source == "gh" %} · GitHub CLI 로그인을 써요{% endif %}</p>
+        {% if gh.state == "error" %}<p class="error-line" role="alert">{{ gh.message }}</p>{% endif %}
       {% elif gh.state == "waiting" and gh.code %}
         <p class="lede">브라우저에서 이 코드를 넣고 승인하세요.</p>
         <code class="device-code">{{ gh.code.user_code }}</code>

@@ -17,7 +17,8 @@ MINUTES = [f"{m:02d}" for m in range(0, 60, 10)]
 def setup_view(flow: SetupFlow) -> dict[str, Any]:
     flow.claude_settled()
     claude = flow.claude()
-    github_done = flow.ready()
+    # 다시 로그인하는 동안은 이전 토큰이 있어도 코드 입력 단계를 보인다
+    github_done = flow.ready() and flow.github.state not in ("waiting", "connecting")
     return {
         "github": flow.github,
         "github_done": github_done,

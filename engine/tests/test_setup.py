@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import httpx
+import pygit2
 import pytest
 from fastapi.testclient import TestClient
 
@@ -162,11 +163,23 @@ def test_connect_failure_is_shown(flow, monkeypatch):
     assert flow.github.state == "error" and "다른 레포" in flow.github.message
 
 
-def test_relogin_forgets_the_token(flow, no_real_keychain):
+def test_relogin_keeps_the_old_token_until_a_new_one_arrives(flow, no_real_keychain):
+    """승인을 기다리는 동안에도 돌던 수집이 push할 수 있다. 취소하면 이전 로그인이 남는다."""
     no_real_keychain.secret = "old"
     flow.http = github_server([CODE, {"error": "access_denied"}])
     flow.relogin_github()
-    assert no_real_keychain.secret is None and flow.github.state == "error"
+    assert no_real_keychain.secret == "old" and flow.github.state == "error"
+
+
+def test_relogin_asks_github_even_with_cli_login(flow, monkeypatch):
+    """GitHub CLI 로그인이 있어도 조용히 그 계정으로 넘어가지 않고 브라우저 승인을 받는다."""
+    monkeypatch.setattr(auth, "gh_lookup", lambda: "gho_cli")
+    flow.http = github_server([CODE])
+    flow.background = lambda work: None
+    flow.relogin_github()
+    assert flow.github.state == "waiting" and flow.github.code.user_code == "WDJB-MJHT"
+    flow.relogin_github()  # 이미 기다리는 중이면 새 코드를 받지 않는다
+    assert flow.github.state == "waiting"
 
 
 # ---------- Claude ----------
@@ -389,8 +402,15 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     flow.http = github_server([CODE])
     flow.background = lambda work: None
     no_real_keychain.secret = "old"
+    wiki = pygit2.init_repository(str(flow.wiki_root))  # 이미 연결을 마친 기기
+    wiki.remotes.create("origin", "https://github.com/me/context-wiki.git")
+    assert flow.ready()
     assert c.post("/settings/github", headers=HTMX).headers["HX-Redirect"] == "/setup"
-    assert no_real_keychain.secret is None
+    assert no_real_keychain.secret == "old"  # 새 토큰을 받을 때까지 이전 로그인을 쓴다
+    panel = c.get("/setup/panel").text  # 로그인돼 있어도 다시 로그인하는 동안은 코드를 보인다
+    assert "WDJB-MJHT" in panel and 'hx-trigger="every 2s"' in panel
+    flow.github = setupflow.GitHubLogin(state="error", message="GitHub 로그인에 실패했다")
+    assert "GitHub 로그인에 실패했다" in c.get("/setup/panel").text  # 취소해도 이유가 보인다
     waiting = c.post("/settings/claude", headers=HTMX).text
     assert "승인하세요" in waiting and 'hx-trigger="every 2s"' in waiting
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})

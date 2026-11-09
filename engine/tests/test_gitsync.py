@@ -212,6 +212,22 @@ def test_token_is_sent_as_credentials(make_device):
     assert isinstance(a._callbacks(), pygit2.RemoteCallbacks)
 
 
+def test_token_failure_is_a_sync_error(make_device):
+    """토큰을 못 받아도 수집이 죽지 않게, 네트워크 실패처럼 다음 실행으로 미룬다."""
+    a = make_device("a")
+    write(a, "wiki/a.md", "a")
+    a.commit_all("a")
+
+    def missing() -> str:
+        raise RuntimeError("로그인하지 않았다")
+
+    a.token = missing
+    with pytest.raises(GitSyncError, match="GitHub 토큰을 받지 못했다: 로그인하지 않았다"):
+        a.push()
+    with pytest.raises(GitSyncError, match="GitHub 토큰을 받지 못했다"):
+        a.pull()
+
+
 def test_identity_comes_from_repo_config(tmp_path, remote):
     repo = WikiRepo.create(tmp_path / "w", remote)
     assert not repo.has_identity()  # 전역 git 설정이 없는 Mac

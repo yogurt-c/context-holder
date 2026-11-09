@@ -12,7 +12,7 @@ import fcntl
 import json
 import subprocess
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -96,10 +96,6 @@ class Keychain:
 
     def write(self, secret: str) -> None:
         keyring.set_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, secret)
-
-    def delete(self) -> None:
-        with suppress(keyring.errors.KeyringError):
-            keyring.delete_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
 
 
 def save_token(token: StoredToken, keychain: Keychain | None = None) -> None:

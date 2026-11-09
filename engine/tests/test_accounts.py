@@ -188,15 +188,12 @@ def test_save_token_and_source(no_real_keychain):
     assert auth.token_source() == "app"
 
 
-def test_keychain_delete_and_locked(no_real_keychain, monkeypatch):
+def test_keychain_read_write_and_locked(no_real_keychain, monkeypatch):
     import keyring.errors
 
     chain = auth.Keychain()
     chain.write("v")
     assert chain.read() == "v"
-    chain.delete()
-    chain.delete()  # 없어도 괜찮다
-    assert chain.read() is None
 
     def locked(s, a):
         raise keyring.errors.KeyringLocked("잠김")
