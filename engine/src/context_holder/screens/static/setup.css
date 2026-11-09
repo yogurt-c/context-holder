@@ -24,7 +24,13 @@
 .toggles li:first-child { border-top: 0; }
 .toggles label { display: flex; align-items: center; gap: var(--sp-2); flex: 1; cursor: pointer; }
 .toggles small { font-size: 12px; color: var(--ink-faint); }
-.toggles input[type="checkbox"], .toggles input[type="radio"] { accent-color: var(--decision); width: 16px; height: 16px; }
+/* 체크 · 라디오는 흑백으로 그린다. 켜지면 글자색으로 채운다 */
+.toggles input[type="checkbox"], .toggles input[type="radio"] { appearance: none; flex: none; position: relative; width: 16px; height: 16px; margin: 0; border: 1px solid var(--rule-strong); border-radius: 4px; background: var(--surface); cursor: pointer; transition: background-color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease); }
+.toggles input[type="radio"] { border-radius: 50%; }
+.toggles label:hover input:not(:checked) { border-color: var(--ink-faint); }
+.toggles input:checked { background: var(--ink); border-color: var(--ink); }
+.toggles input[type="checkbox"]:checked::after { content: ""; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--on-ink); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
+.toggles input[type="radio"]:checked::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--on-ink); }
 .toggles .time { margin-left: auto; font-family: var(--mono); font-size: 12.5px; color: var(--ink); border: 1px solid var(--rule); border-radius: var(--r-control); padding: 0 var(--sp-2); min-height: 32px; background: var(--paper); }
 .toggles .theme label.radio { flex: none; }
 .toggles .theme span { flex: 1; }
@@ -54,11 +60,14 @@
 .us-row { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
 .us-version { display: flex; align-items: baseline; gap: var(--sp-2); }
 .us-label { font-size: 13px; font-weight: 600; color: var(--ink-faint); width: 140px; }
-.us-num { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.us-num.new { color: var(--decision-ink); }
+.us-num { font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.us-num.old { font-weight: 400; color: var(--ink-faint); }
 .us-arrow { color: var(--ink-faint); }
-.us-status { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--ink-soft); flex: 1; min-width: 0; }
-.us-ok { color: var(--ok); font-weight: 600; }
+.us-status { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--ink-faint); flex: 1; min-width: 0; }
+.us-status .ut-num { font-family: inherit; font-size: inherit; }
+.us-status a { color: var(--ink); text-decoration-color: var(--rule-strong); }
+.us-status a:hover { text-decoration-color: currentColor; }
+.us-ok { color: var(--ink-soft); }
 .us-row .act { margin-left: auto; }
 .us-bar { margin: 0 var(--sp-4) var(--sp-3); height: 6px; border-radius: 3px; }
 .update-settings .toggles { padding: 0 var(--sp-4) var(--sp-3); font-size: 13px; }

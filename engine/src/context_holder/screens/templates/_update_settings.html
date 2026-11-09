@@ -5,8 +5,9 @@
   <div class="us-row body">
     <div class="us-version">
       <span class="us-label">지금 버전</span>
-      <span class="us-num">{{ update.current }}</span>
-      {% if s.state == "available" or (s.state == "error" and s.version) or s.state in ("downloading", "ready") %}<span class="us-arrow" aria-hidden="true">→</span><span class="us-num new">{{ s.version }}</span>{% endif %}
+      {% set has_new = s.state == "available" or (s.state == "error" and s.version) or s.state in ("downloading", "ready") %}
+      <span class="us-num{% if has_new %} old{% endif %}">{{ update.current }}</span>
+      {% if has_new %}<span class="us-arrow" aria-hidden="true">→</span><span class="us-num">{{ s.version }}</span>{% endif %}
     </div>
     <div class="us-status">
       {% if s.state == "off" %}이 빌드는 업데이트를 받지 않아요
