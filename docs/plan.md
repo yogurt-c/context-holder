@@ -418,7 +418,7 @@ media:
 
 ## 11. 기술 스택
 
-- **앱 셸**: Tauri 2 (Rust), 플러그인: tray, autostart, notification, updater
+- **앱 셸**: Tauri 2 (Rust), 플러그인: tray, notification, updater. 로그인 항목은 SMAppService(앱 안의 에이전트)
 - **엔진**: Python 3.12 + uv
   - 사용자 배포: PyInstaller로 묶어 앱 번들에 포함한다 (사용자는 Python 불필요).
   - 개발 중: `uv`로 실행한다.

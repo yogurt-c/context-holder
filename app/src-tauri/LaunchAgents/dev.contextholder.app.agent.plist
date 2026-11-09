@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 로그인 시 자동 실행. 앱 번들 안(Contents/Library/LaunchAgents)에 두고 SMAppService로 등록한다 (src/login.rs).
+     앱 소속으로 등록돼 알림 · 시스템 설정에 개발자 이름 대신 앱 이름이 나온다. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.contextholder.app.agent</string>
+  <key>BundleProgram</key>
+  <string>Contents/MacOS/context-holder</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>Contents/MacOS/context-holder</string>
+    <string>--background</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>LimitLoadToSessionType</key>
+  <string>Aqua</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>dev.contextholder.app</string>
+  </array>
+</dict>
+</plist>

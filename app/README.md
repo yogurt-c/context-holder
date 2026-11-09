@@ -16,7 +16,8 @@ CTX_ENGINE=/path/to/ctx cargo run   # 다른 엔진으로
 
 - 창을 닫아도 앱은 메뉴바에 남는다. 창이 열려 있을 때만 Dock 아이콘을 보인다.
 - 화면(웹뷰)에는 IPC 권한을 주지 않는다. 키보드 단축키는 두지 않는다.
-- 로그인 시 자동 실행은 엔진 설정(`autostart` 이벤트)을 따르고, release 빌드에서만 등록한다(`--background`로 창 없이 시작).
+- 로그인 시 자동 실행은 엔진 설정(`autostart` 이벤트)을 따르고, release 빌드에서만 등록한다(`src/login.rs`). 앱 안의 에이전트(`LaunchAgents/dev.contextholder.app.agent.plist` → `Contents/Library/LaunchAgents`)를 SMAppService로 등록해 알림 · 시스템 설정에 개발자 이름 대신 앱 이름이 나온다. 에이전트는 `--background`로 창 없이 띄운다. 0.1.0이 쓴 `~/Library/LaunchAgents/context-holder.plist`는 지운다.
+- 앱은 한 번에 하나만 뜬다(`~/.context-holder/app.lock`). 로그인 항목을 등록하면 launchd가 바로 한 번 더 띄우기 때문이다.
 - 창 안에서는 엔진 화면(`http://127.0.0.1:<port>`)만 연다. 원문 · GitHub 승인 같은 바깥 주소와 `target=_blank` 링크는 기본 브라우저로 연다.
 - 엔진이 비정상 종료하면 다시 띄운다(최대 3번). 앱이 끝나면 stdin을 닫아 엔진을 끈다.
 - 메뉴바 아이콘은 단색 template 이미지다: `uv run --with pillow python app/scripts/tray_icons.py`.

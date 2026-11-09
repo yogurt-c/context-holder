@@ -9,6 +9,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod engine;
+mod login;
 mod update;
 
 use std::path::PathBuf;
@@ -20,7 +21,6 @@ use tauri::image::Image;
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use update::Updater;
 
@@ -254,12 +254,7 @@ fn on_engine_line(app: &AppHandle, lines: &Lines, line: Line) {
         Line::Autostart { enabled } => {
             // 개발 빌드는 등록하지 않는다 (개발 실행 파일을 로그인 항목에 넣지 않게)
             if !cfg!(debug_assertions) {
-                let launcher = app.autolaunch();
-                let _ = if enabled {
-                    launcher.enable()
-                } else {
-                    launcher.disable()
-                };
+                login::apply(enabled);
             }
         }
         Line::Notify { title, body, open } => {
@@ -285,16 +280,18 @@ fn main() {
     let shell: Shared = Arc::new(Mutex::new(Shell::default()));
     let engine_cell: Arc<Mutex<Option<Engine>>> = Arc::new(Mutex::new(None));
     let background = std::env::args().any(|a| a == BACKGROUND_ARG);
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let Some(_instance) = login::single_instance(&home.join(".context-holder")) else {
+        return; // 이미 떠 있다 (로그인 항목을 막 등록했을 때 launchd가 한 번 더 띄운다)
+    };
 
     let setup_shell = shell.clone();
     let setup_engine = engine_cell.clone();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec![BACKGROUND_ARG]),
-        ))
         .setup(move |app| {
             let handle = app.handle().clone();
             #[cfg(target_os = "macos")]
