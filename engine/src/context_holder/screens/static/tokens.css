@@ -1,7 +1,22 @@
 /* context-holder 디자인 토큰.
- * docs/ui/tokens.css에서 옮겨 왔다. 글꼴은 원격 대신 엔진에 넣은 파일을 쓴다(오프라인, 외부 요청 없음).
- * Pretendard: SIL Open Font License 1.1 (fonts/OFL.txt). 고정폭은 시스템 글꼴을 쓴다.
+ * 흑백 바탕에 1px 선으로 구역을 나누고, 색은 뜻이 있을 때만 쓴다 (결정 사례 파랑, 상태 초록 · 주황 · 빨강).
+ * 글꼴은 엔진에 넣은 파일을 쓴다(오프라인, 외부 요청 없음). 라이선스는 fonts/의 OFL 파일.
+ * 영문 · 숫자는 Geist, 한글은 Geist에 글자가 없어 Pretendard로 이어진다.
  */
+@font-face {
+  font-family: "Geist";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("fonts/Geist-Variable.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("fonts/GeistMono-Variable.woff2") format("woff2-variations");
+}
 @font-face {
   font-family: "Pretendard Variable";
   font-weight: 45 920;
@@ -13,78 +28,78 @@
 
 :root {
   color-scheme: light dark;
-  /* 종이 · 잉크 */
-  --paper: #F7F3EA;
-  --paper-deep: #EFE8DA;
-  --surface: #FFFDF8;
-  --surface-hover: #FFFEFB;
-  --ink: #1C1B18;
-  --ink-hover: #33312C;
-  --ink-body: #2F2D28;
-  --ink-soft: #57524A;
-  --ink-faint: #6E675B;      /* 4.5:1 이상 (paper · surface · chrome 위) */
-  --rule: #DDD4C2;
-  --rule-strong: #CBBFA8;
-  --rule-soft: #EAE3D4;
-  --on-ink: #FFFDF8;         /* 진한 배경 위 글자 */
-  --on-ink-soft: #CFC8BA;
-  --on-ink-line: #4A4740;
+  /* 바탕 · 글자 (Geist 회색 단계) */
+  --paper: #FFFFFF;
+  --paper-deep: #F2F2F2;
+  --surface: #FFFFFF;
+  --surface-hover: #FAFAFA;
+  --ink: #171717;
+  --ink-hover: #383838;
+  --ink-body: #262626;
+  --ink-soft: #4D4D4D;
+  --ink-faint: #666666;      /* 4.5:1 이상 (paper · surface · chrome 위) */
+  --rule: #EAEAEA;
+  --rule-strong: #D4D4D4;
+  --rule-soft: #F0F0F0;
+  --on-ink: #FFFFFF;         /* 진한 배경 위 글자 */
+  --on-ink-soft: #CFCFCF;
+  --on-ink-line: #404040;
 
-  /* 창 틀 (macOS 사이드바 vibrancy 근사) */
-  --chrome: #ECE8E0;
-  --chrome-top: #EFEBE3;
-  --chrome-line: #D8D2C6;
-  --chrome-ink: #3A3833;
-  --chrome-selected: rgba(28, 27, 24, 0.075);
-  --chrome-hover: rgba(28, 27, 24, 0.045);
-  --chrome-card: rgba(255, 253, 248, 0.6);
+  /* 창 틀 (사이드바) */
+  --chrome: #FAFAFA;
+  --chrome-top: #FAFAFA;
+  --chrome-line: #EAEAEA;
+  --chrome-ink: #171717;
+  --chrome-selected: rgba(0, 0, 0, 0.06);
+  --chrome-hover: rgba(0, 0, 0, 0.035);
+  --chrome-card: #FFFFFF;
 
-  /* 의미 색 */
-  --today: #B4441E;          /* 붉은 잉크: 오늘 · 영상 */
-  --today-tint: #FBEEE7;
-  --today-line: #EBC9BA;
-  --decision: #1F5A6B;       /* 청록: 결정 사례 */
-  --decision-tint: #EAF2F3;
-  --decision-line: #BED4D9;
-  --decision-ink: #15414E;
-  --decision-mid: #6E9BA6;
-  --decision-soft: #B9CDD1;
-  --on-decision-soft: #CFE2E6;
-  --ok: #3D7A3A;             /* 상태: 완료 */
-  --ok-tint: #EAF3E7;
-  --ok-line: #C7DEC2;
-  --busy: #A8740B;           /* 상태: 수집 중 · 대기 (채움) */
-  --busy-ink: #8A5F08;       /* 상태: 수집 중 · 대기 (글자) */
-  --busy-deep: #6B4A06;
-  --busy-tint: #FBF3DF;
-  --busy-line: #EBD7A6;
-  --error: #C42B2B;          /* 상태: 오류 (항상 아이콘 · 문구와 함께) */
-  --error-deep: #7A1D1D;
-  --error-tint: #FCECEA;
-  --error-row: #FDF5F3;
-  --error-line: #F0C3BF;
-  --mark: #FFE7A3;
-  --strike: rgba(110, 103, 91, 0.6);           /* 검색 하이라이트 */
+  /* 의미 색: 오늘은 검정, 결정 사례만 파랑 */
+  --today: #171717;
+  --today-tint: #F2F2F2;
+  --today-line: #D4D4D4;
+  --decision: #0068D6;
+  --decision-tint: #EBF5FF;
+  --decision-line: #C2DEFF;
+  --decision-ink: #0054AD;
+  --decision-mid: #5AA0FF;
+  --decision-soft: #B3D4FF;
+  --on-decision-soft: #DCEBFF;
+  --ok: #297A3A;             /* 상태: 완료 */
+  --ok-tint: #EBF8EE;
+  --ok-line: #C1E8CB;
+  --busy: #F5A623;           /* 상태: 수집 중 · 대기 (채움) */
+  --busy-ink: #9E4C00;       /* 상태: 수집 중 · 대기 (글자) */
+  --busy-deep: #763A00;
+  --busy-tint: #FFF6E5;
+  --busy-line: #FFDFA3;
+  --error: #CB2A2F;          /* 상태: 오류 (항상 아이콘 · 문구와 함께) */
+  --error-deep: #8F1B1F;
+  --error-tint: #FFEBEB;
+  --error-row: #FFF5F5;
+  --error-line: #FFC7C7;
+  --mark: #FFF0B3;           /* 검색 하이라이트 */
+  --strike: rgba(0, 0, 0, 0.35);
 
   /* 시안 바탕 (앱에는 없음) */
-  --backdrop: #E4DDD0;
-  --caption: #4B463D;
+  --backdrop: #F2F2F2;
+  --caption: #4D4D4D;
 
   /* 글꼴 */
-  /* 제목도 본문과 같은 산세리프. 토스 기술 블로그(Toss Product Sans)처럼 굵고 촘촘하게 쓴다 */
-  --display: "Pretendard Variable", "Pretendard", "SF Pro KR", -apple-system, "Apple SD Gothic Neo", sans-serif;
-  --sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
-  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --display: "Geist", "Pretendard Variable", "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --sans: "Geist", "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 
   /* 글자 크기: 읽는 화면은 크게, 다루는 화면은 촘촘하게 */
-  --fs-display: 44px;
-  --fs-h1: 30px;
-  --fs-h2: 22px;
-  --fs-h3: 18px;
+  --fs-display: 40px;
+  --fs-h1: 28px;
+  --fs-h2: 20px;
+  --fs-h3: 16px;
   --fs-read: 15px;
   --fs-body: 14px;
-  --fs-small: 12.5px;
-  --fs-micro: 11px;
+  --fs-small: 13px;
+  --fs-micro: 12px;
+  --track-head: -0.04em;     /* 제목 자간 */
 
   /* 간격 (4px 단위) */
   --sp-1: 4px;
@@ -95,140 +110,142 @@
   --sp-6: 32px;
   --sp-7: 48px;
 
-  /* 모서리: 종이는 거의 각지게, 조작 요소는 macOS처럼 둥글게 */
-  --r-paper: 3px;
+  /* 모서리: 작은 요소 · 조작 6px, 카드 8px, 떠 있는 창 12px */
+  --r-paper: 6px;
   --r-control: 6px;
+  --r-card: 8px;
   --r-window: 12px;
 
-  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.04), 0 10px 22px -16px rgba(31, 90, 107, 0.45);
-  --shadow-panel: 0 18px 40px -24px rgba(40, 30, 10, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.04);
+  /* 그림자는 떠 있는 요소(모달 · 팝업)에만. 카드는 1px 선으로 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.04);
 
   --dur-micro: 120ms;
   --dur-short: 200ms;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-/* 다크: macOS 화면 모드를 따른다. 설정에서 라이트 · 다크로 고정할 수 있다 (<html data-theme>). 종이 대신 따뜻한 먹색, 의미 색은 같은 계열에서 밝기만 올린다.
+/* 다크: macOS 화면 모드를 따른다. 설정에서 라이트 · 다크로 고정할 수 있다 (<html data-theme>).
  * 글자와 바탕 조합은 대비 4.5:1 이상이다 (engine/tests/test_theme.py). */
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #1B1A17;
-  --paper-deep: #24221E;
-  --surface: #23211D;
-  --surface-hover: #292723;
-  --ink: #EDE7DA;
-  --ink-hover: #D8D1C3;
-  --ink-body: #DCD5C7;
-  --ink-soft: #B9B1A3;
-  --ink-faint: #9D9587;
-  --rule: #3A3732;
-  --rule-strong: #4D4943;
-  --rule-soft: #2E2C28;
-  --on-ink: #1B1A17;
-  --on-ink-soft: #3E3B35;
-  --on-ink-line: #B9B1A3;
+  --paper: #0A0A0A;
+  --paper-deep: #1A1A1A;
+  --surface: #111111;
+  --surface-hover: #1A1A1A;
+  --ink: #EDEDED;
+  --ink-hover: #D4D4D4;
+  --ink-body: #E0E0E0;
+  --ink-soft: #B4B4B4;
+  --ink-faint: #A1A1A1;
+  --rule: #2E2E2E;
+  --rule-strong: #454545;
+  --rule-soft: #1F1F1F;
+  --on-ink: #0A0A0A;
+  --on-ink-soft: #3D3D3D;
+  --on-ink-line: #A1A1A1;
 
-  --chrome: #201F1C;
-  --chrome-top: #23221F;
-  --chrome-line: #34322D;
-  --chrome-ink: #D9D3C7;
-  --chrome-selected: rgba(255, 248, 235, 0.09);
-  --chrome-hover: rgba(255, 248, 235, 0.05);
-  --chrome-card: rgba(43, 41, 37, 0.7);
+  --chrome: #161616;
+  --chrome-top: #161616;
+  --chrome-line: #262626;
+  --chrome-ink: #EDEDED;
+  --chrome-selected: rgba(255, 255, 255, 0.09);
+  --chrome-hover: rgba(255, 255, 255, 0.05);
+  --chrome-card: #1F1F1F;
 
-  --today: #EC8A66;
-  --today-tint: #3A231A;
-  --today-line: #6B3D2B;
-  --decision: #7DBDCC;
-  --decision-tint: #182A2F;
-  --decision-line: #305A65;
-  --decision-ink: #B4DCE5;
-  --decision-mid: #568F9C;
-  --decision-soft: #3F6E7A;
-  --on-decision-soft: #1B1A17;
-  --ok: #86C47F;
-  --ok-tint: #1D2B1C;
-  --ok-line: #375733;
-  --busy: #DDA845;
-  --busy-ink: #E6BC66;
-  --busy-deep: #F1D497;
-  --busy-tint: #33290F;
-  --busy-line: #5F4B1D;
-  --error: #F2857B;
-  --error-deep: #F8BDB6;
-  --error-tint: #3A1D1B;
-  --error-row: #2A1B19;
-  --error-line: #6C322D;
-  --mark: #6A5317;
-  --strike: rgba(157, 149, 135, 0.6);
+  --today: #EDEDED;
+  --today-tint: #1F1F1F;
+  --today-line: #3D3D3D;
+  --decision: #52A8FF;
+  --decision-tint: #0D1F35;
+  --decision-line: #12355E;
+  --decision-ink: #8EC5FF;
+  --decision-mid: #2E6FB8;
+  --decision-soft: #1E4A80;
+  --on-decision-soft: #0A0A0A;
+  --ok: #62C073;
+  --ok-tint: #0F2416;
+  --ok-line: #1E4A2A;
+  --busy: #F5A623;
+  --busy-ink: #FFB224;
+  --busy-deep: #FFD38A;
+  --busy-tint: #2A1D05;
+  --busy-line: #5C3D05;
+  --error: #FF6166;
+  --error-deep: #FFB3B5;
+  --error-tint: #2E0F10;
+  --error-row: #1F0B0C;
+  --error-line: #5E1A1D;
+  --mark: #5C4A00;
+  --strike: rgba(161, 161, 161, 0.6);
 
-  --backdrop: #121110;
-  --caption: #C9C1B3;
+  --backdrop: #000000;
+  --caption: #A1A1A1;
 
-  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 22px -16px rgba(0, 0, 0, 0.8);
-  --shadow-panel: 0 18px 40px -24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 8px 30px rgba(0, 0, 0, 0.6);
+  --shadow-control: none;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #1B1A17;
-    --paper-deep: #24221E;
-    --surface: #23211D;
-    --surface-hover: #292723;
-    --ink: #EDE7DA;
-    --ink-hover: #D8D1C3;
-    --ink-body: #DCD5C7;
-    --ink-soft: #B9B1A3;
-    --ink-faint: #9D9587;
-    --rule: #3A3732;
-    --rule-strong: #4D4943;
-    --rule-soft: #2E2C28;
-    --on-ink: #1B1A17;
-    --on-ink-soft: #3E3B35;
-    --on-ink-line: #B9B1A3;
+    --paper: #0A0A0A;
+    --paper-deep: #1A1A1A;
+    --surface: #111111;
+    --surface-hover: #1A1A1A;
+    --ink: #EDEDED;
+    --ink-hover: #D4D4D4;
+    --ink-body: #E0E0E0;
+    --ink-soft: #B4B4B4;
+    --ink-faint: #A1A1A1;
+    --rule: #2E2E2E;
+    --rule-strong: #454545;
+    --rule-soft: #1F1F1F;
+    --on-ink: #0A0A0A;
+    --on-ink-soft: #3D3D3D;
+    --on-ink-line: #A1A1A1;
 
-    --chrome: #201F1C;
-    --chrome-top: #23221F;
-    --chrome-line: #34322D;
-    --chrome-ink: #D9D3C7;
-    --chrome-selected: rgba(255, 248, 235, 0.09);
-    --chrome-hover: rgba(255, 248, 235, 0.05);
-    --chrome-card: rgba(43, 41, 37, 0.7);
+    --chrome: #161616;
+    --chrome-top: #161616;
+    --chrome-line: #262626;
+    --chrome-ink: #EDEDED;
+    --chrome-selected: rgba(255, 255, 255, 0.09);
+    --chrome-hover: rgba(255, 255, 255, 0.05);
+    --chrome-card: #1F1F1F;
 
-    --today: #EC8A66;
-    --today-tint: #3A231A;
-    --today-line: #6B3D2B;
-    --decision: #7DBDCC;
-    --decision-tint: #182A2F;
-    --decision-line: #305A65;
-    --decision-ink: #B4DCE5;
-    --decision-mid: #568F9C;
-    --decision-soft: #3F6E7A;
-    --on-decision-soft: #1B1A17;
-    --ok: #86C47F;
-    --ok-tint: #1D2B1C;
-    --ok-line: #375733;
-    --busy: #DDA845;
-    --busy-ink: #E6BC66;
-    --busy-deep: #F1D497;
-    --busy-tint: #33290F;
-    --busy-line: #5F4B1D;
-    --error: #F2857B;
-    --error-deep: #F8BDB6;
-    --error-tint: #3A1D1B;
-    --error-row: #2A1B19;
-    --error-line: #6C322D;
-    --mark: #6A5317;
-    --strike: rgba(157, 149, 135, 0.6);
+    --today: #EDEDED;
+    --today-tint: #1F1F1F;
+    --today-line: #3D3D3D;
+    --decision: #52A8FF;
+    --decision-tint: #0D1F35;
+    --decision-line: #12355E;
+    --decision-ink: #8EC5FF;
+    --decision-mid: #2E6FB8;
+    --decision-soft: #1E4A80;
+    --on-decision-soft: #0A0A0A;
+    --ok: #62C073;
+    --ok-tint: #0F2416;
+    --ok-line: #1E4A2A;
+    --busy: #F5A623;
+    --busy-ink: #FFB224;
+    --busy-deep: #FFD38A;
+    --busy-tint: #2A1D05;
+    --busy-line: #5C3D05;
+    --error: #FF6166;
+    --error-deep: #FFB3B5;
+    --error-tint: #2E0F10;
+    --error-row: #1F0B0C;
+    --error-line: #5E1A1D;
+    --mark: #5C4A00;
+    --strike: rgba(161, 161, 161, 0.6);
 
-    --backdrop: #121110;
-    --caption: #C9C1B3;
+    --backdrop: #000000;
+    --caption: #A1A1A1;
 
-    --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 22px -16px rgba(0, 0, 0, 0.8);
-    --shadow-panel: 0 18px 40px -24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
-    --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.3);
+    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 8px 30px rgba(0, 0, 0, 0.6);
+    --shadow-control: none;
   }
 }
 

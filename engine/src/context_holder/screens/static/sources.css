@@ -4,7 +4,7 @@
 .records-note { margin-bottom: var(--sp-3); font-size: 12.5px; }
 .table-note { margin-top: var(--sp-3); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-thead th { text-align: left; font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); padding: 0 var(--sp-2) var(--sp-2); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+thead th { text-align: left; font-size: var(--fs-micro); font-weight: 500; color: var(--ink-faint); padding: 0 var(--sp-2) var(--sp-2); border-bottom: 1px solid var(--rule); white-space: nowrap; }
 tbody td { padding: var(--sp-2); border-bottom: 1px solid var(--rule-soft); vertical-align: middle; white-space: nowrap; }
 tbody tr:hover td { background: var(--surface); }
 tbody tr.err td { background: var(--error-row); }
@@ -19,7 +19,7 @@ td .msg { color: var(--error); font-size: 12px; white-space: normal; }
 .pass { display: flex; align-items: center; gap: var(--sp-2); }
 .pass .bar { width: 64px; }
 .pass span { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); width: 36px; text-align: right; }
-.group td { padding-top: var(--sp-4); font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); border-bottom: 1px solid var(--rule); background: transparent !important; }
+.group td { padding-top: var(--sp-4); font-size: var(--fs-micro); font-weight: 500; color: var(--ink-faint); border-bottom: 1px solid var(--rule); background: transparent !important; }
 .side { display: flex; flex-direction: column; gap: var(--sp-4); }
 .suggest li { list-style: none; padding: var(--sp-2) 0; border-top: 1px dashed var(--rule-soft); font-size: 13px; overflow-wrap: anywhere; }
 .suggest li:first-child { border-top: 0; }
