@@ -15,6 +15,7 @@ from context_holder.wiki import Wiki, article_id
 class Kind(Enum):
     NOT_RELEVANT = "not_relevant"
     BOOKMARK = "bookmark"
+    SUGGEST_SOURCE = "suggest_source"  # MCP: 웹에서 찾은 좋은 글을 다음 수집 대상으로
 
 
 @dataclass(frozen=True)
@@ -24,10 +25,13 @@ class Feedback:
     url: str
     article_id: str
     device: str
+    note: str | None = None  # suggest_source의 이유 등
 
 
-def record_feedback(wiki: Wiki, device: str, kind: Kind, url: str, when: datetime) -> Feedback:
-    entry = Feedback(when.isoformat(), kind.value, url, article_id(url), device)
+def record_feedback(
+    wiki: Wiki, device: str, kind: Kind, url: str, when: datetime, note: str | None = None
+) -> Feedback:
+    entry = Feedback(when.isoformat(), kind.value, url, article_id(url), device, note)
     path = wiki.root / "feedback" / f"{when:%Y-%m}-{device}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:

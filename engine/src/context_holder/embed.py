@@ -67,7 +67,8 @@ def model_spec(model_id: str) -> ModelSpec:
 class FastEmbedder:  # pragma: no cover - 실제 모델을 내려받아야 해서 단위 테스트에서 돌리지 않는다
     """fastembed(ONNX)로 문장을 정규화된 벡터로 바꾼다."""
 
-    def __init__(self, model_id: str, cache_dir: Path):
+    def __init__(self, model_id: str, cache_dir: Path, local_only: bool = False):
+        self.local_only = local_only  # 내려받지 않고 이미 받은 모델만 쓴다 (ctx mcp)
         self.spec = model_spec(model_id)
         self.model_id = model_id
         self.dim = self.spec.dim
@@ -103,5 +104,9 @@ class FastEmbedder:  # pragma: no cover - 실제 모델을 내려받아야 해�
                         dim=spec.dim,
                         model_file=spec.model_file,
                     )
-            self._model = TextEmbedding(model_name=spec.hf_repo, cache_dir=str(self.cache_dir))
+            self._model = TextEmbedding(
+                model_name=spec.hf_repo,
+                cache_dir=str(self.cache_dir),
+                local_files_only=self.local_only,
+            )
         return self._model

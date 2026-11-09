@@ -16,6 +16,7 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx pull` | 다른 기기의 변경을 받아 바뀐 글만 다시 인덱싱한다 |
 | `ctx init` | 첫 실행: 소스마다 최근 50개(1년 이내)를 가져와 위키를 채운다. `--status`, `--dry-run` |
 | `ctx sync` | 요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다. 위키가 git 레포면 수집 잠금을 잡고 20건마다 push한다 |
+| `ctx mcp` | Claude Code용 MCP 서버 (stdio). tool 6개와 질의 로그 `~/.context-holder/mcp-queries.jsonl` |
 | `ctx feedback` | 관련 없음 · 북마크를 이 기기의 피드백 파일에 남긴다 |
 | `ctx collect` | 소스에서 새 글만 모아 소스별 결과를 본다. `--out`으로 JSONL 저장 |
 | `ctx classify` | 모은 글의 관련도를 판정한다 |
@@ -32,4 +33,12 @@ GitHub 토큰은 macOS 키체인(`context-holder`)에서, 없으면 `gh auth tok
 ```bash
 # 개발할 때는 저장소 안 임시 폴더를 쓴다 (.tmp는 gitignore). git 레포가 아닌 폴더는 push하지 않는다
 CONTEXT_HOLDER_HOME=../.tmp/home uv run ctx sync --wiki ../.tmp/dev-wiki --days 4
+```
+
+## Claude Code에 연결
+
+```bash
+# 앱이 나오기 전 개발용: 모든 프로젝트에서 쓰도록 사용자 범위로 등록한다
+claude mcp add context-holder --scope user -- "$(pwd)/.venv/bin/ctx" mcp
+claude mcp list   # context-holder: ✔ Connected
 ```

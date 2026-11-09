@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 import tempfile
 import time
 from dataclasses import asdict
@@ -42,6 +43,8 @@ from context_holder.init import (
     run_init,
 )
 from context_holder.llm import ClaudeCli
+from context_holder.mcpserver import build_server
+from context_holder.mcptools import WikiTools
 from context_holder.paths import default_wiki, etag_cache, home
 from context_holder.reembed import run_reembed
 from context_holder.runlock import INIT_LOCK, Outcome, RunLock, daily_lock
@@ -613,9 +616,27 @@ def feedback_command(
         typer.echo(f"push하지 못했다. 다음 실행에서 다시 올린다: {e}", err=True)
 
 
-def make_embedder(model_id: str) -> Embedder:
+@app.command("mcp")
+def mcp_command(
+    wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+) -> None:
+    """Claude Code용 MCP 서버를 stdio로 띄운다 (claude mcp add context-holder -- ctx mcp)."""
+    logging.basicConfig(level=logging.WARNING, stream=sys.stderr)  # stdout은 MCP 프로토콜 전용
+    wiki = Wiki(wiki_path or default_wiki())
+    tools = WikiTools(
+        index=_index(),
+        wiki=wiki,
+        embedder=lambda: make_embedder(wiki.search_model(), local_only=True),
+        device=device_name(home()),
+        log_path=home() / "mcp-queries.jsonl",
+        clock=lambda: datetime.now(UTC),
+    )
+    build_server(tools).run("stdio")  # pragma: no cover - stdio를 붙잡는다
+
+
+def make_embedder(model_id: str, local_only: bool = False) -> Embedder:
     """검색 모델. 처음 쓸 때 ~/.context-holder/models에 내려받는다."""
-    return FastEmbedder(model_id, home() / "models")  # pragma: no cover - 실제 모델
+    return FastEmbedder(model_id, home() / "models", local_only)  # pragma: no cover - 실제 모델
 
 
 def _index() -> Index:

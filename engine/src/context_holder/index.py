@@ -63,10 +63,12 @@ class KeywordHit:
 class Index:
     def __init__(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path)
+        # ctx mcp는 tool을 작업 스레드에서 부른다. 호출은 WikiTools가 잠금으로 하나씩 처리한다
+        self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")  # 엔진이 쓰는 동안 ctx mcp가 읽을 수 있게
         self.db.executescript(SCHEMA)
         self._matrix: tuple[np.ndarray, list[str], list[str]] | None = None
+        self._version = self._data_version()
 
     def sync(self, wiki: Wiki, embedder: Embedder | None = None) -> tuple[int, int]:
         """바뀐 글만 다시 색인하고 사라진 글을 지운다. (갱신 수, 삭제 수)
@@ -184,7 +186,26 @@ class Index:
             rows += [(a.id, f"원문 {n}번째 단락", v.tobytes()) for n, v in enumerate(paragraphs, 1)]
         self.db.executemany("INSERT INTO chunks VALUES (?,?,?)", rows)
 
+    def topics(self) -> list[tuple[str, int]]:
+        """결정 주제와 사례 수. 대소문자 · 공백만 맞춰 묶는다 (주제 정규화 전)."""
+        counts: dict[str, tuple[str, int]] = {}
+        for (topic,) in self.db.execute(
+            "SELECT decision_topic FROM articles WHERE decision_topic IS NOT NULL"
+        ):
+            key = normalize_topic(topic)
+            name, n = counts.get(key, (" ".join(topic.split()), 0))
+            counts[key] = (name, n + 1)
+        return sorted(counts.values(), key=lambda t: (-t[1], t[0]))
+
+    def _data_version(self) -> int:
+        return self.db.execute("PRAGMA data_version").fetchone()[0]
+
     def _load_matrix(self) -> tuple[np.ndarray, list[str], list[str]]:
+        version = self._data_version()
+        if (
+            version != self._version
+        ):  # 다른 프로세스(엔진)가 인덱스를 고쳤다 (ctx mcp는 오래 떠 있다)
+            self._matrix, self._version = None, version
         if self._matrix is None:
             rows = self.db.execute("SELECT article_id, label, vec FROM chunks").fetchall()
             vectors = [np.frombuffer(v, dtype=np.float32) for _, _, v in rows]
@@ -222,6 +243,10 @@ class Index:
             "INSERT INTO fts VALUES (?,?,?,?,?,?)",
             (a.id, *(" ".join(search_tokens(f)) for f in fields)),
         )
+
+
+def normalize_topic(topic: str) -> str:
+    return " ".join(topic.lower().split())
 
 
 def _decision_text(d: dict) -> str:

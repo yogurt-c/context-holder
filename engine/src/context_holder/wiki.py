@@ -198,6 +198,10 @@ class Wiki:
             for path in sorted((self.root / folder).glob("*/*/*.md")):
                 yield _stored(path)
 
+    def read(self, path: Path) -> StoredArticle | None:
+        """글 하나를 읽는다. 다른 기기의 pull로 지워졌으면 None."""
+        return _stored(path) if path.exists() else None
+
     def pending(self) -> list[PendingArticle]:
         found = []
         for folder in FOLDER.values():

@@ -90,7 +90,10 @@ class FakeEmbedder:
 @pytest.fixture(autouse=True)
 def fake_search_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """CLI가 실제 검색 모델을 내려받지 않게 한다."""
-    monkeypatch.setattr("context_holder.cli.make_embedder", lambda model_id: FakeEmbedder(model_id))
+    monkeypatch.setattr(
+        "context_holder.cli.make_embedder",
+        lambda model_id, local_only=False: FakeEmbedder(model_id),
+    )
 
 
 @pytest.fixture(autouse=True)
