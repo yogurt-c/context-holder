@@ -43,7 +43,7 @@ def test_menu_before_first_run_today(setup, index):  # noqa: F811
     assert item(event, "지금 수집") == {"label": "지금 수집", "enabled": True, "cmd": "sync_now"}
     pause = item(event, "수집 일시정지")
     assert [c["cmd"] for c in pause["children"]] == ["pause 1h", "pause today", "pause forever"]
-    assert event["items"][-1] == {"label": "context-holder 종료", "enabled": True, "quit": True}
+    assert event["items"][-1] == {"label": "Context Holder 종료", "enabled": True, "quit": True}
     assert item(event, "Inbox")["open"] == "/inbox" and item(event, "설정")["open"] == "/settings"
     assert all(not i.get("label", "").startswith("요약 대기") for i in event["items"])
 

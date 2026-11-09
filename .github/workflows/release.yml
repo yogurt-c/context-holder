@@ -1,7 +1,8 @@
 name: release
 
 # 태그(v0.1.0 등)를 올리면 서명 · 공증한 앱을 빌드해 GitHub 릴리스로 낸다.
-# 릴리스에는 dmg와 앱 업데이트 파일(context-holder.app.tar.gz · latest.json)이 함께 올라간다.
+# 릴리스에는 dmg와 앱 업데이트 파일(Context-Holder.app.tar.gz · latest.json)이 함께 올라간다.
+# 앱 이름(Context Holder)의 공백은 GitHub 파일 이름에서 점으로 바뀌어서, 올릴 때 하이픈 이름으로 바꾼다.
 # 설치된 앱은 releases/latest/download/latest.json을 보고 새 버전을 안다.
 # 수동 실행(workflow_dispatch)은 시험용이다: draft 릴리스로만 남긴다 (latest에 잡히지 않는다).
 on:
@@ -83,6 +84,9 @@ jobs:
           # 업데이트 파일(.app.tar.gz)에 서명한다. 앱은 tauri.conf.json의 공개 키로 확인한다
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # CI=true면 Tauri가 dmg 창 꾸미기(배경 · 아이콘 배치, Finder 스크립트)를 건너뛴다.
+          # macOS 러너는 화면 세션이 있어 Finder 스크립트가 돈다
+          CI: "false"
         run: |
           set -euo pipefail
           override="$(jq -cn --arg id "$SIGNING_IDENTITY" \
@@ -106,7 +110,7 @@ jobs:
       - name: Verify Gatekeeper
         run: |
           set -euo pipefail
-          app="app/src-tauri/target/release/bundle/macos/context-holder.app"
+          app="app/src-tauri/target/release/bundle/macos/Context Holder.app"
           dmg="$(ls app/src-tauri/target/release/bundle/dmg/*.dmg)"
           codesign --verify --deep --strict --verbose=2 "$app"
           spctl --assess --type execute --verbose=2 "$app"
@@ -114,21 +118,27 @@ jobs:
           xcrun stapler validate "$app"
           xcrun stapler validate "$dmg"
           "$app/Contents/Resources/engine/ctx-engine" --version
+          # dmg 창이 꾸며졌는지 (배경 그림 · 아이콘 배치를 담은 .DS_Store)
+          mount="$(hdiutil attach -nobrowse -readonly "$dmg" | tail -1 | awk -F'\t' '{print $NF}')"
+          ls -a "$mount"
+          test -f "$mount/.DS_Store" && ls "$mount/.background/"
+          hdiutil detach -quiet "$mount"
           # 업데이트로 받는 앱도 공증 · staple된 그 앱인지
           mkdir -p "$RUNNER_TEMP/updater"
-          tar -xzf app/src-tauri/target/release/bundle/macos/context-holder.app.tar.gz -C "$RUNNER_TEMP/updater"
-          xcrun stapler validate "$RUNNER_TEMP/updater/context-holder.app"
-          spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/updater/context-holder.app"
+          tar -xzf "app/src-tauri/target/release/bundle/macos/Context Holder.app.tar.gz" -C "$RUNNER_TEMP/updater"
+          xcrun stapler validate "$RUNNER_TEMP/updater/Context Holder.app"
+          spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/updater/Context Holder.app"
 
       - name: Write updater manifest
         run: |
           set -euo pipefail
           bundle=app/src-tauri/target/release/bundle
           mkdir -p release
-          cp "$bundle"/dmg/*.dmg "$bundle/macos/context-holder.app.tar.gz" release/
           version="$(jq -r .version app/src-tauri/tauri.conf.json)"
-          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/context-holder.app.tar.gz"
-          jq -n --arg v "$version" --arg sig "$(cat "$bundle/macos/context-holder.app.tar.gz.sig")" \
+          cp "$bundle"/dmg/*.dmg "release/Context-Holder_${version}_aarch64.dmg"
+          cp "$bundle/macos/Context Holder.app.tar.gz" release/Context-Holder.app.tar.gz
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/Context-Holder.app.tar.gz"
+          jq -n --arg v "$version" --arg sig "$(cat "$bundle/macos/Context Holder.app.tar.gz.sig")" \
             --arg url "$url" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" \
             '{version:$v, notes:$notes, pub_date:$date,
@@ -162,7 +172,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             release/*.dmg
-            release/context-holder.app.tar.gz
+            release/Context-Holder.app.tar.gz
             release/latest.json
       - name: Publish tagged release
         if: github.event_name == 'push'

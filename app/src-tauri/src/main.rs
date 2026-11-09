@@ -125,7 +125,7 @@ fn starting_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 ..empty()
             },
             Item {
-                label: "context-holder 종료".into(),
+                label: "Context Holder 종료".into(),
                 quit: true,
                 ..empty()
             },

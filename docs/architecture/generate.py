@@ -159,7 +159,7 @@ text(649, 765, "하루 2~3건 · 구독 사용량 영향 작음", size=11.5, fil
 
 # 화면 · 인터페이스
 subpanel(970, 160, 515, 630, "srv", "데스크톱 앱 (Tauri) · 인터페이스")
-box(985, 195, 485, 139, "srv", "context-holder.app — 메뉴바 + 메인 창", [
+box(985, 195, 485, 139, "srv", "Context Holder.app — 메뉴바 + 메인 창", [
     "메뉴바: 상태 아이콘 · 지금 수집 · 일시정지",
     "창: Today · Search · Decisions · Inbox · Sources",
     "창을 닫아도 메뉴바 상주 · 로그인 시 자동 실행",

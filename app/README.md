@@ -32,6 +32,7 @@ scripts/build-app.sh --install  # /Applications에 복사
 
 - 엔진 스펙: `engine/packaging/ctx-engine.spec`. 묶은 엔진 약 210MB(onnxruntime 포함), 앱 약 240MB. 검색 모델(약 570MB)은 넣지 않고 설정 후 내려받는다.
 - 묶을 때만 `src-tauri/tauri.bundle.conf.json`(엔진 resources · ad-hoc 서명)을 더한다. 평소 `cargo build`와 CI는 엔진 없이 돈다.
+- dmg 창 배경은 `src-tauri/icons/dmg-background.tiff`(`uv run --with pillow python app/scripts/dmg_background.py`, 1배 · 2배). 아이콘 위치는 `tauri.conf.json`의 `bundle.macOS.dmg`와 맞춘다. CI에서는 `CI=false`로 빌드해야 Tauri가 창을 꾸민다.
 - 앱 아이콘 원본은 `icons/app-icon.png`(`scripts/app_icon.py`), `src-tauri/icons/`는 `npx @tauri-apps/cli@2 icon`으로 만든다.
 - 직접 빌드한 앱은 바로 열린다. 내려받은 앱을 Downloads에서 바로 열면 macOS가 임시 위치에서 실행하므로(App Translocation) MCP 등록을 막고 응용 프로그램 폴더로 옮기라고 안내한다.
 
@@ -40,7 +41,7 @@ scripts/build-app.sh --install  # /Applications에 복사
 `.github/workflows/release.yml`이 Developer ID로 서명하고 공증한 dmg를 GitHub 릴리스로 낸다.
 
 - 태그 `v<버전>`을 올리면 실행된다. 태그 · `tauri.conf.json` · `engine/pyproject.toml`의 버전이 같아야 한다. 수동 실행(workflow_dispatch)은 draft 릴리스로만 남는다.
-- 릴리스에는 dmg와 업데이트 파일(`context-holder.app.tar.gz`, `latest.json`)이 올라간다. 설치된 앱은 `releases/latest/download/latest.json`을 본다. draft 릴리스는 latest에 잡히지 않는다.
+- 릴리스에는 dmg와 업데이트 파일(`Context-Holder.app.tar.gz`, `latest.json`)이 올라간다. 설치된 앱은 `releases/latest/download/latest.json`을 본다. draft 릴리스는 latest에 잡히지 않는다.
 - 업데이트 파일은 `TAURI_SIGNING_PRIVATE_KEY`로 서명하고, 앱은 `tauri.conf.json`의 `plugins.updater.pubkey`로 확인한다. 키를 잃으면 이미 설치된 앱이 그 뒤 업데이트를 받을 수 없다.
 - 순서: 엔진 묶기 → `scripts/sign-engine.sh`(엔진의 모든 Mach-O를 hardened runtime · 타임스탬프로 서명, 실행 파일은 `src-tauri/engine.entitlements`와 함께) → Tauri가 앱을 서명 · 공증 · staple → dmg 서명 · 공증 · staple → Gatekeeper 확인.
 - Tauri는 Resources 안의 파일을 서명하지 않아서 엔진을 먼저 서명한다.

@@ -22,7 +22,7 @@ git과 Python은 앱에 들어 있어 따로 설치할 필요가 없다.
 지금은 직접 빌드해서 설치한다 (Apple Silicon, Rust · uv · Node 필요):
 
 ```bash
-scripts/build-app.sh --install   # /Applications/context-holder.app
+scripts/build-app.sh --install   # /Applications/Context Holder.app
 ```
 
 1. 앱을 설치하고 실행한다.

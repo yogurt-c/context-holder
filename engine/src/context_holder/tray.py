@@ -76,7 +76,7 @@ def status_event(
     items += [
         {"separator": True},
         {"label": "설정", "enabled": True, "open": "/settings"},
-        {"label": "context-holder 종료", "enabled": True, "quit": True},
+        {"label": "Context Holder 종료", "enabled": True, "quit": True},
     ]
     return {"event": "status", "icon": icon, "items": items}
 

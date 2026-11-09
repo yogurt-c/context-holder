@@ -23,7 +23,7 @@
 **Docker Desktop처럼 백그라운드에 상주하는 데스크톱 앱.** 평소엔 메뉴바 아이콘으로 상태만 보이고, 필요할 때 창을 연다.
 
 ```
-context-holder.app (Tauri 2)
+Context Holder.app (Tauri 2)
  ├─ 메뉴바 아이콘: 상태 색 (완료 · 수집 중 · 오류) + 빠른 메뉴
  ├─ 메인 창: Today · Search · Decisions · Inbox · Sources
  └─ sidecar: ctx 엔진 (Python) 실행 · 감시 · 재시작
