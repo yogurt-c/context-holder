@@ -22,6 +22,7 @@ from tests.conftest import FakeEmbedder
 from tests.test_screens import NOW, SOURCES, TODAY, TOKEN, add, context, run_file
 
 HTMX = {"HX-Request": "true"}
+CLOCK = NOW.astimezone().strftime("%H:%M")  # 기록 시각은 기기 현지 시각으로 보인다
 
 
 @pytest.fixture
@@ -355,7 +356,7 @@ def test_sources_counts_new_saved_and_pass_rate_over_30_days(wiki, tmp_path):
 
     toss, d2 = view.domestic
     assert (toss.new, toss.saved, toss.pass_rate) == (6, 4, 67)
-    assert toss.spark == [2, 2, 2, 10, 18] and toss.last_check == "오늘 12:00"
+    assert toss.spark == [2, 2, 2, 10, 18] and toss.last_check == f"오늘 {CLOCK}"
     assert d2.pass_rate is None and d2.error == "시간 초과"
     assert view.failures == [("NAVER D2", "시간 초과")] and view.has_records
 
@@ -399,7 +400,8 @@ def test_sources_page_shows_failures_and_candidates(wiki, tmp_path):
     page = c.get("/sources").text
 
     assert "소스 1곳을 확인하지 못했어요" in page and "NAVER D2: 403" in page
-    assert "11월 8일 12:00" in page
+    day = TODAY - timedelta(days=1)
+    assert f"{day.month}월 {day.day}일 {CLOCK}" in page
     assert "find_decision_cases(&#34;feature flag&#34;)" in page and "2회" in page
     assert "https://spotify.eng" in page and "음악 추천" in page
     assert page.count("Claude 검색 0건") == 1
