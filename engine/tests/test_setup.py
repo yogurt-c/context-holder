@@ -376,6 +376,8 @@ def test_bridge_settings_events(tmp_path):
         settings=lambda: appsettings.Settings(notify=False),
     )
     bridge.apply_settings(appsettings.Settings(autostart=False))
+    assert out.getvalue() == ""  # 첫 실행 설정 전
+    bridge.apply_settings(appsettings.Settings(autostart=False, setup_done=True))
     assert json.loads(out.getvalue()) == {"event": "autostart", "enabled": False}
 
     class Sched:
@@ -411,3 +413,14 @@ def test_bridge_apply_settings_redraws_menu(tmp_path, monkeypatch):
 
 def test_expiring_token_time_is_still_valid():
     assert NOW + timedelta(hours=1) > NOW
+
+
+def test_translocated_app_asks_to_move_first(flow, tmp_path, monkeypatch):
+    monkeypatch.setattr(claudesetup, "translocated", lambda: True)
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    c = screen(flow, tmp_path)
+    assert "응용 프로그램 폴더로 옮긴 뒤" in c.get("/setup").text
+    page = c.get("/settings").text
+    assert (
+        "응용 프로그램 폴더로 옮긴 뒤 등록하세요" in page and 'hx-post="/settings/mcp"' not in page
+    )

@@ -140,7 +140,9 @@ class Scheduler:
 
     def can_run_now(self) -> bool:
         """ "지금 수집"을 누를 수 있나. 일시정지와 재시도 간격은 무시한다."""
-        return not (self.running or self.done_today() or self.other_device_running())
+        if self.running or self.done_today() or self.other_device_running():
+            return False
+        return self.ready()  # 첫 실행 설정 전에는 누를 수 없다
 
     # ---------- 계기 ----------
 
@@ -159,7 +161,7 @@ class Scheduler:
 
     def trigger(self, reason: str) -> bool:
         """계기가 왔다. 오늘 수집이 필요하면 띄운다."""
-        if self.paused_until() or not self.can_run_now() or not self.ready():
+        if self.paused_until() or not self.can_run_now():
             return False
         if self.last and self.last.ok is not True and self.clock() - self.last.at < RETRY_AFTER:
             return False
@@ -167,7 +169,7 @@ class Scheduler:
         return self.start()
 
     def run_now(self) -> bool:
-        return self.can_run_now() and self.ready() and self.start()
+        return self.can_run_now() and self.start()
 
     # ---------- 일시정지 ----------
 

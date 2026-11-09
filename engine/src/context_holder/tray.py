@@ -295,8 +295,13 @@ class AppBridge:
             self.emit(event)
 
     def apply_settings(self, settings: Settings) -> None:
-        """설정이 바뀌었다. 앱이 맡은 것(자동 실행)을 알리고 메뉴를 다시 그린다."""
-        self.emit({"event": "autostart", "enabled": settings.autostart})
+        """설정이 바뀌었다. 앱이 맡은 것(자동 실행)을 알리고 메뉴를 다시 그린다.
+
+        자동 실행은 첫 실행 설정을 마친 뒤에만 알린다.
+        사용자가 고르기 전에 로그인 항목을 넣지 않는다.
+        """
+        if settings.setup_done:
+            self.emit({"event": "autostart", "enabled": settings.autostart})
         if self._last_status is not None:
             self.refresh()
 

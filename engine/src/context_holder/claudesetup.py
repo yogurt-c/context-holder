@@ -72,6 +72,14 @@ def engine_command() -> list[str]:
     return [sys.executable, "-m", "context_holder", "mcp"]
 
 
+def translocated() -> bool:
+    """macOS가 내려받은 앱을 임시 위치에서 실행 중인가 (App Translocation).
+
+    이때 등록하면 MCP 명령이 사라질 경로를 가리킨다. 응용 프로그램 폴더로 옮긴 뒤 등록한다.
+    """
+    return "/AppTranslocation/" in engine_command()[0]
+
+
 def registered_command(run: Run = run_command, claude: str | None = None) -> list[str] | None:
     """Claude Code에 등록된 context-holder MCP 명령. 없으면 None."""
     code, out = run([claude or tool("claude"), "mcp", "get", MCP_NAME], TIMEOUT)

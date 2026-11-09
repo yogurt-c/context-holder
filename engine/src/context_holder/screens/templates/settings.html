@@ -30,7 +30,8 @@
             <span class="act" id="claude-act">{% if v.claude.installed %}<button type="button" class="btn sm" hx-post="/settings/claude" hx-target="#claude-act">다시 연결</button>{% else %}<a class="btn sm" href="/setup">설치하기</a>{% endif %}</span></dd>
           <dt>Claude Code 검색</dt>
           <dd>{% if v.mcp_ok %}연결됨{% elif v.registered %}<span class="warn">다른 엔진이 등록돼 있어요</span> <code>{{ v.registered }}</code>{% else %}<span class="warn">등록 안 됨</span>{% endif %}
-            <span class="act" id="mcp-act">{% if v.claude.installed %}<button type="button" class="btn sm" hx-post="/settings/mcp" hx-target="#mcp-act">다시 등록</button>{% endif %}</span></dd>
+            {% if v.translocated %}<span class="warn">앱을 응용 프로그램 폴더로 옮긴 뒤 등록하세요</span>{% endif %}
+            <span class="act" id="mcp-act">{% if v.claude.installed and not v.translocated %}<button type="button" class="btn sm" hx-post="/settings/mcp" hx-target="#mcp-act">다시 등록</button>{% endif %}</span></dd>
         </dl>
       </section>
 

@@ -19,6 +19,12 @@
 
 git과 Python은 앱에 들어 있어 따로 설치할 필요가 없다.
 
+지금은 직접 빌드해서 설치한다 (Apple Silicon, Rust · uv · Node 필요):
+
+```bash
+scripts/build-app.sh --install   # /Applications/context-holder.app
+```
+
 1. 앱을 설치하고 실행한다.
 2. **GitHub로 로그인**한다. 브라우저에서 승인하면 위키 레포(`context-wiki`, private)를 찾거나 새로 만든다.
 3. **Claude 연결**. Claude Code가 없으면 앱이 설치하고, 브라우저에서 로그인을 승인한다.

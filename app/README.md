@@ -20,4 +20,16 @@ CTX_ENGINE=/path/to/ctx cargo run   # 다른 엔진으로
 - 창 안에서는 엔진 화면(`http://127.0.0.1:<port>`)만 연다. 원문 · GitHub 승인 같은 바깥 주소와 `target=_blank` 링크는 기본 브라우저로 연다.
 - 엔진이 비정상 종료하면 다시 띄운다(최대 3번). 앱이 끝나면 stdin을 닫아 엔진을 끈다.
 - 메뉴바 아이콘은 단색 template 이미지다: `uv run --with pillow python app/scripts/tray_icons.py`.
-- 엔진을 앱 안에 묶는 일(PyInstaller, resources)은 패키징에서 한다. 그 전에는 개발 엔진을 띄운다.
+- 엔진은 `CTX_ENGINE` → 앱 안 `Resources/engine/ctx-engine` → 개발 엔진(`engine/.venv/bin/ctx`) 순으로 찾는다.
+
+## 빌드
+
+```bash
+scripts/build-app.sh            # 엔진 묶기(PyInstaller onedir) → 앱 묶기(Tauri) → ad-hoc 서명
+scripts/build-app.sh --install  # /Applications에 복사
+```
+
+- 엔진 스펙: `engine/packaging/ctx-engine.spec`. 묶은 엔진 약 210MB(onnxruntime 포함), 앱 약 240MB. 검색 모델(약 570MB)은 넣지 않고 설정 후 내려받는다.
+- 묶을 때만 `src-tauri/tauri.bundle.conf.json`(엔진 resources · ad-hoc 서명)을 더한다. 평소 `cargo build`와 CI는 엔진 없이 돈다.
+- 앱 아이콘 원본은 `icons/app-icon.png`(`scripts/app_icon.py`), `src-tauri/icons/`는 `npx @tauri-apps/cli@2 icon`으로 만든다.
+- 직접 빌드한 앱은 바로 열린다. 내려받은 앱을 Downloads에서 바로 열면 macOS가 임시 위치에서 실행하므로(App Translocation) MCP 등록을 막고 응용 프로그램 폴더로 옮기라고 안내한다.

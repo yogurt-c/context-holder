@@ -287,6 +287,7 @@ def test_not_ready_blocks_triggers_and_run_now(setup):
     scheduler, _, _, _, spawned, _, _ = setup
     scheduler.ready = lambda: False
     assert not scheduler.trigger("start") and not scheduler.run_now()
+    assert not scheduler.can_run_now()  # 사이드바 · 메뉴의 지금 수집도 꺼진다
     assert spawned == []
 
 

@@ -55,8 +55,12 @@
         <p class="lede">연결됨. Claude Code가 기술 결정 전에 위키를 찾아봐요.</p>
       {% else %}
         <p class="lede">Claude Code 설정에 이 명령으로 MCP 서버를 등록해요. 설정 파일은 Claude Code가 직접 고쳐요.</p>
+        {% if s.translocated %}
+        <p class="error-line" role="alert">앱을 응용 프로그램 폴더로 옮긴 뒤 다시 열어 주세요. 지금 위치는 macOS가 잠시 쓰는 임시 경로라 등록해도 곧 사라져요.</p>
+        {% else %}
         <code class="command">{{ s.mcp_preview }}</code>
         <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>등록</button>
+        {% endif %}
       {% endif %}
     </div>
   </article>

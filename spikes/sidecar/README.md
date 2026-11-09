@@ -26,4 +26,4 @@ build/dist/ctx-spike-dir/ctx-spike-dir --clone
 
 - 엔진은 **onedir**로 묶어 앱 번들의 resources에 넣는다. `ctx mcp`는 Claude Code 세션마다 새로 실행되므로 시작 시간이 중요하다.
 - Tauri의 `externalBin`은 단일 파일을 기대하므로, onedir은 resources로 넣고 앱이 경로를 지정해 직접 실행한다.
-- 남은 확인: 서명 없는 앱에서 Gatekeeper 격리 속성(quarantine)이 resources 안 실행 파일에 주는 영향. 패키징 커밋에서 확인한다.
+- 격리 속성 확인(패키징 커밋): ad-hoc 서명 앱에 격리 표시를 붙이면 Gatekeeper가 앱 자체를 거절한다(`spctl`: rejected). 직접 빌드한 앱은 격리 표시가 없어 resources의 엔진까지 그대로 뜬다. 배포용은 Developer ID 서명 · 공증으로 간다.

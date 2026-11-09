@@ -239,8 +239,10 @@ def test_bridge_emits_status_once_per_change_and_notices(setup, index):  # noqa:
     bridge.check_notices()
     bridge.check_notices()
     events = [json.loads(line) for line in out.getvalue().splitlines()]
-    assert [e["event"] for e in events] == ["autostart", "status", "notify"]
-    assert events[0] == {"event": "autostart", "enabled": True}
+    assert [e["event"] for e in events] == [
+        "status",
+        "notify",
+    ]  # 설정 전이라 자동 실행은 알리지 않는다
 
 
 def test_bridge_commands(setup, index):  # noqa: F811

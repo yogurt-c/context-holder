@@ -71,3 +71,11 @@ def test_defaults_use_found_claude(monkeypatch):
     claudesetup.register_mcp(run)
     assert all(call[0] == "/found/claude" for call in run.calls)
     assert claudesetup.status(FakeRun((127, ""))).installed is False
+
+
+def test_translocated_engine_path(monkeypatch):
+    monkeypatch.setattr(claudesetup, "engine_command", lambda: ["/a/ctx", "mcp"])
+    assert not claudesetup.translocated()
+    moved = "/private/var/folders/x/T/AppTranslocation/ABC/d/context-holder.app/Contents/MacOS/x"
+    monkeypatch.setattr(claudesetup, "engine_command", lambda: [moved, "mcp"])
+    assert claudesetup.translocated()

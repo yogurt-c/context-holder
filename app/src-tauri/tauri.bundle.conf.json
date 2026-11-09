@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "resources": {
+      "../../engine/dist/ctx-engine/": "engine/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    }
+  }
+}

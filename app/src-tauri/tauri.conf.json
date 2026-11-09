@@ -3,14 +3,31 @@
   "productName": "context-holder",
   "version": "0.1.0",
   "identifier": "dev.contextholder.app",
-  "build": { "frontendDist": "../shell" },
+  "build": {
+    "frontendDist": "../shell"
+  },
   "app": {
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
-    "icon": ["icons/icon.png"]
+    "targets": [
+      "app"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "category": "public.app-category.developer-tools",
+    "shortDescription": "빅테크 기술 결정 사례 위키",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
   }
 }
