@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% from "_macros.html" import alert_banners %}
-{% block title %}Sources · context-holder{% endblock %}
+{% block title %}Sources · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/sources.css">{% endblock %}
 {% macro rows(items) -%}
 {% for r in items %}
 <tr{% if r.error %} class="err"{% endif %}>
   <td class="co-cell">{{ r.source.name }} <small>{{ r.source.id }}</small></td>
-  <td><span class="badge plain">{{ r.method }}</span></td>
   <td>{% if r.error %}<span class="msg">{{ r.error }}</span>{% elif r.last_check %}<span class="when">{{ r.last_check }}</span>{% else %}<span class="none">기록 없음</span>{% endif %}</td>
   <td class="r">{{ r.new }}</td>
   <td><span class="spark" role="img" aria-label="6일 단위 새 글 추이">{% for h in r.spark %}<i style="height:{{ h }}px"></i>{% endfor %}</span></td>
@@ -28,13 +27,13 @@
         {% endif %}
         {% if not view.has_records %}<p class="note records-note">소스별 결과는 이번 업데이트부터 수집 기록에 쌓여요. 다음 수집이 끝나면 채워져요.</p>{% endif %}
         <div class="table-scroll"><table aria-label="소스 목록">
-          <thead><tr><th>회사</th><th>방식</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th></tr></thead>
+          <thead><tr><th>회사</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th></tr></thead>
           <tbody>
-            {% if view.domestic %}<tr class="group"><td colspan="6">국내</td></tr>{{ rows(view.domestic) }}{% endif %}
-            {% if view.overseas %}<tr class="group"><td colspan="6">해외</td></tr>{{ rows(view.overseas) }}{% endif %}
+            {% if view.domestic %}<tr class="group"><td colspan="5">국내</td></tr>{{ rows(view.domestic) }}{% endif %}
+            {% if view.overseas %}<tr class="group"><td colspan="5">해외</td></tr>{{ rows(view.overseas) }}{% endif %}
           </tbody>
         </table></div>
-        <p class="note table-note">통과율은 30일 동안 새로 모은 글 중 저장한 비율이에요. 소스 추가와 수정은 다음 업데이트에서 열려요.</p>
+        <p class="note table-note">통과율은 30일 동안 새로 모은 글 중 저장한 비율이에요.</p>
       </section>
 
       <aside class="side">
@@ -43,15 +42,15 @@
           {% if view.missed or view.suggestions %}
           <ul class="body suggest">
             {% for m in view.missed %}
-            <li><code>{{ m.call }}</code>
-              <div class="why">Claude 검색 0건{% if m.times > 1 %}, {{ m.times }}회{% endif %}. 위키에 없는 주제예요.</div></li>
+            <li><span class="q">{{ m.call }}</span>
+              <div class="why">Claude가 찾았지만 위키에 없었어요{% if m.times > 1 %} ({{ m.times }}회){% endif %}</div></li>
             {% endfor %}
             {% for s in view.suggestions %}
             <li><a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.url }}</a>
               <div class="why">Claude가 {{ short_day(s.day) }}에 추천{% if s.reason %}: {{ s.reason }}{% endif %}</div></li>
             {% endfor %}
           </ul>
-          {% else %}<p class="note mcp-note">아직 후보가 없어요. Claude 검색이 0건이었던 질의와 Claude가 추천한 글이 여기에 모여요.</p>{% endif %}
+          {% else %}<p class="note mcp-note">아직 후보가 없어요. Claude가 찾았지만 위키에 없던 주제와 Claude가 추천한 글이 여기에 모여요.</p>{% endif %}
         </section>
       </aside>
     </div></div>

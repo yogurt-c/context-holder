@@ -240,7 +240,7 @@ def test_search_without_query_offers_decision_topics(wiki, tmp_path):
     )
 
 
-def test_search_highlights_filters_and_previews(wiki, tmp_path):
+def test_search_highlights_filters_and_opens_detail(wiki, tmp_path):
     a = add(wiki, "https://t/a", "사이드카 버전 관리", topic="사이드카 관리", source="toss")
     b = add(wiki, "https://t/b", "사이드카 없이 운영하기", topic="사이드카 관리")
     add(wiki, "https://t/c", "사이드카 소개", published=NOW - timedelta(days=400))
@@ -250,32 +250,47 @@ def test_search_highlights_filters_and_previews(wiki, tmp_path):
     assert "결과 3건" in page and "<mark>사이드카</mark>" in page
     assert 'value="toss" checked' not in page and "Toss<b>1</b>" in page
     assert "kubernetes<b>3</b>" in page
-    assert "비슷한 결정" in page and 'data-copy="decision-md"' in page
-    assert NO_MODEL_NOTE not in page
+    assert f'hx-get="/article/{a}"' in page and 'hx-target="#modal-body"' in page
+    assert "번째 단락" not in page and "번째 줄" not in page  # 구현 문구는 보여 주지 않는다
+    assert "초</span>" not in page
 
     decisions = c.get("/search?q=사이드카&kind=decision&period=1y").text
     assert "결과 2건" in decisions and "사이드카 소개" not in decisions
 
-    toss = c.get(f"/search?q=사이드카&company=toss&sel={b}").text
+    toss = c.get("/search?q=사이드카&company=toss").text
     assert "결과 1건" in toss and 'value="toss" checked' in toss
-    assert (
-        'id="search-body"' in toss and "사이드카 버전 관리</h2>" in toss
-    )  # 고른 글이 빠지면 첫 글
 
-    partial = c.get(f"/search?q=사이드카&sel={b}", headers=HTMX).text
-    assert "<html" not in partial and "사이드카 없이 운영하기</h2>" in partial
-    assert f"sel={a}" in partial
+    partial = c.get("/search?q=사이드카", headers=HTMX).text
+    assert "<html" not in partial and f"/article/{b}" in partial
 
     tagged = c.get("/search?q=사이드카&tag=없는태그").text
     assert "맞는 글이 없어요" in tagged and 'value="없는태그" checked' in tagged
+
+
+def test_article_modal_shows_everything(wiki, tmp_path):
+    a = add(wiki, "https://t/a", "사이드카 버전 관리", topic="사이드카 관리", source="toss")
+    b = add(wiki, "https://t/b", "사이드카 없이 운영하기", topic="사이드카 관리")
+    plain = add(wiki, "https://t/c", "그냥 글")
+    c, _ = make_client(wiki, tmp_path, FakeEmbedder())
+
+    modal = c.get(f"/article/{a}").text
+    assert "<html" not in modal and 'id="article-title">사이드카 버전 관리</h2>' in modal
+    assert "핵심 내용" in modal and "<q>근거 문장</q>" in modal  # 결정 기록 전체와 근거
+    assert "결정 기록 복사" in modal and 'data-copy="modal-decision-md"' in modal
+    assert "원문 열기" in modal and 'href="https://t/a"' in modal
+    assert "비슷한 결정" in modal and f'hx-get="/article/{b}"' in modal
+    assert "Claude에 문맥으로" not in modal
+
+    other = c.get(f"/article/{plain}").text
+    assert "비슷한 결정" not in other and "결정 기록 복사" not in other
+    assert c.get("/article/none").status_code == 404
 
 
 def test_search_without_model_says_keyword_only(wiki, tmp_path):
     add(wiki, "https://t/a", "사이드카 운영")
     c, _ = make_client(wiki, tmp_path)
     page = c.get("/search?q=사이드카").text
-    assert NO_MODEL_NOTE in page and "사이드카 운영</h2>" in page
-    assert "비슷한 결정" not in page  # 결정 기록이 없는 글
+    assert searchview.NO_MODEL_SCREEN in page and NO_MODEL_NOTE not in page
 
 
 def test_search_skips_articles_whose_file_is_gone(wiki, tmp_path):
@@ -287,15 +302,15 @@ def test_search_skips_articles_whose_file_is_gone(wiki, tmp_path):
 
 def test_query_parsing_and_urls():
     q = searchview.parse_query(
-        {"q": "  outbox ", "kind": "bad", "period": "30d", "sel": ""},
+        {"q": "  outbox ", "kind": "bad", "period": "30d"},
         {"company": ["toss", "toss"], "tag": ["cdc"]},
     )
-    assert q == searchview.Query("outbox", "all", "30d", ("toss",), ("cdc",), None)
+    assert q == searchview.Query("outbox", "all", "30d", ("toss",), ("cdc",))
     assert q.url() == "/search?q=outbox&period=30d&company=toss&tag=cdc"
     assert q.toggle("companies", "toss") == "/search?q=outbox&period=30d&tag=cdc"
     assert q.toggle("tags", "kafka").endswith("tag=cdc&tag=kafka")
     assert searchview.Query().url() == "/search"
-    assert searchview.Query(kind="decision", sel="x").url() == "/search?kind=decision&sel=x"
+    assert searchview.Query(kind="decision").url() == "/search?kind=decision"
 
 
 def test_highlight_marks_terms_case_insensitively():
@@ -402,9 +417,9 @@ def test_sources_page_shows_failures_and_candidates(wiki, tmp_path):
     assert "소스 1곳을 확인하지 못했어요" in page and "NAVER D2: 403" in page
     day = TODAY - timedelta(days=1)
     assert f"{day.month}월 {day.day}일 {CLOCK}" in page
-    assert "find_decision_cases(&#34;feature flag&#34;)" in page and "2회" in page
+    assert "결정 사례 · feature flag" in page and "(2회)" in page
     assert "https://spotify.eng" in page and "음악 추천" in page
-    assert page.count("Claude 검색 0건") == 1
+    assert page.count("위키에 없었어요") == 1 and "feed 본문" not in page
 
 
 def test_missed_queries_without_log(tmp_path):

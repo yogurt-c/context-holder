@@ -25,7 +25,7 @@ aside.rail-right { display: flex; flex-direction: column; gap: var(--sp-4); }
 .inbox-mini .row { display: flex; justify-content: space-between; align-items: center; margin-top: var(--sp-2); }
 .mcp { list-style: none; }
 .mcp li { display: flex; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-1) 0; font-size: 12px; }
-.mcp code { font-family: var(--mono); font-size: 11.5px; }
+.mcp .q { min-width: 0; overflow-wrap: anywhere; }
 .mcp .hit { font-family: var(--mono); font-size: 11.5px; color: var(--ok); }
 .mcp .miss { font-family: var(--mono); font-size: 11.5px; color: var(--today); font-weight: 700; }
 .pending-line { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-4); font-size: 12.5px; color: var(--ink-soft); }

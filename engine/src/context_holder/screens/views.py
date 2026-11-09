@@ -134,7 +134,7 @@ def rank(
 def run_status(wiki: Wiki, day: date, device: str, is_today: bool) -> RunStatus:
     path = wiki.root / RUNS_DIR / f"{day.isoformat()}.json"
     if not path.exists():
-        label = "오늘 아직 수집 전" if is_today else "이날은 수집하지 않았다"
+        label = "오늘 아직 수집 전" if is_today else "이날은 수집하지 않았어요"
         return RunStatus("none", label, mine=False)
     record: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     holder = record.get("device")
@@ -155,7 +155,7 @@ def run_status(wiki: Wiki, day: date, device: str, is_today: bool) -> RunStatus:
         label = "이 기기가 수집 중" if mine else f"{holder}가 수집 중"
         return RunStatus("running", label, mine, holder, counts, f"{started}에 시작")
     if status == "stopped":
-        return RunStatus("stopped", "수집이 중간에 멈췄다", mine, holder, counts, where)
+        return RunStatus("stopped", "수집이 중간에 멈췄어요", mine, holder, counts, where)
     finished = _clock_time(record.get("finished_at"))
     head = f"오늘 {finished} 수집 완료" if is_today else f"{finished} 수집 완료"
     return RunStatus("done", head, mine, holder, counts, where)
@@ -324,10 +324,10 @@ def _clock_time(value: str | None) -> str:
 
 
 def call_text(tool: str, args: dict[str, Any]) -> str:
+    """Claude가 찾은 말. 검색은 질의 두 개까지, 결정 사례 찾기는 주제(없으면 문제)."""
     if tool == "search_wiki":
-        queries = [_clip(q) for q in (args.get("queries") or [])[:2]]
-        return f"search_wiki({json.dumps(queries, ensure_ascii=False)})"
-    return f'find_decision_cases("{_clip(args.get("topic") or args.get("problem") or "")}")'
+        return " · ".join(_clip(q) for q in (args.get("queries") or [])[:2])
+    return "결정 사례 · " + _clip(args.get("topic") or args.get("problem") or "")
 
 
 def _clip(text: str, size: int = 16) -> str:

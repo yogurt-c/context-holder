@@ -54,6 +54,7 @@ class SetupFlow:
     sleep: Callable[[float], None] = time.sleep
     open_url: Callable[[str], object] = webbrowser.open
     copy: Callable[[str], None] = field(default=lambda text: _pbcopy(text))
+    claude_config: Path | None = None  # 테스트에서 바꾼다. 없으면 Claude Code 설정 파일
     on_ready: Callable[[], None] = lambda: None  # 위키 · 로그인이 갖춰졌다 (스케줄러를 깨운다)
     github: GitHubLogin = field(default_factory=GitHubLogin)
     claude_job: ClaudeJob = field(default_factory=ClaudeJob)
@@ -88,7 +89,10 @@ class SetupFlow:
         return True
 
     def mcp_ok(self) -> bool:
-        return claudesetup.registered_command(self.run) == claudesetup.engine_command()
+        return self.registered() == claudesetup.engine_command()
+
+    def registered(self) -> list[str] | None:
+        return claudesetup.registered_command(self.claude_config)
 
     def busy(self) -> bool:
         """화면이 계속 다시 물어야 하나."""

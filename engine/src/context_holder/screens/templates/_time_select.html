@@ -1,0 +1,6 @@
+{# 시 · 분 고르기. 사용: {% with t=st.daily_at, hours=…, minutes=… %}{% include "_time_select.html" %}{% endwith %} #}
+{% set h, m = t.split(":") %}
+<span class="time-select">
+  <select name="hour" aria-label="시">{% for x in hours %}<option value="{{ x }}"{% if x == h %} selected{% endif %}>{{ x }}시</option>{% endfor %}</select>
+  <select name="minute" aria-label="분">{% if m not in minutes %}<option value="{{ m }}" selected>{{ m }}분</option>{% endif %}{% for x in minutes %}<option value="{{ x }}"{% if x == m %} selected{% endif %}>{{ x }}분</option>{% endfor %}</select>
+</span>

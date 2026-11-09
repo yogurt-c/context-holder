@@ -10,7 +10,8 @@ from context_holder import appsettings, claudesetup
 from context_holder.gitsync import WikiRepo
 from context_holder.setupflow import SetupFlow, model_downloaded
 
-TIME_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
+HOURS = [f"{h:02d}" for h in range(24)]
+MINUTES = [f"{m:02d}" for m in range(0, 60, 10)]
 
 
 def setup_view(flow: SetupFlow) -> dict[str, Any]:
@@ -24,31 +25,36 @@ def setup_view(flow: SetupFlow) -> dict[str, Any]:
         "claude": claude,
         "claude_job": flow.claude_job,
         "mcp_ok": flow.mcp_ok() if claude.installed else False,
-        "mcp_preview": claudesetup.mcp_preview(),
         "translocated": claudesetup.translocated(),
         "settings": appsettings.load(flow.settings_path),
         "busy": flow.busy(),
         "can_finish": github_done and claude.logged_in,
+        "hours": HOURS,
+        "minutes": MINUTES,
     }
 
 
-def settings_view(flow: SetupFlow, models_dir, model_id: str) -> dict[str, Any]:
+def settings_view(models_dir, model_id: str, settings_path) -> dict[str, Any]:
+    """바로 그릴 수 있는 것만. 연결 상태는 화면이 뜬 뒤 따로 채운다 (connections_view)."""
+    return {
+        "settings": appsettings.load(settings_path),
+        "model_ready": model_downloaded(models_dir, model_id),
+        "hours": HOURS,
+        "minutes": MINUTES,
+    }
+
+
+def connections_view(flow: SetupFlow) -> dict[str, Any]:
     repo = WikiRepo.open(flow.wiki_root)
     claude = flow.claude()
-    registered = claudesetup.registered_command(flow.run) if claude.installed else None
+    registered = flow.registered() if claude.installed else None
     return {
-        "settings": appsettings.load(flow.settings_path),
         "token_source": flow.token_source(),
         "remote": repo.remote_url if repo else None,
         "claude": claude,
-        "registered": " ".join(registered) if registered else None,
+        "registered": registered is not None,
         "mcp_ok": registered == claudesetup.engine_command(),
-        "engine_command": " ".join(claudesetup.engine_command()),
         "translocated": claudesetup.translocated(),
-        "model_id": model_id,
-        "model_ready": model_downloaded(models_dir, model_id),
-        "busy": flow.busy(),
-        "claude_job": flow.claude_job,
     }
 
 
@@ -104,31 +110,39 @@ def add_routes(
     def setup_finish(
         autostart: bool = Form(False),
         notify: bool = Form(False),
-        daily_at: str = Form("09:30"),
+        hour: str = Form("09"),
+        minute: str = Form("30"),
     ) -> Response:
-        if not _valid_time(daily_at):
-            return PlainTextResponse("시각은 HH:MM으로 넣어요", status_code=400)
+        daily_at = _time(hour, minute)
+        if daily_at is None:
+            return PlainTextResponse("시각을 다시 골라 주세요", status_code=400)
         on_settings(flow.finish(autostart, daily_at, notify))
         return Response(headers={"HX-Redirect": "/today"})
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings(request: Request) -> HTMLResponse:
         models_dir, model_id = model()
-        return page(
-            request, "settings.html", "settings", v=settings_view(flow, models_dir, model_id)
+        view = settings_view(models_dir, model_id, flow.settings_path)
+        return page(request, "settings.html", "settings", v=view)
+
+    @app.get("/settings/connections", response_class=HTMLResponse)
+    def settings_connections(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "_connections.html", {"c": connections_view(flow)}
         )
 
     @app.post("/settings", response_class=HTMLResponse)
     def save_settings(
-        daily_at: str = Form(...),
+        hour: str = Form(...),
+        minute: str = Form(...),
         theme: str = Form("system"),
         weekends: bool = Form(False),
         notify: bool = Form(False),
         autostart: bool = Form(False),
     ) -> Response:
-        if not _valid_time(daily_at) or theme not in appsettings.THEMES:
+        daily_at = _time(hour, minute)
+        if daily_at is None or theme not in appsettings.THEMES:
             return PlainTextResponse("잘못된 값", status_code=400)
-        before = appsettings.load(flow.settings_path)
         saved = appsettings.update(
             flow.settings_path,
             daily_at=daily_at,
@@ -138,10 +152,7 @@ def add_routes(
             autostart=autostart,
         )
         on_settings(saved)
-        response = HTMLResponse('<span class="done-label">저장했어요</span>')
-        if saved.theme != before.theme:
-            response.headers["HX-Refresh"] = "true"  # 화면 모드는 새로 그려야 바뀐다
-        return response
+        return HTMLResponse('<span class="done-label">저장했어요</span>')
 
     @app.post("/settings/github")
     def settings_github() -> Response:
@@ -156,7 +167,7 @@ def add_routes(
     @app.post("/settings/mcp", response_class=HTMLResponse)
     def settings_mcp() -> HTMLResponse:
         ok, out = flow.register_mcp()
-        text = "다시 등록했어요" if ok else f"등록하지 못했어요: {out[:120]}"
+        text = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
         return HTMLResponse(f'<span class="done-label">{_escape(text)}</span>')
 
     @app.post("/settings/model", response_class=HTMLResponse)
@@ -169,10 +180,9 @@ def add_routes(
         return RedirectResponse("/setup" if flow.needed() else "/today", status_code=303)
 
 
-def _valid_time(value: str) -> bool:
-    import re
-
-    return re.match(TIME_PATTERN, value) is not None
+def _time(hour: str, minute: str) -> str | None:
+    """고른 시 · 분. 목록에 없는 값이면 None."""
+    return f"{hour}:{minute}" if hour in HOURS and minute in MINUTES else None
 
 
 def _escape(text: str) -> str:

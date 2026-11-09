@@ -27,7 +27,14 @@ from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
 from context_holder.mcptools import WikiTools
-from context_holder.screens import inboxview, searchview, setuproutes, sourcesview, views
+from context_holder.screens import (
+    articleview,
+    inboxview,
+    searchview,
+    setuproutes,
+    sourcesview,
+    views,
+)
 from context_holder.screens.runs import alerts
 from context_holder.wiki import Wiki
 
@@ -38,10 +45,10 @@ CSP = (
     "base-uri 'none'; form-action 'self'"
 )
 PAGES = {  # 다음 커밋에서 채울 화면
-    "decisions": ("Decisions", "주제별 결정 사례 비교는 다음 업데이트에서 열린다."),
-    "settings": ("설정", "설정은 다음 업데이트에서 열린다."),
+    "decisions": ("Decisions", "회사별 결정 사례를 주제로 묶어 비교하는 화면을 준비 중이에요."),
+    "settings": ("설정", "설정은 앱에서 열 수 있어요."),
 }
-FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했다", Kind.NOT_RELEVANT: "관련없음으로 남겼다"}
+FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했어요", Kind.NOT_RELEVANT: "관련없음으로 남겼어요"}
 
 
 @dataclass
@@ -126,6 +133,15 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if request.headers.get("hx-request") == "true":  # 검색어 · 필터가 바뀌면 결과만 다시 그린다
             return templates.TemplateResponse(request, "search_body.html", {"view": view})
         return page(request, "search.html", "search", view=view)
+
+    @app.get("/article/{article_id}", response_class=HTMLResponse)
+    def article(request: Request, article_id: str) -> Response:
+        """글 상세 모달의 내용 (Search 결과 · Today 목록)."""
+        with search_lock:
+            view = articleview.build_article(tools, ctx.wiki, ctx.index, article_id, names())
+        if view is None:
+            return PlainTextResponse("없는 글", status_code=404)
+        return templates.TemplateResponse(request, "_article.html", {"a": view})
 
     @app.get("/inbox", response_class=HTMLResponse)
     def inbox(request: Request, sel: str | None = None, confirm: str | None = None) -> Response:

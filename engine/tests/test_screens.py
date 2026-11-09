@@ -162,7 +162,7 @@ def test_day_labels_and_local_day():
 def test_run_status_for_each_state(wiki):
     status = views.run_status
     assert status(wiki, TODAY, "air", True).label == "오늘 아직 수집 전"
-    assert status(wiki, TODAY, "air", False).label == "이날은 수집하지 않았다"
+    assert status(wiki, TODAY, "air", False).label == "이날은 수집하지 않았어요"
 
     started = NOW.isoformat()
     run_file(wiki, TODAY, {"device": "studio", "status": "running", "started_at": started})
@@ -175,7 +175,7 @@ def test_run_status_for_each_state(wiki):
 
     result = {"saved": 2, "inboxed": 1, "dropped": 3, "pending": 0}
     run_file(wiki, TODAY, {"device": "air", "status": "stopped", "result": result})
-    assert status(wiki, TODAY, "air", True).label == "수집이 중간에 멈췄다"
+    assert status(wiki, TODAY, "air", True).label == "수집이 중간에 멈췄어요"
 
     run_file(
         wiki,
@@ -215,8 +215,8 @@ def test_mcp_entries_keep_recent_searches_only(tmp_path):
     entries = views.mcp_entries(log, NOW)
 
     assert entries == [
-        views.McpEntry('find_decision_cases("피처 플래그")', 0),
-        views.McpEntry('search_wiki(["사이드카", "a very long eng…"])', 2),
+        views.McpEntry("결정 사례 · 피처 플래그", 0),
+        views.McpEntry("사이드카 · a very long eng…", 2),
     ]
     assert views.mcp_entries(tmp_path / "없음.jsonl", NOW) == []
 
@@ -240,19 +240,21 @@ def test_today_shows_lead_with_decision_and_ranked_briefs(wiki, tmp_path):
     page = client(wiki, tmp_path).get("/today").text
 
     assert "오늘의 브리프" in page
-    assert "사이드카 선언적 관리" in page and "relevance 0.95" in page
+    assert "사이드카 선언적 관리" in page and "relevance" not in page  # 점수는 보여 주지 않는다
     assert "결정 기록: 사이드카 관리 방식" in page and "신뢰도 높음" in page
     assert '<span class="opt chosen">SidecarSet</span>' in page
-    assert "원문 근거 문장 1개, 원문 대조 통과" in page
+    assert "원문 근거 문장 1개, 모두 원문에서 확인했어요" in page
     assert 'data-copy="decision-md"' in page and "## 사이드카 관리 방식 (NAVER D2)" in page
     assert f'"article_id": "{lead}"' in page
     assert "글 0" in page and "영상, 요약만" in page
     assert "2건 더 보기" in page  # 리드 + 4건, 나머지 2건은 접는다
+    assert page.count('hx-target="#modal-body"') == 6  # 2~7위 제목은 상세 모달을 연다
     assert "요약 대기 1" in page
     assert "저장 7건, 보류 1건, 제외 2건" in page
     assert "보류 글" in page  # Inbox 미리보기
-    assert "아직 같은 주제로 묶인 사례가 없다" in page
-    assert "아직 기록이 없다" in page
+    assert "같은 주제로 모인 사례가 생기면" in page
+    assert "아직 기록이 없어요" in page
+    assert "결정 기록 복사" in page and "Claude에 문맥으로" not in page
 
 
 def test_today_without_saved_articles_shows_recent_week(wiki, tmp_path):
@@ -269,7 +271,7 @@ def test_today_without_saved_articles_shows_recent_week(wiki, tmp_path):
     assert f'href="/today?date={yesterday}"' in page
 
     run_file(wiki, TODAY, {"device": "air", "status": "running"})
-    assert "이 기기가 수집 중이다" in c.get("/today").text
+    assert "이 기기가 수집 중이에요" in c.get("/today").text
     run_file(wiki, TODAY, {"device": "air", "status": "done", "result": {"inboxed": 2}})
     assert "신규 2건은 모두 보류나 제외로" in c.get("/today").text
     run_file(wiki, TODAY, {"device": "air", "status": "done"})
@@ -344,7 +346,7 @@ def test_home_placeholder_pages_and_unknown(wiki, tmp_path):
     c = client(wiki, tmp_path)
     assert c.get("/").headers["location"] == "/today"
     page = c.get("/decisions").text
-    assert "주제별 결정 사례 비교는 다음 업데이트에서" in page and 'aria-current="page"' in page
+    assert "준비 중이에요" in page and 'aria-current="page"' in page
     assert c.get("/nothing").status_code == 404
     assert c.get("/static/htmx.min.js").status_code == 200
 
@@ -355,7 +357,7 @@ def test_bookmark_and_not_relevant_go_to_feedback(wiki, tmp_path):
     htmx = {"HX-Request": "true"}
 
     done = c.post("/feedback", data={"article_id": aid, "kind": "bookmark"}, headers=htmx)
-    assert done.status_code == 200 and "북마크했다" in done.text
+    assert done.status_code == 200 and "북마크했어요" in done.text
     c.post("/feedback", data={"article_id": aid, "kind": "not_relevant"}, headers=htmx)
     assert [(f.kind, f.url, f.device) for f in load_feedback(wiki)] == [
         ("bookmark", "https://t/a", "air"),

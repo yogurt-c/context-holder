@@ -8,6 +8,7 @@
 """
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -80,19 +81,23 @@ def translocated() -> bool:
     return "/AppTranslocation/" in engine_command()[0]
 
 
-def registered_command(run: Run = run_command, claude: str | None = None) -> list[str] | None:
-    """Claude Code에 등록된 context-holder MCP 명령. 없으면 None."""
-    code, out = run([claude or tool("claude"), "mcp", "get", MCP_NAME], TIMEOUT)
-    if code != 0:
+def claude_config() -> Path:
+    """Claude Code 설정 파일. 사용자 범위 MCP 등록이 여기 있다 (CLAUDE_CONFIG_DIR을 따른다)."""
+    folder = os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(folder) / ".claude.json" if folder else Path.home() / ".claude.json"
+
+
+def registered_command(config: Path | None = None) -> list[str] | None:
+    """Claude Code에 등록된 context-holder MCP 명령. 없으면 None.
+
+    `claude mcp get`은 서버를 실제로 띄워 확인해서 2초쯤 걸린다. 설정 파일만 읽는다.
+    """
+    try:
+        data = json.loads((config or claude_config()).read_text(encoding="utf-8"))
+        server = data["mcpServers"][MCP_NAME]
+        return [str(server["command"]), *[str(a) for a in server.get("args") or []]]
+    except (OSError, ValueError, KeyError, TypeError):
         return None
-    command, args = None, []
-    for line in out.splitlines():
-        key, _, value = line.strip().partition(":")
-        if key == "Command":
-            command = value.strip()
-        elif key == "Args":
-            args = value.split()
-    return [command, *args] if command else None
 
 
 def register_mcp(run: Run = run_command, claude: str | None = None) -> tuple[bool, str]:

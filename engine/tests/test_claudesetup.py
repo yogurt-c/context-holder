@@ -46,11 +46,25 @@ def test_engine_command_dev_and_frozen(monkeypatch, tmp_path):
     assert claudesetup.engine_command() == [str(exe), "mcp"]
 
 
-def test_registered_command_parses_mcp_get():
-    out = "context-holder:\n  Scope: User config\n  Command: /a/ctx\n  Args: mcp\n  Environment:\n"
-    assert claudesetup.registered_command(FakeRun((0, out)), "claude") == ["/a/ctx", "mcp"]
-    assert claudesetup.registered_command(FakeRun((1, "No MCP server")), "claude") is None
-    assert claudesetup.registered_command(FakeRun((0, "nothing")), "claude") is None
+def test_registered_command_reads_claude_config(tmp_path, monkeypatch):
+    config = tmp_path / ".claude.json"
+    servers = {"mcpServers": {"context-holder": {"command": "/a/ctx", "args": ["mcp"]}}}
+    config.write_text(json.dumps(servers))
+    assert claudesetup.registered_command(config) == ["/a/ctx", "mcp"]
+    config.write_text(json.dumps({"mcpServers": {"other": {}}}))
+    assert claudesetup.registered_command(config) is None
+    config.write_text("{broken")
+    assert claudesetup.registered_command(config) is None
+    assert claudesetup.registered_command(tmp_path / "none.json") is None
+
+
+def test_claude_config_location(monkeypatch, tmp_path):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    assert claudesetup.claude_config() == tmp_path / ".claude.json"
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert claudesetup.claude_config() == tmp_path / "home" / ".claude.json"
+    assert claudesetup.registered_command() is None  # 기본 위치를 읽는다
 
 
 def test_register_replaces_existing(monkeypatch):
@@ -66,8 +80,7 @@ def test_register_replaces_existing(monkeypatch):
 
 def test_defaults_use_found_claude(monkeypatch):
     monkeypatch.setattr(claudesetup, "tool", lambda name: "/found/claude")
-    run = FakeRun((1, ""), (0, ""), (0, ""))
-    claudesetup.registered_command(run)
+    run = FakeRun((0, ""), (0, ""))
     claudesetup.register_mcp(run)
     assert all(call[0] == "/found/claude" for call in run.calls)
     assert claudesetup.status(FakeRun((127, ""))).installed is False

@@ -1,4 +1,4 @@
-{% from "_macros.html" import feedback, decision_card, segments %}
+{% from "_macros.html" import segments %}
 {% set query = view.query %}
 {% if not query.q %}
 <div class="search-empty">
@@ -10,7 +10,7 @@
 </div>
 {% else %}
 <div class="query-meta">
-  <span>결과 {{ view.results | length }}건, {{ "%.2f" | format(view.elapsed) }}초</span>
+  <span>결과 {{ view.results | length }}건</span>
   {% for n in view.notes %}<span class="note-inline">{{ n }}</span>{% endfor %}
 </div>
 <div class="panes stack-narrow">
@@ -25,13 +25,12 @@
     {% for f in view.tags %}<label class="check"><input type="checkbox" name="tag" value="{{ f.value }}"{% if f.on %} checked{% endif %}>{{ f.label }}<b>{{ f.count }}</b></label>{% endfor %}{% endif %}
   </fieldset>
 
-  {% set chosen = view.preview.result if view.preview else None %}
   {% if view.results %}
   <ol class="row-list results" aria-label="검색 결과">
   {% for r in view.results %}
-    <li{% if chosen and r.stored.id == chosen.stored.id %} class="sel" aria-current="true"{% endif %}>
-      <a href="{{ query.url(sel=r.stored.id) }}" hx-get="{{ query.url(sel=r.stored.id) }}" hx-target="#search-body" hx-push-url="true">
-        <span class="meta"><span class="co-brand">{{ r.company }}</span>{% if r.stored.published %}<span>{{ r.stored.published.strftime("%Y.%m") }}</span>{% endif %}<span class="where">{{ r.where }}</span>{% if r.stored.bucket.value == "inbox" %}<span class="badge plain">보류</span>{% endif %}{% if r.stored.decision %}<span class="badge decision">결정 사례</span>{% endif %}</span>
+    <li>
+      <a href="#" hx-get="/article/{{ r.stored.id }}" hx-target="#modal-body">
+        <span class="meta"><span class="co-brand">{{ r.company }}</span>{% if r.stored.published %}<span>{{ r.stored.published.strftime("%Y.%m") }}</span>{% endif %}{% if r.stored.bucket.value == "inbox" %}<span class="badge plain">보류</span>{% endif %}{% if r.stored.decision %}<span class="badge decision">결정 사례</span>{% endif %}</span>
         <span class="r-title">{{ segments(r.title) }}</span>
         {% if r.snippet and r.snippet[0][0] %}<span class="r-snippet">{{ segments(r.snippet) }}</span>{% endif %}
       </a>
@@ -40,27 +39,6 @@
   </ol>
   {% else %}
   <div class="results empty"><p class="empty-note">맞는 글이 없어요. 다른 말로 찾거나 필터를 줄여 보세요.</p></div>
-  {% endif %}
-
-  {% if view.preview %}{% set p = view.preview %}{% set s = p.result.stored %}
-  <article class="preview" aria-label="미리보기">
-    <div class="kicker"><span class="co-brand">{{ p.result.company }}</span>{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}{% if s.published %}<span class="score">{{ s.published.strftime("%Y.%m.%d") }}</span>{% endif %}</div>
-    <h2>{{ s.title }}</h2>
-    {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>{% elif s.status == "pending" %}<p class="note">아직 요약하지 못한 글이에요. 원문을 열어 보세요.</p>{% endif %}
-    {% if s.decision %}{{ decision_card(s.decision) }}<template id="decision-md">{{ p.decision_markdown }}</template>{% endif %}
-    {% if s.tags %}<div class="tags">{% for t in s.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-    <div class="actions">
-      <a class="btn primary" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">원문 열기</a>
-      {% if s.decision %}<button type="button" class="btn decision" data-copy="decision-md">Claude에 문맥으로 보내기</button>{% endif %}
-      {{ feedback(p.result.hit.article) }}
-    </div>
-    {% if p.related %}
-    <div class="related">
-      <h3>비슷한 결정</h3>
-      <ul>{% for company, title, rid, topic in p.related %}<li><span class="co-brand">{{ company }}</span><a href="{{ query.url(q=topic, kind='decision', period='all', companies=(), tags=(), sel=rid) }}">{{ title }}</a></li>{% endfor %}</ul>
-    </div>
-    {% endif %}
-  </article>
   {% endif %}
 </div>
 {% endif %}

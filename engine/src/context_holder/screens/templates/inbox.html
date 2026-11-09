@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Inbox · context-holder{% endblock %}
+{% block title %}Inbox · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/inbox.css">{% endblock %}
 {% macro row(item, s) -%}
 {% set a = item.article %}
@@ -12,7 +12,7 @@
 </li>
 {%- endmacro %}
 {% block content %}
-    <div class="toolbar"><span class="title">Inbox</span><span class="sub">관련도 0.3~0.6, 판단이 필요한 글{% if view.total %} {{ view.total }}건{% endif %}</span></div>
+    <div class="toolbar"><span class="title">Inbox</span><span class="sub">저장할지 판단이 필요한 글{% if view.total %} {{ view.total }}건{% endif %}</span></div>
     <div class="scroll inbox-scroll">
     {% if not view.total %}
       <div class="page"><p class="empty-note">검토할 보류 글이 없어요. 새로 보류한 글은 수집 뒤에 여기로 와요.</p></div>
@@ -55,7 +55,7 @@
 
         {% set score = s.relevance or 0 %}
         <section class="why" aria-label="왜 보류됐나">
-          <h3><span>왜 보류됐나</span><span>Claude 판정, 기준 profile.yaml</span></h3>
+          <h3><span>왜 보류됐나</span></h3>
           <div class="gauge" role="img" aria-label="관련도 {{ '%.2f' | format(score) }}">
             <span class="needle" style="left:{{ (100 * score) | round(1) }}%"><b>{{ "%.2f" | format(score) }}</b></span>
             <span class="tick" style="left:30%">0.3 보류</span><span class="tick" style="left:60%">0.6 저장</span>
@@ -74,7 +74,7 @@
           <button class="btn drop" name="choice" value="dismiss">관련없음</button>
           {% if view.next_id %}<a class="btn" href="/inbox?sel={{ view.next_id }}">나중에</a>{% endif %}
         </form>
-        <p class="learn">저장하면 위키로 옮기고, 관련없음은 글을 지워요. 고른 결과는 피드백으로 남고 다음 수집 때 GitHub에 올라가요.</p>
+        <p class="learn">저장하면 위키로 옮기고, 관련없음은 글을 지워요. 고른 결과는 다른 기기에도 반영되고 다음 분류에 참고해요.</p>
       </article>
       {% endif %}
     </div>

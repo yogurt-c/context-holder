@@ -25,6 +25,12 @@ CODE = {
 LOGGED_IN = json.dumps({"loggedIn": True, "subscriptionType": "max"})
 
 
+def register(flow, command: str) -> None:
+    """Claude Code 설정 파일에 등록된 것처럼 쓴다."""
+    servers = {"mcpServers": {"context-holder": {"command": command, "args": ["mcp"]}}}
+    flow.claude_config.write_text(json.dumps(servers))
+
+
 class FakeRun:
     """claude 명령 흉내. 명령 앞부분으로 답을 고른다."""
 
@@ -70,6 +76,7 @@ def flow(tmp_path, monkeypatch):
     made = SetupFlow(
         tmp_path / "wiki",
         tmp_path / "app-state.json",
+        claude_config=tmp_path / ".claude.json",
         clock=lambda: NOW,
         run=FakeRun(),
         spawn=lambda args: events["spawned"].append(args),
@@ -212,9 +219,8 @@ def test_needed_until_everything_is_connected(flow, monkeypatch):
     assert flow.needed()
     monkeypatch.setattr(auth, "gh_lookup", lambda: "gho")
     (flow.wiki_root / ".git").mkdir(parents=True)
-    flow.run = FakeRun(
-        {"auth status": (0, LOGGED_IN), "mcp get": (0, "  Command: /a/ctx\n  Args: mcp\n")}
-    )
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    register(flow, "/a/ctx")
     assert not flow.needed()  # 다른 방법으로 이미 연결된 기기
     assert appsettings.load(flow.settings_path).setup_done
     flow.run = FakeRun()
@@ -277,7 +283,7 @@ def test_home_goes_to_setup_until_done(flow, tmp_path):
     page = c.get("/setup").text
     assert "GitHub로 로그인" in page and 'class="in-app"' in page
     assert "Claude Code 설치" in page or "Claude 로그인" in page
-    assert "claude mcp add context-holder --scope user -- /a/ctx mcp" in page
+    assert "Claude Code 연동" in page and "claude mcp add" not in page
     flow.finish(True, "09:30", True)
     assert c.get("/").headers["location"] == "/today"
 
@@ -308,35 +314,54 @@ def test_setup_buttons(flow, tmp_path, monkeypatch):
 
 def test_setup_finish(flow, tmp_path):
     c = screen(flow, tmp_path)
-    assert c.post("/setup/finish", data={"daily_at": "9시"}, headers=HTMX).status_code == 400
-    done = c.post("/setup/finish", data={"daily_at": "07:45", "notify": "true"}, headers=HTMX)
+    bad = c.post("/setup/finish", data={"hour": "25", "minute": "00"}, headers=HTMX)
+    assert bad.status_code == 400
+    done = c.post(
+        "/setup/finish", data={"hour": "07", "minute": "40", "notify": "true"}, headers=HTMX
+    )
     assert done.headers["HX-Redirect"] == "/today"
     saved = appsettings.load(flow.settings_path)
-    assert (saved.daily_at, saved.notify, saved.autostart) == ("07:45", True, False)
+    assert (saved.daily_at, saved.notify, saved.autostart) == ("07:40", True, False)
     assert c.seen["settings"] == [saved]
 
 
-def test_settings_page_shows_connections(flow, tmp_path, monkeypatch):
-    monkeypatch.setattr(auth, "gh_lookup", lambda: "gho")
-    flow.run = FakeRun(
-        {"auth status": (0, LOGGED_IN), "mcp get": (0, "  Command: /old/ctx\n  Args: mcp\n")}
-    )
-    page = screen(flow, tmp_path).get("/settings").text
-    assert "GitHub CLI 로그인 사용" in page and "다른 엔진이 등록돼 있어요" in page
-    assert "아직 내려받지 않았어요" in page and 'value="09:30"' in page
-
-
-def test_settings_save_and_theme_refresh(flow, tmp_path):
+def test_settings_page_is_quick_and_connections_load_after(flow, tmp_path, monkeypatch):
+    calls = FakeRun({"auth status": (0, LOGGED_IN)})
+    flow.run = calls
     c = screen(flow, tmp_path)
-    form = {"daily_at": "08:00", "theme": "system", "weekends": "true"}
+    page = c.get("/settings").text
+    assert calls.calls == []  # 화면을 그릴 때 claude 명령을 부르지 않는다
+    assert 'hx-get="/settings/connections" hx-trigger="load"' in page
+    assert '<option value="09" selected>09시</option>' in page
+    assert '<option value="30" selected>30분</option>' in page
+    assert "아직 내려받지 않았어요" in page and "bge-m3" not in page and "ctx reembed" not in page
+
+    monkeypatch.setattr(auth, "gh_lookup", lambda: "gho")
+    register(flow, "/old/ctx")
+    panel = c.get("/settings/connections").text
+    assert "<html" not in panel and "GitHub CLI 로그인을 쓰고 있어요" in panel
+    assert "이 앱이 아닌 다른 위치로 연결돼 있어요" in panel
+    register(flow, "/a/ctx")
+    assert "이 위키를 찾아봐요" in c.get("/settings/connections").text
+
+
+def test_odd_saved_minute_stays_selected(flow, tmp_path):
+    appsettings.update(flow.settings_path, daily_at="08:35")
+    page = screen(flow, tmp_path).get("/settings").text
+    assert '<option value="35" selected>35분</option>' in page
+
+
+def test_settings_save_without_reload(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    form = {"hour": "08", "minute": "10", "theme": "system", "weekends": "true"}
     saved = c.post("/settings", data=form, headers=HTMX)
     assert "저장했어요" in saved.text and "HX-Refresh" not in saved.headers
-    assert appsettings.load(flow.settings_path).weekends
+    assert appsettings.load(flow.settings_path).daily_at == "08:10"
     dark = c.post("/settings", data={**form, "theme": "dark"}, headers=HTMX)
-    assert dark.headers["HX-Refresh"] == "true"
+    assert "HX-Refresh" not in dark.headers  # 화면 모드는 화면에서 바로 바꾼다 (app.js)
     assert 'data-theme="dark"' in c.get("/today").text
     assert c.post("/settings", data={**form, "theme": "neon"}, headers=HTMX).status_code == 400
-    assert c.post("/settings", data={**form, "daily_at": "x"}, headers=HTMX).status_code == 400
+    assert c.post("/settings", data={**form, "minute": "07"}, headers=HTMX).status_code == 400
 
 
 def test_settings_actions(flow, tmp_path, no_real_keychain):
@@ -350,7 +375,7 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     flow.run = FakeRun({"mcp add": (1, "<bad>")})
     assert "&lt;bad&gt;" in c.post("/settings/mcp", headers=HTMX).text
     flow.run = FakeRun()
-    assert "다시 등록했어요" in c.post("/settings/mcp", headers=HTMX).text
+    assert "다시 연결했어요" in c.post("/settings/mcp", headers=HTMX).text
     flow.background = lambda work: work()
     assert "내려받는 중" in c.post("/settings/model", headers=HTMX).text
     assert c.seen["downloads"] == 1
@@ -358,8 +383,11 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
 
 def test_settings_without_wiki_or_claude(flow, tmp_path):
     flow.run = FakeRun({"auth status": (127, "")})
-    page = screen(flow, tmp_path).get("/settings").text
-    assert "로그인 필요" in page and "Claude Code 없음" in page and "설치하기" in page
+    panel = screen(flow, tmp_path).get("/settings/connections").text
+    assert "로그인이 필요해요" in panel and "Claude Code가 없어요" in panel and "설치하기" in panel
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    flow._status = None
+    assert "연결되지 않았어요" in screen(flow, tmp_path / "b").get("/settings/connections").text
 
 
 def test_bridge_settings_events(tmp_path):
@@ -420,7 +448,5 @@ def test_translocated_app_asks_to_move_first(flow, tmp_path, monkeypatch):
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     c = screen(flow, tmp_path)
     assert "응용 프로그램 폴더로 옮긴 뒤" in c.get("/setup").text
-    page = c.get("/settings").text
-    assert (
-        "응용 프로그램 폴더로 옮긴 뒤 등록하세요" in page and 'hx-post="/settings/mcp"' not in page
-    )
+    panel = c.get("/settings/connections").text
+    assert "옮긴 뒤 연결하세요" in panel and 'hx-post="/settings/mcp"' not in panel

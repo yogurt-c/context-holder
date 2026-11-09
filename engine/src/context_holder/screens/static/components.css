@@ -201,3 +201,28 @@ a.btn, a.chip { text-decoration: none; }
 .sync-card .progress-line { margin-top: var(--sp-2); color: var(--ink); font-variant-numeric: tabular-nums; }
 .sync-card .bar { margin-top: var(--sp-2); }
 .sync-card .sync-now { margin-top: var(--sp-2); width: 100%; justify-content: center; }
+
+/* ---------- 글 상세 모달 ---------- */
+.modal { border: 0; padding: 0; margin: auto; width: min(760px, calc(100vw - 48px)); max-height: calc(100vh - 64px); background: transparent; color: inherit; }
+.modal::backdrop { background: rgba(20, 18, 14, 0.45); }
+.modal-card { background: var(--surface); border-radius: var(--r-window); box-shadow: var(--shadow-panel); padding: var(--sp-5) var(--sp-6) var(--sp-6); max-height: calc(100vh - 64px); overflow-y: auto; }
+.article-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.article-detail h2 { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; line-height: 1.32; letter-spacing: -0.6px; margin: var(--sp-2) 0 var(--sp-3); }
+.article-detail .summary, .article-detail .key-points { padding-left: var(--sp-5); font-size: var(--fs-read); color: var(--ink-body); margin-bottom: var(--sp-4); }
+.article-detail .summary li, .article-detail .key-points li { margin-bottom: var(--sp-1); }
+.article-detail .section-head { font-size: 12px; font-weight: 700; color: var(--ink-faint); margin-bottom: var(--sp-2); }
+.article-detail .decision-card { margin-bottom: var(--sp-4); box-shadow: none; }
+.evidence-list { list-style: none; display: grid; gap: var(--sp-1); }
+.evidence-list q { color: var(--ink-soft); font-size: 13px; }
+.article-detail .tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: 0 0 var(--sp-4); }
+.article-detail .tags span { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0 var(--sp-2); }
+.article-detail .actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.article-detail .actions .feedback { display: inline-flex; gap: var(--sp-2); margin-left: auto; }
+.article-detail .related { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--rule-soft); font-size: 13px; }
+.article-detail .related h3 { font-size: var(--fs-micro); font-weight: 700; color: var(--ink-faint); margin-bottom: var(--sp-2); }
+.article-detail .related li { list-style: none; padding: var(--sp-1) 0; display: flex; gap: var(--sp-2); }
+.article-detail .related .co-brand { min-width: 84px; font-size: 12px; flex: none; }
+.article-detail .related a { color: var(--ink); text-decoration: none; }
+.article-detail .related a:hover { color: var(--decision); text-decoration: underline; text-underline-offset: 3px; }
+.open-detail { cursor: pointer; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; }
+.open-detail:hover, .open-detail:focus-visible { text-decoration: underline; text-underline-offset: 3px; }

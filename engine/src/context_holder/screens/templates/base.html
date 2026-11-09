@@ -2,7 +2,7 @@
 <html lang="ko"{% if theme and theme != "system" %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="utf-8">
-<title>{% block title %}context-holder{% endblock %}</title>
+<title>{% block title %}Context Holder{% endblock %}</title>
 <link rel="stylesheet" href="/static/tokens.css">
 <link rel="stylesheet" href="/static/components.css">
 {% block head %}{% endblock %}
@@ -28,5 +28,6 @@
 {% block content %}{% endblock %}
   </main>
 </div>
+<dialog id="article-modal" class="modal" aria-label="글 상세"><div id="modal-body" class="modal-card"></div></dialog>
 </body>
 </html>

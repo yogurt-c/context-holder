@@ -11,14 +11,17 @@
 {% if a.decision_topic %}<span class="badge decision">결정 사례</span>{% endif %}
 {%- endmacro %}
 
-{% macro decision_card(d) -%}
+{% macro decision_card(d, full=False) -%}
 <dl class="decision-card" aria-label="결정 기록">
   <div class="label">결정 기록: {{ d.topic }}<span class="conf">신뢰도 {{ {"high": "높음", "medium": "중간", "low": "낮음"}.get(d.confidence, d.confidence) }}<span class="confidence" aria-hidden="true">{% for i in range(3) %}<i{% if i < {"high": 3, "medium": 2, "low": 1}.get(d.confidence, 0) %} class="on"{% endif %}></i>{% endfor %}</span></span></div>
   <dt>문제</dt><dd>{{ d.problem }}</dd>
   <dt>선택지</dt><dd>{% for o in d.options or [] %}<span class="opt{% if o == d.chosen %} chosen{% endif %}">{{ o }}</span>{% endfor %}{% if d.chosen not in (d.options or []) %}<span class="opt chosen">{{ d.chosen }}</span>{% endif %}</dd>
   {% if d.tradeoffs %}<dt>트레이드오프</dt><dd>{{ d.tradeoffs | join(" ") }}</dd>{% endif %}
   {% if d.outcome %}<dt>결과</dt><dd>{{ d.outcome }}</dd>{% endif %}
-  <p class="evidence">원문 근거 문장 {{ (d.evidence or []) | length }}개{% if d.unverified %}, 원문에서 확인하지 못한 문장 {{ d.unverified | length }}개{% else %}, 원문 대조 통과{% endif %}</p>
+  {% if full and d.evidence %}
+  <dt>근거</dt><dd><ul class="evidence-list">{% for e in d.evidence %}<li><q>{{ e }}</q></li>{% endfor %}</ul></dd>
+  {% endif %}
+  <p class="evidence">원문 근거 문장 {{ (d.evidence or []) | length }}개{% if d.unverified %}, 원문에서 확인하지 못한 문장 {{ d.unverified | length }}개{% else %}, 모두 원문에서 확인했어요{% endif %}</p>
 </dl>
 {%- endmacro %}
 

@@ -1,6 +1,7 @@
 """Search 화면 (plan 7장). 검색은 MCP와 같은 경로(키워드 + 의미, RRF)를 쓴다.
 
-필터(종류 · 기간 · 회사 · 태그)는 화면이 거른다. 회사 · 태그 목록은 종류와 기간만 거른 결과에서
+필터(종류 · 기간 · 회사 · 태그)는 화면이 거른다.
+결과를 누르면 글 상세 모달을 연다 (articleview). 회사 · 태그 목록은 종류와 기간만 거른 결과에서
 개수와 함께 만든다. 질의 확장("함께 찾은 말")은 하지 않는다: 질의 확장은 Claude가 한다 (plan 8장).
 """
 
@@ -13,16 +14,17 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from context_holder.index import Index
-from context_holder.mcptools import WikiTools
-from context_holder.screens.views import decision_markdown
+from context_holder.mcptools import NO_MODEL_NOTE, WikiTools
 from context_holder.search import SearchHit
 from context_holder.wiki import StoredArticle, Wiki
 
 PERIODS = {"30d": ("최근 30일", 30), "1y": ("최근 1년", 365), "all": ("전체", None)}
 KINDS = {"all": "전체", "decision": "결정 사례"}
+NO_MODEL_SCREEN = (
+    "의미 검색 모델이 아직 없어 단어가 맞는 글만 찾았어요. 설정에서 내려받을 수 있어요."
+)
 TAG_FACETS = 8
 TOPIC_LINKS = 8
-RELATED = 3
 MIN_TERM = 2
 
 Segments = list[tuple[str, bool]]  # (글, 강조 여부). 템플릿이 이스케이프해 그린다
@@ -35,7 +37,6 @@ class Query:
     period: str = "all"
     companies: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
-    sel: str | None = None
 
     def url(self, **change) -> str:
         target = replace(self, **change)
@@ -46,17 +47,15 @@ class Query:
             pairs.append(("period", target.period))
         pairs += [("company", c) for c in target.companies]
         pairs += [("tag", t) for t in target.tags]
-        if target.sel:
-            pairs.append(("sel", target.sel))
         return "/search" + (f"?{urlencode(pairs)}" if pairs else "")
 
     def toggle(self, name: str, value: str) -> str:
-        """회사 · 태그 필터 하나를 켜거나 끈 주소. 고른 글은 놓는다."""
+        """회사 · 태그 필터 하나를 켜거나 끈 주소."""
         current: tuple[str, ...] = getattr(self, name)
         values = tuple(v for v in current if v != value)
         if value not in current:
             values = (*current, value)
-        return self.url(**{name: values, "sel": None})
+        return self.url(**{name: values})
 
 
 @dataclass(frozen=True)
@@ -78,13 +77,6 @@ class Result:
 
 
 @dataclass(frozen=True)
-class Preview:
-    result: Result
-    decision_markdown: str
-    related: list[tuple[str, str, str, str]]  # (회사, 제목, id, 주제)
-
-
-@dataclass(frozen=True)
 class SearchView:
     query: Query
     results: list[Result] = field(default_factory=list)
@@ -92,7 +84,6 @@ class SearchView:
     tags: list[Facet] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     elapsed: float = 0.0
-    preview: Preview | None = None
     article_total: int = 0
     decision_total: int = 0
     topics: list[str] = field(default_factory=list)  # 검색어가 없을 때 보여 줄 결정 주제
@@ -107,7 +98,6 @@ def parse_query(params: Mapping[str, str], lists: Mapping[str, list[str]]) -> Qu
         period=period if period in PERIODS else "all",
         companies=tuple(dict.fromkeys(lists.get("company", []))),
         tags=tuple(dict.fromkeys(lists.get("tag", []))),
-        sel=params.get("sel") or None,
     )
 
 
@@ -123,6 +113,7 @@ def build_search(
         return SearchView(query, topics=topics, **totals)
     started = time.perf_counter()
     hits, notes = tools.all_hits([query.q])
+    notes = [NO_MODEL_SCREEN if n == NO_MODEL_NOTE else n for n in notes]
     terms = _terms(query.q)
     pool = [r for r in _results(wiki, hits, names, terms) if _keeps(r, query, now)]
     results = [
@@ -131,7 +122,6 @@ def build_search(
         if (not query.companies or r.stored.source_id in query.companies)
         and (not query.tags or set(query.tags) & set(r.stored.tags))
     ]
-    chosen = next((r for r in results if r.stored.id == query.sel), results[0] if results else None)
     return SearchView(
         query,
         results,
@@ -139,7 +129,6 @@ def build_search(
         _tag_facets(pool, query),
         notes,
         time.perf_counter() - started,
-        _preview(tools, chosen, names) if chosen else None,
         **totals,
     )
 
@@ -236,21 +225,3 @@ def _tag_facets(pool: list[Result], query: Query) -> list[Facet]:
     shown = {t for t, _ in top}
     top += [(t, counts.get(t, 0)) for t in query.tags if t not in shown]  # 고른 태그는 남긴다
     return [Facet(t, t, n, t in query.tags) for t, n in top]
-
-
-def _preview(tools: WikiTools, r: Result, names: dict[str, str]) -> Preview:
-    d = r.stored.decision
-    if not d:
-        return Preview(r, "", [])
-    hits, _ = tools.decision_hits(topic=d.get("topic"), limit=RELATED + 1)
-    related = [
-        (
-            names.get(h.article.source_id, h.article.source_id),
-            h.article.title,
-            h.article.id,
-            h.article.decision_topic or "",
-        )
-        for h in hits
-        if h.article.id != r.stored.id
-    ][:RELATED]
-    return Preview(r, decision_markdown(r.stored, r.company), related)
