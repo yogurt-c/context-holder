@@ -20,7 +20,7 @@ from context_holder import __version__, appsettings
 
 STATES = ("off", "idle", "checking", "available", "downloading", "ready", "error")
 WORKING = ("checking", "downloading")  # 화면이 자주 다시 물어야 하는 상태
-CHECK_EVERY = timedelta(hours=6)
+CHECK_EVERY = timedelta(hours=2)
 RELEASES = "https://github.com/yogurt-c/context-holder/releases"
 ERROR_SIZE = 160
 
