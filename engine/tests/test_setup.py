@@ -96,9 +96,11 @@ def flow(tmp_path, monkeypatch):
 
 
 def test_device_flow_saves_token_and_connects_wiki(flow, no_real_keychain):
+    # 저장한 토큰은 실제 시각으로 만료를 따진다. 고정한 NOW에서 재면 날짜가 지나 만료된다
+    elapsed = int((datetime.now(UTC) - NOW).total_seconds())
     token = {
         "access_token": "gho_x",
-        "expires_in": 28800,
+        "expires_in": elapsed + 28800,
         "refresh_token": "r",
         "refresh_token_expires_in": 99,
     }
