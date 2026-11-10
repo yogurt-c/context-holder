@@ -302,7 +302,8 @@ a.btn, a.chip { text-decoration: none; }
 .add-modal [hidden] { display: none; }
 
 .add-status-note { position: fixed; right: var(--sp-5); bottom: 100px; z-index: 30; width: min(380px, calc(100vw - 48px)); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-window); box-shadow: var(--shadow-panel); font-size: 13px; animation: ut-in var(--dur-short) var(--ease); }
-.add-status-row { display: flex; align-items: center; gap: var(--sp-2); }
-.add-status-msg { flex: 1; min-width: 0; color: var(--ink); }
+.add-status-row { display: flex; align-items: center; gap: var(--sp-2); min-height: 24px; }  /* 버튼(.btn.sm)이 있는 상태와 높이를 맞춘다 */
+.add-status-msg { flex: 1; min-width: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-status-note.error .add-status-msg { white-space: normal; }  /* 실패 이유는 끝까지 읽혀야 한다 */
 .add-status-bar { margin-top: var(--sp-3); }
 body:has(#add-modal[open]) .add-status-note { display: none; }

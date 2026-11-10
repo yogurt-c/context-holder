@@ -1,6 +1,6 @@
 {# 새 글을 가져오는 동안과 그 결과만 우측 하단에 보인다. 입력 창에서 끝난 결과는 띄우지 않는다 #}
 {% if job.state != "idle" and not job.in_modal %}
-<div class="add-status-note {{ job.state }}" role="status" data-key="{{ job.state }}|{{ job.message }}"{% if job.state == "done" %} data-auto-dismiss{% endif %}>
+<div class="add-status-note {{ job.state }}" role="status" data-state="{{ job.state }}" data-key="{{ job.state }}|{{ job.article_id }}|{{ job.message }}"{% if job.state == "done" %} data-auto-dismiss{% endif %}>
   <div class="add-status-row">
     {% if job.state != "running" %}<span class="dot{{ ' error' if job.state == 'error' else '' }}" aria-hidden="true"></span>{% endif %}
     <span class="add-status-msg">{{ job.message }}</span>

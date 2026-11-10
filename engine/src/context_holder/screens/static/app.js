@@ -231,15 +231,21 @@ document.addEventListener("add-started", () => {
   document.getElementById("add-modal")?.close();
   htmx.ajax("GET", "/articles/add/status", { target: "#add-status", swap: "innerHTML" });
 });
-// 같은 상태를 다시 그리지 않는다: 로딩바가 처음부터 다시 돌거나 자동 닫힘이 늦춰지지 않게.
+// 상태가 그대로면 다시 그리지 않는다. 진행 중에 단계만 바뀌면 문구만 바꾼다:
+// 다시 그리면 알림이 다시 올라오고 로딩바가 처음부터 돌아 들썩인다.
 const ADD_DONE_VISIBLE_MS = 4000;
 let addDoneTimer = null;
 document.addEventListener("htmx:beforeSwap", (event) => {
   if (event.detail.target?.id !== "add-status" || !event.detail.xhr) return;
-  const current = event.detail.target.querySelector(".add-status-note")?.dataset.key;
+  const current = event.detail.target.querySelector(".add-status-note");
   const next = new DOMParser().parseFromString(event.detail.serverResponse, "text/html")
-    .querySelector(".add-status-note")?.dataset.key;
-  if (current && current === next) event.detail.shouldSwap = false;
+    .querySelector(".add-status-note");
+  if (!current || !next || current.dataset.state !== next.dataset.state) return;
+  event.detail.shouldSwap = false;
+  if (current.dataset.key === next.dataset.key) return;
+  current.dataset.key = next.dataset.key;
+  current.querySelector(".add-status-msg").textContent =
+    next.querySelector(".add-status-msg").textContent;
 });
 document.addEventListener("htmx:afterSwap", (event) => {
   if (event.target.id !== "add-status") return;
