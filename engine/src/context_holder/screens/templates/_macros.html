@@ -8,6 +8,7 @@
 
 {# decision=False: 목록의 모든 글이 결정 사례라 배지가 구분해 주는 게 없을 때 #}
 {% macro badges(a, decision=True) -%}
+{% if a.origin == "manual" %}<span class="badge plain">직접 추가</span>{% endif %}
 {% if a.media %}<span class="badge video">영상{% if a.media == "summary_only" %}, 요약만{% endif %}</span>{% endif %}
 {% if decision and a.decision_topic %}<span class="badge decision">결정 사례</span>{% endif %}
 {%- endmacro %}

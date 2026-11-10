@@ -200,3 +200,34 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest("[data-decisions-retry]") || !topicOpener?.isConnected) return;
   htmx.trigger(topicOpener, "click");
 });
+
+// URL로 글 추가: 작업은 서버에서 계속하고, 모달은 상태만 조회한다.
+document.addEventListener("click", (event) => {
+  const modal = document.getElementById("add-modal");
+  if (!modal) return;
+  if (event.target.closest("[data-add-open]")) {
+    document.getElementById("add-body").textContent = "불러오는 중…";
+    if (!modal.open) modal.showModal();
+  }
+  if (event.target === modal || event.target.closest("[data-add-close]")) modal.close();
+  if (event.target.closest("[data-add-another]")) {
+    const state = document.getElementById("add-state");
+    [...state.children].forEach((child) => { child.hidden = child.tagName !== "FORM"; });
+    const input = state.querySelector("input");
+    input.value = "";
+    input.focus();
+  }
+});
+document.addEventListener("htmx:afterSwap", (event) => {
+  if (event.target.id === "add-body") {
+    htmx.process(event.target);
+    event.target.querySelector("form:not([hidden]) input")?.focus();
+  }
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (event.detail.target?.id !== "add-body" || event.detail.successful) return;
+  const body = document.getElementById("add-body");
+  const note = body.querySelector(".add-network-error");
+  if (note) note.hidden = false;
+  else body.textContent = "연결하지 못했어요. 창을 닫고 다시 열어 주세요.";
+});

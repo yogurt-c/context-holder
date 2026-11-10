@@ -1,0 +1,6 @@
+{% if job.state != "idle" %}
+<div class="add-status-note" role="status">
+  <span>{{ job.message }}</span>
+  <button type="button" class="btn sm ghost" data-add-open hx-get="/articles/add" hx-target="#add-body">{{ '글 보기' if job.state == 'done' else '확인' }}</button>
+</div>
+{% endif %}

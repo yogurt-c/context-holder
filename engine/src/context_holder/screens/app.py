@@ -29,6 +29,7 @@ from context_holder.index import Index
 from context_holder.llm import AGENT_TOOLS, AGENTS, ClaudeCli
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
+    addarticle,
     articleview,
     decisionsview,
     inboxview,
@@ -98,6 +99,11 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     search_lock = threading.Lock()  # 검색 모델과 인덱스 연결을 요청끼리 나눠 쓰지 않게
     write_lock = threading.Lock()  # Inbox 파일 이동이 겹치지 않게
 
+    addition = addarticle.AddArticleJob(ctx, write_lock, search_lock, lambda: agent())
+    if ctx.scheduler is not None:
+        ready = getattr(ctx.scheduler, "ready", lambda: True)
+        ctx.scheduler.ready = lambda: addition.state != "running" and ready()
+
     def names() -> dict[str, str]:
         return {s.id: s.name for s in views.configured_sources(ctx.wiki)}
 
@@ -128,7 +134,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return views.sync_state(ctx.scheduler) if ctx.scheduler is not None else None
 
     def busy() -> bool:
-        return ctx.scheduler is not None and ctx.scheduler.running
+        return addition.state == "running" or (ctx.scheduler is not None and ctx.scheduler.running)
 
     def update_view() -> dict[str, Any] | None:
         return updateroutes.update_view(ctx.updates, busy(), ctx.clock())
@@ -188,6 +194,19 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         day = _parse_day(date)
         view = views.build_today(ctx.wiki, ctx.index, ctx.device, ctx.mcp_log, day, ctx.clock)
         return page(request, "today.html", "today", view=view, alerts=current_alerts())
+
+    @app.get("/articles/add", response_class=HTMLResponse)
+    def add_form(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(request, "_add_article.html", {"job": addition})
+
+    @app.get("/articles/add/status", response_class=HTMLResponse)
+    def add_status(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(request, "_add_status.html", {"job": addition})
+
+    @app.post("/articles/add", response_class=HTMLResponse)
+    def add_article(request: Request, url: str = Form("")) -> HTMLResponse:
+        addition.start(url, busy=busy() or regroup.state == "running")
+        return add_form(request)
 
     def mcp_connected() -> bool | None:
         return ctx.flow.mcp_ok() if ctx.flow is not None else None

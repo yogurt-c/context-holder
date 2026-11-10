@@ -32,6 +32,8 @@
   </main>
 </div>
 {% include "_update_toast.html" %}
+<div id="add-status" hx-get="/articles/add/status" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
+<dialog id="add-modal" class="modal add-modal" aria-label="글 추가"><div class="modal-card"><header class="article-head"><h2>글 추가</h2><button type="button" class="btn ghost sm" data-add-close>닫기</button></header><div id="add-body"></div></div></dialog>
 <dialog id="article-modal" class="modal" aria-label="글 상세"><div id="modal-body" class="modal-card"></div></dialog>
 {# 글 상세를 받아 오는 동안 · 받지 못했을 때 모달에 넣는다 (app.js) #}
 <template id="modal-loading">

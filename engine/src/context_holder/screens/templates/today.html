@@ -8,6 +8,7 @@
       <span class="title">{{ long_day(view.day) }}</span>
       {% if view.next_day %}<a class="btn sm ghost" href="/today?date={{ view.next_day.isoformat() }}" aria-label="다음 날 보기">{{ short_day(view.next_day) }} ›</a>{% endif %}
       <div class="spacer"></div>
+      <button type="button" class="btn sm primary" data-add-open hx-get="/articles/add" hx-target="#add-body">+ 글 추가</button>
     </div>
 
     <div class="scroll"><div class="page">
@@ -23,7 +24,7 @@
         {% if view.lead %}
           {% set r = view.lead.ranked %}{% set s = view.lead.stored %}
           <article class="lead" data-article="{{ r.article.id }}">
-            <div class="kicker"><span class="co-brand">{{ r.company }}</span>{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}</div>
+            <div class="kicker"><span class="co-brand">{{ r.company }}</span>{% if s.origin == "manual" %}<span class="badge plain">직접 추가</span>{% endif %}{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}</div>
             <h2><a href="#" hx-get="/article/{{ r.article.id }}" hx-target="#modal-body">{{ s.title }}</a></h2>
             {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
             {% if s.decision %}{% set d = s.decision %}

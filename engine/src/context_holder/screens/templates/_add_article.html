@@ -1,0 +1,16 @@
+<div id="add-state"{% if job.state == "running" %} hx-get="/articles/add" hx-trigger="every 1s" hx-target="#add-body"{% endif %}>
+{% if job.state == "running" %}
+  <p role="status" aria-live="polite">{{ job.message }}</p>
+  <p class="note">창을 닫아도 계속 진행해요.</p>
+{% elif job.state == "done" %}
+  <p role="status">{{ job.message }}</p>
+  <div class="actions"><button type="button" class="btn primary" data-add-close hx-get="/article/{{ job.article_id }}" hx-target="#modal-body">글 보기</button><button type="button" class="btn ghost" data-add-another>다른 글 추가</button></div>
+{% endif %}
+<form hx-post="/articles/add" hx-target="#add-body"{% if job.state in ("running", "done") %} hidden{% endif %}>
+  <label for="article-url">추가할 게시글의 URL을 입력하세요.</label>
+  <input id="article-url" name="url" type="url" required placeholder="https://…" value="{{ job.url }}" autocomplete="off">
+  {% if job.state == "error" %}<p role="alert">{{ job.message }}</p>{% endif %}
+  <p class="note add-network-error" hidden>연결하지 못했어요. 다시 시도해 주세요.</p>
+  <div class="actions"><button type="button" class="btn ghost" data-add-close>취소</button><button type="submit" class="btn primary">{{ '다시 시도' if job.state == 'error' else '추가' }}</button></div>
+</form>
+</div>

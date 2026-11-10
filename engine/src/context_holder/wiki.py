@@ -244,12 +244,18 @@ class Wiki:
         keep = {k: meta[k] for k in keys if k in meta}
         pending.path.write_text(_render(keep, pending.relevance, enrichment, ""), encoding="utf-8")
 
-    def save_from_inbox(self, path: Path) -> Path:
+    def save_from_inbox(
+        self, path: Path, collected: datetime | None = None, origin: str | None = None
+    ) -> Path:
         """보류 글을 저장으로 바꿔 wiki/로 옮긴다. 새 경로를 돌려준다."""
         text = path.read_text(encoding="utf-8")
         _, header, body = text.split("---\n", 2)
         meta = yaml.safe_load(header) or {}
         meta["relevance"]["bucket"] = Bucket.SAVE.value
+        if collected:
+            meta["collected"] = collected.isoformat()
+        if origin:
+            meta["origin"] = origin
         target = self.root / FOLDER[Bucket.SAVE] / path.parent.relative_to(self.root / "inbox")
         target = target / path.name
         if target.exists():
