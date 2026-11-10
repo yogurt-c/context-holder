@@ -61,7 +61,11 @@ def status_event(
     items += [
         {"label": "Today 열기", "enabled": True, "open": "/today"},
         {"label": "Search 열기", "enabled": True, "open": "/search"},
-        {"label": f"Inbox 열기 ({inbox})" if inbox else "Inbox 열기", "enabled": True, "open": "/inbox"},
+        {
+            "label": f"Inbox 열기 ({inbox})" if inbox else "Inbox 열기",
+            "enabled": True,
+            "open": "/inbox",
+        },
         {"separator": True},
         _sync_item(scheduler, record),
         _pause_item(paused),
