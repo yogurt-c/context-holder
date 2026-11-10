@@ -233,7 +233,7 @@ def test_search_without_query_offers_decision_topics(wiki, tmp_path):
     add(wiki, "https://t/a", "사이드카 운영", topic="사이드카 관리")
     c, _ = make_client(wiki, tmp_path)
     page = c.get("/search").text
-    assert "글 1건" in page and "결정 사례 1건" in page
+    assert "글 1건" in page and "결정 사례 1건" not in page
     assert 'id="search-loading"' in page and 'id="search-failed"' in page  # 찾는 동안 · 실패 안내
     assert (
         'href="/search?q=%EC%82%AC%EC%9D%B4%EB%93%9C%EC%B9%B4+%EA%B4%80%EB%A6%AC&amp;kind=decision"'

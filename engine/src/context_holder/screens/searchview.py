@@ -86,7 +86,6 @@ class SearchView:
     notes: list[str] = field(default_factory=list)
     elapsed: float = 0.0
     article_total: int = 0
-    decision_total: int = 0
     # 검색어가 없을 때 보여 줄 주제: (분야, [(이름, 주소)]). 정리한 주제는 Decisions 비교표로 간다
     browse: list[tuple[str, list[tuple[str, str]]]] = field(default_factory=list)
     # 검색어가 없을 때 보여 줄 Claude Code 질문 예시: (설명, 문장)
@@ -149,7 +148,6 @@ def build_search(
 ) -> SearchView:
     totals = {
         "article_total": len(index.select()),
-        "decision_total": sum(n for _, n in index.topics()),
     }
     if not query.q:
         browse = _browse(wiki, index, query)

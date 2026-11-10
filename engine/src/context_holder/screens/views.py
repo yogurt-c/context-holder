@@ -250,7 +250,6 @@ def sidebar(
     return {
         "status": run_status(wiki, today, device, True),
         "inbox_total": len(inbox),
-        "decision_total": sum(n for _, n in index.topics()),
         "sync": sync_state(scheduler) if scheduler is not None else None,
     }
 
