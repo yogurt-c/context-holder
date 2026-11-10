@@ -429,7 +429,7 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     flow.run = FakeRun({"mcp add": (1, "<bad>")})
     assert "&lt;bad&gt;" in c.post("/settings/mcp", headers=HTMX).text
     flow.run = FakeRun()
-    assert "다시 연결했어요" in c.post("/settings/mcp", headers=HTMX).text
+    assert "연결됐어요" in c.post("/settings/mcp", headers=HTMX).text
     flow.background = lambda work: work()
     assert "내려받는 중" in c.post("/settings/model", headers=HTMX).text
     assert c.seen["downloads"] == 1
@@ -462,7 +462,7 @@ def test_reconnect_redraws_mcp_status(flow, tmp_path):
 
     flow.run = Registering({"auth status": (0, LOGGED_IN)})
     panel = c.post("/settings/mcp", headers=HTMX).text
-    assert 'id="connections"' in panel and "다시 연결했어요" in panel
+    assert 'id="connections"' in panel and "연결됐어요" in panel
     assert "다른 위치" not in panel and "이 위키를 찾아봐요" in panel
 
 
@@ -697,7 +697,7 @@ def test_settings_codex_mcp_row(flow, tmp_path):
     flow.run = FakeRun({"login status": (0, "Logged in")})
     register_codex(flow, "/a/ctx")
     done = c.post("/settings/codex/mcp", headers=HTMX).text
-    assert "다시 연결했어요" in done
+    assert "연결됐어요" in done
     assert "Codex가 기술 결정 전에" in c.get("/settings/connections").text
 
 
@@ -754,7 +754,7 @@ def test_cancelled_add_removes_the_empty_account(flow):
         def poll(self):
             return 1
 
-    flow._logins["claude"] = setupflow.Login(flow.logging_in("claude"), True, Done())
+    flow._logins["claude"] = setupflow.Login(flow.logging_in("claude"), True, Done(), NOW)
     flow.claude_settled()
     assert flow.accounts("claude") == [] and flow.account("claude") == "system"
 
@@ -852,3 +852,85 @@ def test_deleted_or_unknown_accounts_fall_back_safely(flow, tmp_path):
     flow.relogin_account("codex", "0badc0de")
     flow.remove_account("codex", "system")
     assert flow.codex_job.state == "idle" and flow.run.calls == []
+
+
+# ---------- 끝나지 않는 로그인 ----------
+
+
+class Hanging:
+    """브라우저를 닫아 끝나지 않는 로그인 프로세스."""
+
+    def __init__(self):
+        self.terminated = False
+
+    def poll(self):
+        return None
+
+    def terminate(self):
+        self.terminated = True
+
+
+def test_cancel_login_stops_the_process_and_drops_the_new_account(flow):
+    process = Hanging()
+    flow.spawn = lambda args: process
+    flow.add_account("codex")
+    assert flow.logging_in("codex") and len(flow.accounts("codex")) == 1
+
+    flow.cancel_login("codex")
+
+    assert process.terminated and flow.logging_in("codex") is None
+    assert flow.codex_job.state == "idle" and flow.accounts("codex") == []
+    flow.cancel_login("codex")  # 기다리는 로그인이 없으면 아무것도 안 한다
+
+
+def test_cancelled_relogin_keeps_the_existing_account(flow, tmp_path):
+    from context_holder import agentaccounts
+
+    account = agentaccounts.create("claude", NOW, tmp_path / "accounts")
+    agentaccounts.remember("claude", account, "me@home.com", "pro", "", tmp_path / "accounts")
+    flow.spawn = lambda args: Hanging()
+    flow.relogin_account("claude", account)
+    flow.cancel_login("claude")
+    assert [a.email for a in flow.accounts("claude")] == ["me@home.com"]
+
+
+def test_login_times_out_after_five_minutes(flow):
+    process = Hanging()
+    flow.spawn = lambda args: process
+    flow.add_account("codex")
+    flow.clock = lambda: NOW + timedelta(minutes=4, seconds=59)
+    flow.codex_settled()
+    assert flow.codex_job.state == "logging_in" and not process.terminated
+    flow.clock = lambda: NOW + timedelta(minutes=5, seconds=1)
+    flow.codex_settled()
+    assert process.terminated and flow.accounts("codex") == []
+    assert flow.codex_job.state == "error" and "시간이 지났어요" in flow.codex_job.message
+
+
+def test_unfinished_accounts_from_a_previous_run_are_dropped(flow, tmp_path):
+    from context_holder import agentaccounts
+
+    root = tmp_path / "accounts"
+    left = agentaccounts.create("codex", NOW, root)  # 승인 전에 앱을 껐다
+    done = agentaccounts.create("codex", NOW, root)
+    agentaccounts.remember("codex", done, "", "API 키", "", root)  # API 키 로그인은 이메일이 없다
+    assert [a.id for a in flow.accounts("codex")] == [done]
+    assert not (root / "codex" / left).exists()
+
+
+def test_cancel_buttons_on_settings_and_setup(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    flow.spawn = lambda args: Hanging()
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (1, "")})
+    waiting = c.post("/settings/account/add", data={"agent": "codex"}, headers=HTMX).text
+    assert 'hx-post="/settings/account/cancel"' in waiting
+    done = c.post("/settings/account/cancel", data={"agent": "codex"}, headers=HTMX).text
+    assert "승인 대기" not in done and flow.accounts("codex") == []
+    assert c.post("/settings/account/cancel", data={"agent": "x"}, headers=HTMX).status_code == 400
+
+    flow.choose_agent("codex")
+    panel = c.post("/setup/codex/login", headers=HTMX).text
+    assert 'hx-post="/setup/login/cancel"' in panel
+    panel = c.post("/setup/login/cancel", data={"agent": "codex"}, headers=HTMX).text
+    assert flow.codex_job.state == "idle" and "승인하세요" not in panel
+    assert c.post("/setup/login/cancel", data={"agent": "x"}, headers=HTMX).status_code == 400

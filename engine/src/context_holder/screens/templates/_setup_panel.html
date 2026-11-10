@@ -47,7 +47,9 @@
       {% elif job.state == "installing" %}
         <div class="wait"><span class="spinner" aria-hidden="true"></span>{{ s.agent_tool }} 설치 중 (공식 설치 프로그램, 약 30초)</div>
       {% elif job.state == "logging_in" %}
-        <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 {{ s.agent_name }} 로그인을 승인하세요</div>
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 {{ s.agent_name }} 로그인을 승인하세요
+          <button type="button" class="btn sm ghost" hx-post="/setup/login/cancel" hx-vals='{"agent": "{{ s.agent }}"}' hx-target="#setup-panel" hx-swap="outerHTML">취소</button></div>
+        <p class="tiny">브라우저를 닫았다면 취소하고 다시 로그인하세요. 5분이 지나면 저절로 멈춰요.</p>
       {% else %}
         <p class="lede">{% if s.agent == "codex" %}요약과 분류에 쓸 Codex를 연결해요. ChatGPT Plus 이상 구독으로 동작하고 API 키는 필요 없어요.{% else %}요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요.{% endif %} 구독 사용량은 하루 몇 번 정도 써요.</p>
         {% if job.state == "error" %}<p class="error-line" role="alert">{{ job.message }}</p>{% endif %}

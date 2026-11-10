@@ -216,6 +216,13 @@ def add_routes(
         flow.choose_agent(agent)
         return setup_panel(request)
 
+    @app.post("/setup/login/cancel", response_class=HTMLResponse)
+    def setup_login_cancel(request: Request, agent: str = Form(...)) -> Response:
+        if agent not in AGENTS:
+            return PlainTextResponse("잘못된 값", status_code=400)
+        flow.cancel_login(agent)
+        return setup_panel(request)
+
     @app.post("/setup/codex/install", response_class=HTMLResponse)
     def setup_codex_install(request: Request) -> HTMLResponse:
         flow.install_codex()
@@ -343,6 +350,13 @@ def add_routes(
         flow.remove_account(agent, account)
         return connections(request)
 
+    @app.post("/settings/account/cancel", response_class=HTMLResponse)
+    def settings_account_cancel(request: Request, agent: str = Form(...)) -> Response:
+        if agent not in AGENTS:
+            return PlainTextResponse("잘못된 값", status_code=400)
+        flow.cancel_login(agent)
+        return connections(request)
+
     @app.post("/settings/codex/install", response_class=HTMLResponse)
     def settings_codex_install(request: Request) -> HTMLResponse:
         flow.install_codex()
@@ -351,14 +365,14 @@ def add_routes(
     @app.post("/settings/codex/mcp", response_class=HTMLResponse)
     def settings_codex_mcp(request: Request) -> HTMLResponse:
         ok, out = flow.register_codex_mcp()
-        message = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
+        message = "연결됐어요" if ok else f"연결하지 못했어요: {out[:120]}"
         return connections(request, mcp_message_codex=message)
 
     @app.post("/settings/mcp", response_class=HTMLResponse)
     def settings_mcp(request: Request) -> HTMLResponse:
         """다시 등록하고 연결 영역을 통째로 다시 그린다 (상태 문구도 바뀌어야 한다)."""
         ok, out = flow.register_mcp()
-        message = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
+        message = "연결됐어요" if ok else f"연결하지 못했어요: {out[:120]}"
         return connections(request, mcp_message_claude=message)
 
     @app.post("/settings/model", response_class=HTMLResponse)

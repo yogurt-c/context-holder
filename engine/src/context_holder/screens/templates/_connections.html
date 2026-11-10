@@ -15,7 +15,7 @@
     <span class="acct-meta">{% if card.waiting %}브라우저에서 승인하세요{% elif card.active and not card.logged_in and not card.system %}<span class="warn">로그인이 풀렸어요. 다시 로그인해 주세요</span>{% else %}{{ card.meta }}{% endif %}</span>
   </button>
   <div class="acct-actions">
-    {% if card.waiting %}{{ status("spin", "승인 대기") }}
+    {% if card.waiting %}{{ status("spin", "승인 대기") }}<button type="button" class="btn sm ghost" hx-post="/settings/account/cancel" hx-vals='{{ vals(a.key) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this">취소</button>
     {% elif not a.busy %}
       {% if card.system and card.logged_in %}{% elif card.system %}<button type="button" class="btn sm" hx-post="/settings/account/login" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this">로그인</button>
       {% else %}<button type="button" class="btn sm ghost" hx-post="/settings/account/login" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this">{{ icons.glyph("refresh") }}다시 로그인</button><button type="button" class="btn sm ghost" hx-post="/settings/account/remove" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-confirm="{{ card.email or '이 계정' }}을 이 앱에서 지울까요? 이 계정의 로그인도 지워져요." hx-disabled-elt="this">{{ icons.glyph("trash") }}제거</button>{% endif %}

@@ -11,7 +11,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -25,6 +25,8 @@ log = logging.getLogger(__name__)
 
 STATUS_TTL = 5.0  # claude auth status는 1초쯤 걸린다. 화면이 2초마다 물어도 이만큼은 재사용한다
 INSTALL_TIMEOUT = 300
+# 브라우저를 그냥 닫으면 로그인 프로세스가 승인 응답을 끝없이 기다린다. 이만큼 지나면 멈춘다
+LOGIN_TIMEOUT = timedelta(minutes=5)
 
 Clock = Callable[[], datetime]
 
@@ -48,6 +50,7 @@ class Login:
     account: str  # system 또는 계정 id
     new: bool  # 계정 추가로 시작한 로그인
     process: object  # 띄운 `claude auth login` · `codex login` 프로세스
+    started: datetime
 
 
 @dataclass
@@ -116,7 +119,14 @@ class SetupFlow:
         return agentaccounts.command_prefix(agent, chosen, self.accounts_root)
 
     def accounts(self, agent: str) -> list[agentaccounts.Account]:
-        return agentaccounts.list_accounts(agent, self.accounts_root)
+        """추가한 계정들. 승인 전에 끝난 계정(로그인한 적 없음)은 지운다 (앱을 껐다 켠 경우 등)."""
+        found = []
+        for account in agentaccounts.list_accounts(agent, self.accounts_root):
+            if account.email or account.plan or account.id == self.logging_in(agent):
+                found.append(account)
+            else:
+                agentaccounts.remove(agent, account.id, self.accounts_root)
+        return found
 
     def system_status(self, agent: str) -> claudesetup.ClaudeStatus:
         """터미널 로그인(시스템 기본값)의 상태. 활성이면 활성 상태를 그대로 쓴다."""
@@ -219,9 +229,24 @@ class SetupFlow:
             name = AGENTS[agent]
             self._set_job(agent, ClaudeJob("error", f"{name} 로그인을 띄우지 못했어요: {e}"))
             return
-        self._logins[agent] = Login(account, new, process)
+        self._logins[agent] = Login(account, new, process, self.clock())
         self._forget(agent)
         self._set_job(agent, ClaudeJob("logging_in"))
+
+    def cancel_login(self, agent: str) -> None:
+        """승인을 기다리던 로그인을 멈춘다. 새로 추가하던 계정이면 지운다."""
+        if agent in self._logins:
+            self._stop_login(agent)
+
+    def _stop_login(self, agent: str, message: str = "") -> None:
+        login = self._logins.pop(agent)
+        terminate = getattr(login.process, "terminate", None)
+        if terminate:
+            terminate()
+        if login.new:
+            agentaccounts.remove(agent, login.account, self.accounts_root)
+        self._forget(agent)
+        self._set_job(agent, ClaudeJob("error", message) if message else ClaudeJob())
 
     def settle(self, agent: str) -> None:
         """로그인을 기다리다 끝났으면 정리한다.
@@ -241,6 +266,8 @@ class SetupFlow:
         else:
             done = poll() is not None
         if not done:
+            if self.clock() - login.started > LOGIN_TIMEOUT:
+                self._stop_login(agent, "로그인 시간이 지났어요. 다시 시도해 주세요.")
             return
         del self._logins[agent]
         if login.new:
