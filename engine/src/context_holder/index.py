@@ -130,8 +130,10 @@ class Index:
         query_vector: np.ndarray,
         limit: int = 50,
         buckets: tuple[Bucket, ...] = (Bucket.SAVE, Bucket.INBOX),
+        labels: tuple[str, ...] | None = None,
     ) -> list[VectorHit]:
-        matrix, ids, labels = self._load_matrix()
+        """labels: 이 조각("제목", "결정 기록" 등)만 본다. None이면 모든 조각."""
+        matrix, ids, piece_labels = self._load_matrix()
         if not ids:
             return []
         allowed = {
@@ -145,8 +147,10 @@ class Index:
         best: dict[str, tuple[float, str]] = {}
         for i in np.argsort(-scores):
             aid = ids[i]
+            if labels is not None and piece_labels[i] not in labels:
+                continue
             if aid in allowed and aid not in best:
-                best[aid] = (float(scores[i]), labels[i])
+                best[aid] = (float(scores[i]), piece_labels[i])
         ranked = sorted(best.items(), key=lambda kv: -kv[1][0])[:limit]
         return [VectorHit(aid, score, label) for aid, (score, label) in ranked]
 

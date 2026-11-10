@@ -166,3 +166,16 @@ def test_old_index_gets_screen_columns_without_recomputing_vectors(tmp_path: Pat
     assert article.summary_line == "요약 한 줄"
     assert article.media is None
     assert Index(path)._backfill is False  # 다음에 열 때는 다시 채우지 않는다
+
+
+def test_vector_can_look_at_chosen_pieces_only(tmp_path: Path):
+    wiki = Wiki(tmp_path / "wiki")
+    embedder = FakeEmbedder(dim=1024)
+    aid = write(wiki, "https://t/1", "캐시 전략", ("레디스 클러스터 운영",))
+    index = Index(tmp_path / "index.db")
+    index.sync(wiki, embedder)
+    query = embedder.query("레디스")
+    assert [h.label for h in index.vector(query)] == ["핵심 내용 1번째 줄"]
+    title_only = index.vector(query, labels=("제목",))
+    assert [(h.article_id, h.label) for h in title_only] == [(aid, "제목")]
+    assert title_only[0].score < 0.1  # 제목에는 레디스가 없다

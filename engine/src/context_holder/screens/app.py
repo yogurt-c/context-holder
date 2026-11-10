@@ -248,7 +248,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     ) -> HTMLResponse:
         """검색창 추천. Decisions에서는 넓은 주제 비교표로, Search에서는 그 문장으로 찾는다."""
         with search_lock:
-            items = suggester.suggest(q[:SUGGEST_MAX_QUERY])
+            items = suggester.suggest(q[:SUGGEST_MAX_QUERY], grouped_only=to == "decisions")
 
         def url(s: Suggestion) -> str:
             if to == "decisions":

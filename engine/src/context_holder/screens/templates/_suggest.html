@@ -2,6 +2,6 @@
 <p class="suggest-head">{{ "추천 검색어" if q else "이런 걸 찾을 수 있어요" }}</p>
 <ul class="suggest-list" aria-label="추천 검색어">
   {% for s, url in items %}
-  <li><a class="suggest-item" href="{{ url }}"><span class="suggest-text">{{ s.text }}</span>{% if s.kind != "topic" %}<span class="suggest-topic">{{ s.topic }}</span>{% endif %}</a></li>
+  <li><a class="suggest-item" href="{{ url }}"><span class="suggest-text">{{ s.text }}</span>{% if s.kind != "topic" and s.topic %}<span class="suggest-topic">{{ s.topic }}</span>{% endif %}</a></li>
   {% endfor %}
 </ul>
