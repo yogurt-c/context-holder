@@ -19,18 +19,17 @@
 
 git과 Python은 앱에 들어 있어 따로 설치할 필요가 없다.
 
-지금은 직접 빌드해서 설치한다 (Apple Silicon, Rust · uv · Node 필요):
+[GitHub Releases](https://github.com/yogurt-c/context-holder/releases)에서 최신 `.dmg`를 내려받아 설치한다.
 
-```bash
-scripts/build-app.sh --install   # /Applications/Context Holder.app
-```
+앱을 처음 실행하면 **시작하기** 탭이 열리고 5단계를 차례로 안내한다.
 
-1. 앱을 설치하고 실행한다.
-2. **GitHub로 로그인**한다. 브라우저에서 승인하면 위키 레포(`context-wiki`, private)를 찾거나 새로 만든다.
-3. **Claude 연결**. Claude Code가 없으면 앱이 설치하고, 브라우저에서 로그인을 승인한다.
-4. 완료. 바로 첫 수집을 시작한다.
+1. **GitHub 로그인** — 브라우저에서 승인하면 위키 레포(`context-wiki`, private)를 찾거나 새로 만든다.
+2. **Claude 연결** — Claude Code가 없으면 앱이 설치한다. 브라우저에서 로그인을 승인하면 MCP까지 자동으로 연결한다.
+3. **수집 시작** — 수집 시각을 고르고 완료를 누르면 첫 수집이 시작된다.
+4. **첫 수집 완료** — 수집이 끝나면 Today·Search·Inbox를 쓸 수 있다.
+5. **주제 정리** — 첫 수집 뒤 위키 레포의 `topics.yaml`을 확인하고 불필요한 주제를 정리한다.
 
-다른 기기에서도 같은 순서로 설치하면 같은 위키를 쓴다. 상세는 [계획 3.2](docs/plan.md#32-초기-설정--인증).
+다 끝나면 시작하기 탭은 사라진다. 다른 기기에서도 같은 순서로 설치하면 같은 위키를 쓴다.
 
 ## 수집 대상 블로그
 
