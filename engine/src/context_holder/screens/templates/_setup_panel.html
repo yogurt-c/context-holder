@@ -1,7 +1,8 @@
-{# 첫 실행 설정 단계. 기다리는 일이 있으면 2초마다 다시 그린다 #}
+{# 시작하기 단계. 필수 단계에 번호를 붙이고, 선택 단계(Claude Code 검색)는 번호 없이 둔다.
+   기다리는 일(승인 · 설치 · 수집)이 있으면 2초마다 다시 그린다 #}
 <section id="setup-panel" class="setup-panel"{% if s.busy %} hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   {% set gh = s.github %}
-  <article class="setup-step{% if not s.github_done %} cur{% endif %}">
+  <article class="setup-step{% if s.current == "github" %} cur{% endif %}">
     <span class="ic {{ 'done' if s.github_done else ('run' if gh.state in ('waiting', 'connecting') else 'todo') }}">{% if s.github_done %}✓{% else %}1{% endif %}</span>
     <div class="body">
       <h2>GitHub 로그인과 위키 레포</h2>
@@ -13,22 +14,26 @@
         <code class="device-code">{{ gh.code.user_code }}</code>
         <div class="wait"><span class="spinner" aria-hidden="true"></span>승인 기다리는 중</div>
         <button type="button" class="btn primary lg" hx-post="/setup/github/open" hx-target="#setup-panel" hx-swap="outerHTML">코드 복사하고 브라우저 열기</button>
-        <p class="tiny">권한은 레포 읽기와 쓰기예요. 토큰은 macOS 키체인에만 저장해요.</p>
       {% elif gh.state == "connecting" %}
         <div class="wait"><span class="spinner" aria-hidden="true"></span>위키 레포를 준비하는 중</div>
       {% else %}
         <p class="lede">수집한 글은 내 계정의 private 레포 <code>context-wiki</code>에 저장돼요. 레포가 없으면 새로 만들어요.</p>
         {% if gh.state == "error" %}<p class="error-line" role="alert">{{ gh.message }}</p>{% endif %}
         <button type="button" class="btn primary lg" hx-post="/setup/github" hx-target="#setup-panel" hx-swap="outerHTML">{{ "위키 받기" if s.token_source else "GitHub로 로그인" }}</button>
+        {% if s.token_source == "gh" %}
+        <p class="tiny">GitHub CLI에 로그인된 계정의 <code>context-wiki</code>를 받아요.</p>
+        {% else %}
+        <p class="tiny">모든 레포(비공개 포함)를 읽고 쓰는 권한을 받아요. 앱은 <code>context-wiki</code>만 써요. 토큰은 macOS 키체인에만 저장해요.</p>
+        {% endif %}
       {% endif %}
     </div>
   </article>
 
   {% set cl = s.claude %}{% set job = s.claude_job %}
-  <article class="setup-step{% if s.github_done and not cl.logged_in %} cur{% endif %}">
+  <article class="setup-step{% if s.current == "claude" %} cur{% endif %}">
     <span class="ic {{ 'done' if cl.logged_in else ('run' if job.state in ('installing', 'logging_in') else 'todo') }}">{% if cl.logged_in %}✓{% else %}2{% endif %}</span>
     <div class="body">
-      <h2>Claude 연결</h2>
+      <h2>Claude 연결 <small>요약 · 분류용</small></h2>
       {% if cl.logged_in %}
         <p class="lede">연결됨{% if cl.label %} · {{ cl.label }}{% endif %}</p>
       {% elif job.state == "installing" %}
@@ -36,7 +41,7 @@
       {% elif job.state == "logging_in" %}
         <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 Claude 로그인을 승인하세요</div>
       {% else %}
-        <p class="lede">요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요.</p>
+        <p class="lede">요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요. 구독 사용량은 하루 몇 번 정도 써요.</p>
         {% if job.state == "error" %}<p class="error-line" role="alert">{{ job.message }}</p>{% endif %}
         {% if not cl.installed %}
         <p class="tiny">Claude Code가 없어요. 공식 설치 프로그램(claude.ai/install.sh)을 실행해요.</p>
@@ -48,38 +53,82 @@
     </div>
   </article>
 
-  <article class="setup-step{% if cl.logged_in and not s.mcp_ok %} cur{% endif %}">
-    <span class="ic {{ 'done' if s.mcp_ok else 'todo' }}">{% if s.mcp_ok %}✓{% else %}3{% endif %}</span>
+  <article class="setup-step optional">
+    <span class="ic {{ 'done' if s.mcp_ok else 'todo' }}">{% if s.mcp_ok %}✓{% else %}+{% endif %}</span>
     <div class="body">
-      <h2>Claude Code 연동</h2>
+      <h2>Claude Code에서 위키 검색 <small>선택</small></h2>
       {% if s.mcp_ok %}
-        <p class="lede">연결됨. Claude Code가 기술 결정 전에 이 위키를 찾아봐요.</p>
+        <p class="lede">연결됨. Claude Code가 기술 결정 전에 이 위키를 찾아봐요. 새로 연 Claude Code 세션부터 적용돼요.</p>
       {% else %}
         <p class="lede">터미널에서 쓰는 Claude Code가 기술 결정을 내리기 전에 이 위키의 사례를 찾아보게 연결해요.</p>
         {% if s.translocated %}
         <p class="error-line" role="alert">앱을 응용 프로그램 폴더로 옮긴 뒤 다시 열어 주세요. 지금 위치는 macOS가 잠시 쓰는 임시 경로라 연결해도 곧 끊겨요.</p>
         {% else %}
-        <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>연결</button>
+        {% if s.mcp_error %}<p class="error-line" role="alert">{{ s.mcp_error }}</p>{% endif %}
+        <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>Claude Code에 추가</button>
+        {% if not cl.installed %}<p class="tiny">2단계에서 Claude Code를 설치하면 추가할 수 있어요.</p>{% endif %}
         {% endif %}
       {% endif %}
     </div>
   </article>
 
-  {% set st = s.settings %}
-  <article class="setup-step{% if s.can_finish %} cur{% endif %}">
-    <span class="ic todo">4</span>
+  {% set st = s.settings %}{% set j = s.journey %}
+  <article class="setup-step{% if s.current == "start" %} cur{% endif %}">
+    <span class="ic {{ 'done' if st.setup_done else 'todo' }}">{% if st.setup_done %}✓{% else %}3{% endif %}</span>
     <div class="body">
-      <h2>완료와 첫 수집</h2>
-      <p class="lede">새 위키면 소스마다 최근 글을 가져와 위키를 채워요(몇십 분 걸려요). 다른 기기에서 쓰던 위키면 받아서 바로 써요.</p>
+      <h2>수집 시작</h2>
+      {% if st.setup_done %}
+        <p class="lede">매일 {{ st.daily_at }}에 수집해요{% if st.weekends %}(주말 포함){% endif %}. <a href="/settings">설정</a>에서 바꿀 수 있어요.</p>
+      {% else %}
+      <p class="lede">수집 시각과 알림을 고르고 시작해요.</p>
       <form hx-post="/setup/finish">
         <ul class="toggles">
           <li><label><input type="checkbox" name="autostart" value="true"{% if st.autostart %} checked{% endif %}> 로그인할 때 자동 실행</label></li>
-          <li><span class="label">매일 수집 <small>꺼져 있었다면 켤 때 수집</small></span>{% with t=st.daily_at, hours=s.hours, minutes=s.minutes %}{% include "_time_select.html" %}{% endwith %}</li>
+          <li><span class="label">매일 수집 <small>그 시각에 Mac이나 앱이 꺼져 있었으면 다음에 켤 때 수집해요</small></span>{% with t=st.daily_at, hours=s.hours, minutes=s.minutes %}{% include "_time_select.html" %}{% endwith %}</li>
           <li><label><input type="checkbox" name="notify" value="true"{% if st.notify %} checked{% endif %}> 수집 완료 알림</label></li>
         </ul>
         <button class="btn primary lg finish"{% if not s.can_finish %} disabled{% endif %}>시작하기</button>
-        {% if not s.can_finish %}<p class="tiny">GitHub와 Claude를 연결하면 시작할 수 있어요.</p>{% endif %}
+        {% if not s.can_finish %}<p class="tiny">GitHub와 Claude를 연결하면 시작할 수 있어요. Claude Code 검색은 나중에 설정에서 추가해도 돼요.</p>{% endif %}
       </form>
+      {% endif %}
     </div>
   </article>
+
+  {% set collected = j.is_done("first_sync") %}{% set sy = s.sync %}{% set running = st.setup_done and sy and sy.running %}
+  <article class="setup-step{% if s.current == "first_sync" %} cur{% endif %}">
+    <span class="ic {{ 'done' if collected else ('run' if running else 'todo') }}">{% if collected %}✓{% elif not running %}4{% endif %}</span>
+    <div class="body">
+      <h2>첫 수집</h2>
+      {% if collected %}
+        <p class="lede">끝났어요. <a href="/today">Today</a>에서 모은 글을 볼 수 있어요.</p>
+      {% elif running %}
+        <p class="lede">{{ sy.progress or "준비 중" }}</p>
+        {% if sy.ratio is not none %}<div class="bar busy" role="progressbar" aria-label="첫 수집 진행" aria-valuenow="{{ sy.ratio }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ sy.ratio }}%"></i></div>{% endif %}
+        <p class="tiny">몇십 분 걸려요. 그동안 다른 화면을 써도 돼요.</p>
+      {% elif st.setup_done %}
+        <p class="lede">아직 끝나지 않았어요. 멈춘 곳부터 다음 수집 때 이어서 해요.</p>
+      {% else %}
+        <p class="lede">새 위키면 소스마다 최근 글을 가져와 위키를 채워요(몇십 분 걸려요). 다른 기기에서 쓰던 위키면 받아서 바로 써요.</p>
+        <p class="tiny">의미 검색 모델(약 570MB)도 이때 내려받아요. 받기 전에는 키워드로만 찾아요.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  {% set grouped = j.is_done("topics") %}
+  <article class="setup-step{% if s.current == "topics" %} cur{% endif %}">
+    <span class="ic {{ 'done' if grouped else 'todo' }}">{% if grouped %}✓{% else %}5{% endif %}</span>
+    <div class="body">
+      <h2>주제 정리</h2>
+      {% if grouped %}
+        <p class="lede"><a href="/decisions">Decisions</a>에서 회사별 결정을 주제마다 비교할 수 있어요.</p>
+      {% elif collected %}
+        <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. Claude를 한 번 불러요.</p>
+        <a class="btn primary" href="/decisions">Decisions에서 주제 정리</a>
+      {% else %}
+        <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. 첫 수집이 끝나면 할 수 있어요.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  {% if j.complete %}<p class="setup-done" role="status">다 마쳤어요. 시작하기 탭은 사이드바에서 사라져요.</p>{% endif %}
 </section>

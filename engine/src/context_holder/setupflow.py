@@ -79,6 +79,10 @@ class SetupFlow:
             self._status = (now, claudesetup.status(self.run))
         return self._status[1]
 
+    def claude_cached(self) -> bool:
+        """명령을 부르지 않고 마지막으로 확인한 로그인 상태만 본다 (사이드바처럼 자주 그리는 곳)."""
+        return self._status is not None and self._status[1].logged_in
+
     def needed(self) -> bool:
         """첫 실행 설정을 보여 줄까. 이미 다 갖춘 기기(다른 방법으로 연결)면 끝난 것으로 남긴다."""
         settings = appsettings.load(self.settings_path)

@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from context_holder import appsettings
+from context_holder import appsettings, onboarding
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
@@ -103,10 +103,28 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     def page(request: Request, name: str, active: str, **values) -> HTMLResponse:
         side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
         theme = appsettings.load(ctx.settings_path).theme if ctx.settings_path else "system"
-        shell = {"theme": theme, "in_app": ctx.app_mode, "update": update_view()}
+        shell = {
+            "theme": theme,
+            "in_app": ctx.app_mode,
+            "update": update_view(),
+            "onboarding": pending_onboarding(),
+        }
         return templates.TemplateResponse(
             request, name, {"active": active, "side": side, "pages": PAGES, **shell, **values}
         )
+
+    def pending_onboarding() -> onboarding.Onboarding | None:
+        """사이드바의 "시작하기 n/5". 다 끝났으면 None (탭을 뺀다)."""
+        if ctx.flow is None or ctx.settings_path is None:
+            return None
+        return onboarding.pending(ctx.flow, ctx.wiki, ctx.settings_path)
+
+    def journey() -> onboarding.Onboarding:
+        settings = appsettings.load(ctx.settings_path) if ctx.settings_path else None
+        return onboarding.build(ctx.flow, ctx.wiki, settings or appsettings.Settings())
+
+    def sync_now_state() -> dict[str, Any] | None:
+        return views.sync_state(ctx.scheduler) if ctx.scheduler is not None else None
 
     def busy() -> bool:
         return ctx.scheduler is not None and ctx.scheduler.running
@@ -128,7 +146,15 @@ def create_app(ctx: ScreenContext) -> FastAPI:
 
     if ctx.flow is not None:
         setuproutes.add_routes(
-            app, ctx.flow, templates, page, ctx.model, ctx.download_model, ctx.on_settings
+            app,
+            ctx.flow,
+            templates,
+            page,
+            ctx.model,
+            ctx.download_model,
+            ctx.on_settings,
+            journey,
+            sync_now_state,
         )
 
     @app.get("/today", response_class=HTMLResponse)

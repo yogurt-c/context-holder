@@ -8,13 +8,20 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 
 from context_holder import appsettings, claudesetup
 from context_holder.gitsync import WikiRepo
+from context_holder.onboarding import Onboarding
 from context_holder.setupflow import SetupFlow, model_downloaded
 
 HOURS = [f"{h:02d}" for h in range(24)]
 MINUTES = [f"{m:02d}" for m in range(0, 60, 10)]
 
 
-def setup_view(flow: SetupFlow) -> dict[str, Any]:
+def setup_view(
+    flow: SetupFlow,
+    journey: Onboarding,
+    sync: dict[str, Any] | None = None,
+    mcp_error: str = "",
+) -> dict[str, Any]:
+    """journey: 시작하기 단계별 완료. sync: 사이드바와 같은 수집 진행 (앱이 띄웠을 때만)."""
     flow.claude_settled()
     claude = flow.claude()
     # 다시 로그인하는 동안은 이전 토큰이 있어도 코드 입력 단계를 보인다
@@ -26,9 +33,13 @@ def setup_view(flow: SetupFlow) -> dict[str, Any]:
         "claude": claude,
         "claude_job": flow.claude_job,
         "mcp_ok": flow.mcp_ok() if claude.installed else False,
+        "mcp_error": mcp_error,
         "translocated": claudesetup.translocated(),
         "settings": appsettings.load(flow.settings_path),
-        "busy": flow.busy(),
+        "busy": flow.busy() or bool(sync and sync["running"]),
+        "journey": journey,
+        "current": next((step.key for step in journey.steps if not step.done), None),
+        "sync": sync,
         "can_finish": github_done and claude.logged_in,
         "hours": HOURS,
         "minutes": MINUTES,
@@ -70,13 +81,18 @@ def add_routes(
     model: Callable[[], tuple[Any, str]],  # (모델 폴더, 모델 id)
     download_model: Callable[[], None],
     on_settings: Callable[[appsettings.Settings], None],
+    journey: Callable[[], Onboarding],
+    sync: Callable[[], dict[str, Any] | None],
 ) -> None:
-    def setup_panel(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(request, "_setup_panel.html", {"s": setup_view(flow)})
+    def view(mcp_error: str = "") -> dict[str, Any]:
+        return setup_view(flow, journey(), sync(), mcp_error)
+
+    def setup_panel(request: Request, mcp_error: str = "") -> HTMLResponse:
+        return templates.TemplateResponse(request, "_setup_panel.html", {"s": view(mcp_error)})
 
     @app.get("/setup", response_class=HTMLResponse)
     def setup(request: Request) -> HTMLResponse:
-        return page(request, "setup.html", "setup", s=setup_view(flow))
+        return page(request, "setup.html", "setup", s=view())
 
     @app.get("/setup/panel", response_class=HTMLResponse)
     def setup_poll(request: Request) -> HTMLResponse:
@@ -104,8 +120,9 @@ def add_routes(
 
     @app.post("/setup/mcp", response_class=HTMLResponse)
     def setup_mcp(request: Request) -> HTMLResponse:
-        ok, _ = flow.register_mcp()
-        response = setup_panel(request)
+        ok, out = flow.register_mcp()
+        error = "" if ok else f"연결하지 못했어요: {out[:120] or '이유를 알 수 없어요'}"
+        response = setup_panel(request, error)
         if not ok:
             response.headers["HX-Trigger"] = "mcp-failed"
         return response

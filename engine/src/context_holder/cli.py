@@ -55,7 +55,7 @@ from context_holder.screens.app import ScreenContext, new_token
 from context_holder.screens.serve import serve
 from context_holder.search import search
 from context_holder.searcheval import evaluate_search, load_queries
-from context_holder.setupflow import SetupFlow
+from context_holder.setupflow import SetupFlow, model_downloaded
 from context_holder.sources import SourceConfigError, load_default_sources, load_sources
 from context_holder.sync import SyncReport, default_days, run_sync
 from context_holder.tray import AppBridge, NoticeLog
@@ -362,11 +362,18 @@ def sync_command(
         work()
         return
     now = datetime.now(UTC)
+    _announce_model(wiki, events)
     _pull_and_index(repo, wiki)
     lock = RunLock(repo, daily_lock(now), device_name(home()), lambda: datetime.now(UTC))
     run = _run_locked(lock, work, blockers=[INIT_LOCK])
     if run.work:
         _index().sync(wiki, make_embedder(wiki.search_model()))
+
+
+def _announce_model(wiki: Wiki, events: bool) -> None:
+    """검색 모델을 처음 내려받을 차례면 앱에 알린다 (약 570MB라 몇 분 걸린다)."""
+    if events and not model_downloaded(home() / "models", wiki.search_model()):
+        _progress_line("model", 0, 0)
 
 
 def _progress_line(stage: str, done: int, total: int) -> None:
@@ -497,6 +504,7 @@ def init_command(
     if repo is None:
         work()
         return
+    _announce_model(wiki, events)
     _pull_and_index(repo, wiki)
     lock = RunLock(repo, INIT_LOCK, device_name(home()), lambda: datetime.now(UTC))
     run = _run_locked(lock, work, blockers=[daily_lock(datetime.now(UTC))])

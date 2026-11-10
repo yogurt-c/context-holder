@@ -39,6 +39,7 @@ STAGES = {
     "classify": "분류",
     "enrich": "요약",
     "init": "첫 수집",
+    "model": "검색 모델 내려받는 중 (약 570MB)",
 }
 
 Clock = Callable[[], datetime]
@@ -61,6 +62,8 @@ class Progress:
         name = STAGES.get(self.stage, self.stage)
         if self.stage == "classify":
             return f"{name} 중 ({self.total}건)"
+        if not self.total:  # 셀 수 없는 단계 (검색 모델 내려받기)
+            return name
         return f"{name} {self.done}/{self.total}"
 
 

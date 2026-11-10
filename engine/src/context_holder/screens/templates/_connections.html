@@ -7,8 +7,8 @@
     <dt>Claude</dt>
     <dd>{% if c.claude.logged_in %}연결됨{% if c.claude.label %} · {{ c.claude.label }}{% endif %}{% elif c.claude.installed %}<span class="warn">로그인이 필요해요</span>{% else %}<span class="warn">Claude Code가 없어요</span>{% endif %}
       <span class="act" id="claude-act">{% if c.claude_waiting %}<span class="done-label waiting"><span class="ut-spin" aria-hidden="true"></span>브라우저에서 승인하세요</span>{% elif c.claude.installed %}{% if c.claude_error %}<span class="warn">{{ c.claude_error }}</span> {% endif %}<button type="button" class="btn sm" hx-post="/settings/claude" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">다시 연결</span><span class="when-busy">확인 중…</span></button>{% else %}<a class="btn sm" href="/setup">설치하기</a>{% endif %}</span></dd>
-    <dt>Claude Code 연동</dt>
-    <dd>{% if c.translocated %}<span class="warn">앱을 응용 프로그램 폴더로 옮긴 뒤 연결하세요</span>{% elif c.mcp_ok %}Claude Code가 기술 결정 전에 이 위키를 찾아봐요{% elif c.registered %}<span class="warn">이 앱이 아닌 다른 위치로 연결돼 있어요.</span> 다시 연결하면 이 앱으로 바뀌어요{% else %}<span class="warn">연결되지 않았어요</span>{% endif %}
+    <dt>Claude Code에서 위키 검색</dt>
+    <dd>{% if c.translocated %}<span class="warn">앱을 응용 프로그램 폴더로 옮긴 뒤 연결하세요</span>{% elif c.mcp_ok %}Claude Code가 기술 결정 전에 이 위키를 찾아봐요{% elif not c.claude.installed %}<span class="warn">Claude Code를 설치하면 추가할 수 있어요</span>{% elif c.registered %}<span class="warn">이 앱이 아닌 다른 위치로 연결돼 있어요.</span> 다시 연결하면 이 앱으로 바뀌어요{% else %}<span class="warn">연결되지 않았어요</span>{% endif %}
       <span class="act" id="mcp-act">{% if c.mcp_message %}<span class="done-label">{{ c.mcp_message }}</span>{% elif c.claude.installed and not c.translocated %}<button type="button" class="btn sm" hx-post="/settings/mcp" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">다시 연결</span><span class="when-busy">확인 중…</span></button>{% endif %}</span></dd>
   </dl>
 </section>

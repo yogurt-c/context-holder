@@ -318,7 +318,7 @@ def test_home_goes_to_setup_until_done(flow, tmp_path):
     page = c.get("/setup").text
     assert "GitHub로 로그인" in page and 'class="in-app"' in page
     assert "Claude Code 설치" in page or "Claude 로그인" in page
-    assert "Claude Code 연동" in page and "claude mcp add" not in page
+    assert "Claude Code에서 위키 검색" in page and "claude mcp add" not in page
     flow.finish(True, "09:30", True)
     assert c.get("/").headers["location"] == "/today"
 
@@ -343,6 +343,7 @@ def test_setup_buttons(flow, tmp_path, monkeypatch):
     flow.run = FakeRun({"mcp add": (1, "boom"), "auth status": (0, LOGGED_IN)})
     failed = c.post("/setup/mcp", headers=HTMX)
     assert failed.headers["HX-Trigger"] == "mcp-failed"
+    assert "연결하지 못했어요: boom" in failed.text
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     assert "HX-Trigger" not in c.post("/setup/mcp", headers=HTMX).headers
 
