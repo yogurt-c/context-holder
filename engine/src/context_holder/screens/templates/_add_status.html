@@ -1,6 +1,16 @@
-{% if job.state != "idle" %}
-<div class="add-status-note" role="status">
-  <span>{{ job.message }}</span>
-  <button type="button" class="btn sm ghost" data-add-open hx-get="/articles/add" hx-target="#add-body">{{ '글 보기' if job.state == 'done' else '확인' }}</button>
+{# 새 글을 가져오는 동안과 그 결과만 우측 하단에 보인다. 입력 창에서 끝난 결과는 띄우지 않는다 #}
+{% if job.state != "idle" and not job.in_modal %}
+<div class="add-status-note {{ job.state }}" role="status" data-key="{{ job.state }}|{{ job.message }}"{% if job.state == "done" %} data-auto-dismiss{% endif %}>
+  <div class="add-status-row">
+    {% if job.state != "running" %}<span class="dot{{ ' error' if job.state == 'error' else '' }}" aria-hidden="true"></span>{% endif %}
+    <span class="add-status-msg">{{ job.message }}</span>
+    {% if job.state == "done" and job.article_id %}
+    <button type="button" class="btn sm ghost" data-add-dismiss hx-get="/article/{{ job.article_id }}" hx-target="#modal-body">글 보기</button>
+    {% elif job.state == "error" %}
+    <button type="button" class="btn sm ghost" data-add-open hx-get="/articles/add" hx-target="#add-body">다시 시도</button>
+    {% endif %}
+    {% if job.state != "running" %}<button type="button" class="btn sm ghost" data-add-dismiss aria-label="알림 닫기">닫기</button>{% endif %}
+  </div>
+  {% if job.state == "running" %}<div class="bar busy indeterminate add-status-bar" role="progressbar" aria-label="글 추가 진행"><i style="width:30%"></i></div>{% endif %}
 </div>
 {% endif %}

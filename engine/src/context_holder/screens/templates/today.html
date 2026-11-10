@@ -8,7 +8,7 @@
       <span class="title">{{ long_day(view.day) }}</span>
       {% if view.next_day %}<a class="btn sm ghost" href="/today?date={{ view.next_day.isoformat() }}" aria-label="다음 날 보기">{{ short_day(view.next_day) }} ›</a>{% endif %}
       <div class="spacer"></div>
-      <button type="button" class="btn sm primary" data-add-open hx-get="/articles/add" hx-target="#add-body">+ 글 추가</button>
+      <button type="button" class="btn sm primary" data-add-open hx-get="/articles/add?new=1" hx-target="#add-body">+ 글 추가</button>
     </div>
 
     <div class="scroll"><div class="page">

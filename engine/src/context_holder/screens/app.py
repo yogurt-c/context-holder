@@ -14,7 +14,7 @@ from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -196,17 +196,32 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return page(request, "today.html", "today", view=view, alerts=current_alerts())
 
     @app.get("/articles/add", response_class=HTMLResponse)
-    def add_form(request: Request) -> HTMLResponse:
+    def add_form(request: Request, new: bool = False) -> HTMLResponse:
+        if new:
+            addition.dismiss()
         return templates.TemplateResponse(request, "_add_article.html", {"job": addition})
 
     @app.get("/articles/add/status", response_class=HTMLResponse)
     def add_status(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(request, "_add_status.html", {"job": addition})
+        response = templates.TemplateResponse(request, "_add_status.html", {"job": addition})
+        current = urlsplit(request.headers.get("HX-Current-URL", "")).path
+        # 다른 화면에서는 알림만 띄운다. Today로 가면 새 글이 이미 그려진다.
+        if addition.take_changed() and current == "/today":
+            response.headers["HX-Refresh"] = "true"  # 추가한 글이 오늘의 브리프에 보이게
+        return response
+
+    @app.post("/articles/add/dismiss", response_class=HTMLResponse)
+    def add_dismiss(request: Request) -> HTMLResponse:
+        addition.dismiss()
+        return add_status(request)
 
     @app.post("/articles/add", response_class=HTMLResponse)
     def add_article(request: Request, url: str = Form("")) -> HTMLResponse:
         addition.start(url, busy=busy() or regroup.state == "running")
-        return add_form(request)
+        response = add_form(request)
+        if not addition.in_modal:  # 입력 창을 닫고 우측 하단에서 진행을 보인다
+            response.headers["HX-Trigger"] = "add-started"
+        return response
 
     def mcp_connected() -> bool | None:
         return ctx.flow.mcp_ok() if ctx.flow is not None else None

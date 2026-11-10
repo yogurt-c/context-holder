@@ -218,6 +218,36 @@ document.addEventListener("click", (event) => {
     input.focus();
   }
 });
+// 끝난 결과는 창이나 알림을 닫으면 비운다. 진행 중이면 서버가 그대로 둔다.
+function dismissAddResult() {
+  htmx.ajax("POST", "/articles/add/dismiss", { target: "#add-status", swap: "innerHTML" });
+}
+document.getElementById("add-modal")?.addEventListener("close", dismissAddResult);
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-add-dismiss]")) dismissAddResult();
+});
+// 추가를 시작하면 입력 창을 닫고 우측 하단 알림을 바로 띄운다.
+document.addEventListener("add-started", () => {
+  document.getElementById("add-modal")?.close();
+  htmx.ajax("GET", "/articles/add/status", { target: "#add-status", swap: "innerHTML" });
+});
+// 같은 상태를 다시 그리지 않는다: 로딩바가 처음부터 다시 돌거나 자동 닫힘이 늦춰지지 않게.
+const ADD_DONE_VISIBLE_MS = 4000;
+let addDoneTimer = null;
+document.addEventListener("htmx:beforeSwap", (event) => {
+  if (event.detail.target?.id !== "add-status" || !event.detail.xhr) return;
+  const current = event.detail.target.querySelector(".add-status-note")?.dataset.key;
+  const next = new DOMParser().parseFromString(event.detail.serverResponse, "text/html")
+    .querySelector(".add-status-note")?.dataset.key;
+  if (current && current === next) event.detail.shouldSwap = false;
+});
+document.addEventListener("htmx:afterSwap", (event) => {
+  if (event.target.id !== "add-status") return;
+  clearTimeout(addDoneTimer);
+  if (event.target.querySelector("[data-auto-dismiss]")) {
+    addDoneTimer = setTimeout(dismissAddResult, ADD_DONE_VISIBLE_MS);
+  }
+});
 document.addEventListener("htmx:afterSwap", (event) => {
   if (event.target.id === "add-body") {
     htmx.process(event.target);

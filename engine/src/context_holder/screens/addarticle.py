@@ -73,13 +73,17 @@ class AddArticleJob:
     url: str = ""
     message: str = ""
     article_id: str = ""
+    # 위키가 바뀌었으면 열린 Today를 한 번 새로 고친다 (take_changed)
+    changed: bool = False
+    # 결과를 입력 창 안에서 보여 줬다 (잘못된 URL · 이미 있는 글). 우측 하단 알림은 띄우지 않는다
+    in_modal: bool = True
     _lock: AbstractContextManager = field(default_factory=threading.Lock)
 
     def start(self, value: str, busy: bool) -> None:
         with self._lock:
             if self.state == "running":
                 return
-            self.url, self.article_id = value, ""
+            self.url, self.article_id, self.changed, self.in_modal = value, "", False, True
             try:
                 url = normalize_url(value)
             except ValueError as e:
@@ -92,8 +96,30 @@ class AddArticleJob:
                 )
                 return
             self.url = url
+            with self.write_lock:
+                existing = self._existing()
+            if existing and existing.bucket is Bucket.SAVE:
+                self.state, self.message = "done", "이미 위키에 있는 글이에요."
+                self.article_id = existing.id
+                return
+            self.in_modal = False
             self.state, self.message = "running", "본문을 가져오는 중…"
         self.background(self._run)
+
+    def dismiss(self) -> None:
+        """끝난 결과(완료 · 오류)를 비운다. 진행 중인 작업은 창을 닫아도 계속한다."""
+        with self._lock:
+            if self.state != "running":
+                # changed는 남긴다: 결과를 바로 닫아도 Today는 새로 고친다
+                self.state, self.url, self.message, self.article_id = "idle", "", "", ""
+
+    def take_changed(self) -> bool:
+        """끝난 작업이 위키를 바꿨는지 한 번만 알린다."""
+        with self._lock:
+            changed = self.state != "running" and self.changed
+            if changed:
+                self.changed = False
+            return changed
 
     def _existing(self):
         return next((a for a in self.ctx.wiki.articles() if canonical_url(a.url) == self.url), None)
@@ -105,6 +131,7 @@ class AddArticleJob:
                 self.ctx.wiki, self.ctx.device, Kind.SAVE, article.url, self.ctx.clock()
             )
             self.message = "위키에 추가했어요."
+            self.changed = True
         else:
             self.message = "이미 위키에 있는 글이에요."
         self.article_id = article.id
@@ -138,6 +165,7 @@ class AddArticleJob:
                         ctx.wiki.record_seen([decision], ctx.clock())
                         record_feedback(ctx.wiki, ctx.device, Kind.SAVE, self.url, ctx.clock())
                         self.message = "위키에 추가했어요."
+                        self.changed = True
             with self.search_lock:
                 try:
                     embedder = ctx.embedder()
