@@ -16,8 +16,9 @@ from pathlib import Path
 
 import httpx
 
-from context_holder import appsettings, auth, claudesetup, codexsetup, deviceflow
+from context_holder import agentaccounts, appsettings, auth, claudesetup, codexsetup, deviceflow
 from context_holder.connect import Connected, ConnectError, connect_wiki
+from context_holder.llm import AGENTS
 from context_holder.tools import tool
 
 log = logging.getLogger(__name__)
@@ -42,6 +43,13 @@ class ClaudeJob:
     message: str = ""
 
 
+@dataclass(frozen=True)
+class Login:
+    account: str  # system 또는 계정 id
+    new: bool  # 계정 추가로 시작한 로그인
+    process: object  # 띄운 `claude auth login` · `codex login` 프로세스
+
+
 @dataclass
 class SetupFlow:
     wiki_root: Path
@@ -56,14 +64,15 @@ class SetupFlow:
     copy: Callable[[str], None] = field(default=lambda text: _pbcopy(text))
     claude_config: Path | None = None  # 테스트에서 바꾼다. 없으면 Claude Code 설정 파일
     codex_home: Path | None = None  # 테스트에서 바꾼다. 없으면 $CODEX_HOME 또는 ~/.codex
+    accounts_root: Path | None = None  # 테스트에서 바꾼다. 없으면 ~/.context-holder/accounts
     on_ready: Callable[[], None] = lambda: None  # 위키 · 로그인이 갖춰졌다 (스케줄러를 깨운다)
     github: GitHubLogin = field(default_factory=GitHubLogin)
     claude_job: ClaudeJob = field(default_factory=ClaudeJob)
     codex_job: ClaudeJob = field(default_factory=ClaudeJob)
-    _status: tuple[float, claudesetup.ClaudeStatus] | None = None
-    _login: object = None  # 띄운 `claude auth login` 프로세스
-    _codex_status: tuple[float, claudesetup.ClaudeStatus] | None = None
-    _codex_login: object = None  # 띄운 `codex login` 프로세스
+    _status: tuple[float, claudesetup.ClaudeStatus] | None = None  # 활성 계정 (Claude)
+    _codex_status: tuple[float, claudesetup.ClaudeStatus] | None = None  # 활성 계정 (Codex)
+    _system: dict[str, tuple[float, claudesetup.ClaudeStatus]] = field(default_factory=dict)
+    _logins: dict[str, "Login"] = field(default_factory=dict)  # 승인을 기다리는 로그인
 
     # ---------- 상태 ----------
 
@@ -78,9 +87,10 @@ class SetupFlow:
         return self.has_wiki() and self.token_source() is not None
 
     def claude(self, fresh: bool = False) -> claudesetup.ClaudeStatus:
+        """활성 계정의 상태."""
         now = time.monotonic()
         if fresh or self._status is None or now - self._status[0] > STATUS_TTL:
-            self._status = (now, claudesetup.status(self.run))
+            self._status = (now, self._read_status("claude", self.account("claude")))
         return self._status[1]
 
     # ---------- 고른 에이전트 ----------
@@ -90,6 +100,157 @@ class SetupFlow:
 
     def choose_agent(self, agent: str) -> None:
         appsettings.update(self.settings_path, agent=agent)
+
+    # ---------- 계정 ----------
+
+    def account(self, agent: str) -> str:
+        """활성 계정: system 또는 추가한 계정 id. 지워진 계정이면 system."""
+        account = appsettings.load(self.settings_path).account(agent)
+        if account != agentaccounts.SYSTEM and not self._exists(agent, account):
+            return agentaccounts.SYSTEM
+        return account
+
+    def prefix(self, agent: str, account: str | None = None) -> list[str]:
+        """그 계정의 설정 폴더로 에이전트 명령을 돌리게 앞에 붙일 것. 없으면 활성 계정."""
+        chosen = account or self.account(agent)
+        return agentaccounts.command_prefix(agent, chosen, self.accounts_root)
+
+    def accounts(self, agent: str) -> list[agentaccounts.Account]:
+        return agentaccounts.list_accounts(agent, self.accounts_root)
+
+    def system_status(self, agent: str) -> claudesetup.ClaudeStatus:
+        """터미널 로그인(시스템 기본값)의 상태. 활성이면 활성 상태를 그대로 쓴다."""
+        if self.account(agent) == agentaccounts.SYSTEM:
+            return self._active(agent)
+        now = time.monotonic()
+        cached = self._system.get(agent)
+        if cached is None or now - cached[0] > STATUS_TTL:
+            cached = (now, self._read_status(agent, agentaccounts.SYSTEM))
+            self._system[agent] = cached
+        return cached[1]
+
+    def choose_account(self, agent: str, account: str) -> None:
+        if account != agentaccounts.SYSTEM and not self._exists(agent, account):
+            raise ValueError(f"없는 계정: {account}")
+        appsettings.update(self.settings_path, **{f"{agent}_account": account})
+        self._forget(agent)
+        self._set_job(agent, ClaudeJob())
+
+    def add_account(self, agent: str) -> None:
+        """새 설정 폴더를 만들고 거기로 로그인한다. 승인하면 활성 계정이 된다."""
+        if self._busy(agent):
+            return
+        account = agentaccounts.create(agent, self.clock(), self.accounts_root)
+        self._start_login(agent, account, new=True)
+
+    def relogin_account(self, agent: str, account: str) -> None:
+        if account != agentaccounts.SYSTEM and not self._exists(agent, account):
+            return
+        if not self._busy(agent):
+            self._start_login(agent, account, new=False)
+
+    def remove_account(self, agent: str, account: str) -> None:
+        """로그아웃해 키체인 · 토큰을 지우고 폴더를 지운다. 활성이면 시스템 기본값으로."""
+        if account == agentaccounts.SYSTEM or not self._exists(agent, account):
+            return
+        logout = claudesetup.logout_command if agent == "claude" else codexsetup.logout_command
+        self.run(logout(tool(agent), self.prefix(agent, account)), claudesetup.TIMEOUT)
+        if self.account(agent) == account:
+            appsettings.update(self.settings_path, **{f"{agent}_account": agentaccounts.SYSTEM})
+        agentaccounts.remove(agent, account, self.accounts_root)
+        self._forget(agent)
+
+    def logging_in(self, agent: str) -> str | None:
+        """승인을 기다리는 계정 (새로 추가하는 계정이면 그 id)."""
+        login = self._logins.get(agent)
+        return login.account if login else None
+
+    def _exists(self, agent: str, account: str) -> bool:
+        return (
+            agentaccounts.valid(account)
+            and agentaccounts.account_dir(agent, account, self.accounts_root).is_dir()
+        )
+
+    def _read_status(self, agent: str, account: str) -> claudesetup.ClaudeStatus:
+        prefix = self.prefix(agent, account)
+        if agent == "claude":
+            status = claudesetup.status(self.run, prefix=prefix)
+        else:
+            folder = agentaccounts.account_dir(agent, account, self.accounts_root)
+            status = codexsetup.status(
+                self.run, home=folder if prefix else self.codex_home, prefix=prefix
+            )
+        if prefix and status.logged_in:
+            agentaccounts.remember(
+                agent, account, status.account, status.detail, status.org, self.accounts_root
+            )
+        return status
+
+    def _active(self, agent: str) -> claudesetup.ClaudeStatus:
+        return self.codex() if agent == "codex" else self.claude()
+
+    def _forget(self, agent: str) -> None:
+        self._system.pop(agent, None)
+        if agent == "codex":
+            self._codex_status = None
+        else:
+            self._status = None
+
+    def job(self, agent: str) -> ClaudeJob:
+        return self.codex_job if agent == "codex" else self.claude_job
+
+    def _set_job(self, agent: str, job: ClaudeJob) -> None:
+        if agent == "codex":
+            self.codex_job = job
+        else:
+            self.claude_job = job
+
+    def _busy(self, agent: str) -> bool:
+        return self.job(agent).state in ("installing", "logging_in")
+
+    def _start_login(self, agent: str, account: str, new: bool) -> None:
+        """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다 (settle)."""
+        login = claudesetup.login_command if agent == "claude" else codexsetup.login_command
+        try:
+            process = self.spawn(login(tool(agent), self.prefix(agent, account)))
+        except OSError as e:
+            if new:
+                agentaccounts.remove(agent, account, self.accounts_root)
+            name = AGENTS[agent]
+            self._set_job(agent, ClaudeJob("error", f"{name} 로그인을 띄우지 못했어요: {e}"))
+            return
+        self._logins[agent] = Login(account, new, process)
+        self._forget(agent)
+        self._set_job(agent, ClaudeJob("logging_in"))
+
+    def settle(self, agent: str) -> None:
+        """로그인을 기다리다 끝났으면 정리한다.
+
+        이미 로그인된 채로 다시 연결하면 로그인 상태만으로는 끝났는지 모른다.
+        띄운 프로세스가 끝났는지를 먼저 본다 (승인하거나 취소하면 끝난다).
+        새로 추가한 계정은 승인했으면 활성으로 바꾸고, 취소했으면 폴더를 지운다.
+        """
+        login = self._logins.get(agent)
+        if login is None or self.job(agent).state != "logging_in":
+            return
+        poll = getattr(login.process, "poll", None)
+        status = None
+        if poll is None:
+            status = self._read_status(agent, login.account)
+            done = status.logged_in
+        else:
+            done = poll() is not None
+        if not done:
+            return
+        del self._logins[agent]
+        if login.new:
+            status = status or self._read_status(agent, login.account)
+            if status.logged_in:
+                appsettings.update(self.settings_path, **{f"{agent}_account": login.account})
+            else:
+                agentaccounts.remove(agent, login.account, self.accounts_root)
+        self._forget(agent)
+        self._set_job(agent, ClaudeJob())
 
     def agent_status(self, fresh: bool = False) -> claudesetup.ClaudeStatus:
         return self.codex(fresh) if self.agent() == "codex" else self.claude(fresh)
@@ -218,29 +379,11 @@ class SetupFlow:
         self.background(work)
 
     def login_claude(self) -> None:
-        """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다."""
-        try:
-            self._login = self.spawn(claudesetup.login_command(tool("claude")))
-        except OSError as e:
-            self.claude_job = ClaudeJob("error", f"Claude 로그인을 띄우지 못했어요: {e}")
-            return
-        self._status = None
-        self.claude_job = ClaudeJob("logging_in")
+        """활성 계정으로 로그인한다."""
+        self._start_login("claude", self.account("claude"), new=False)
 
     def claude_settled(self) -> None:
-        """로그인을 기다리다 끝났으면 작업 표시를 지운다.
-
-        이미 로그인된 채로 다시 연결하면 로그인 상태만으로는 끝났는지 모른다.
-        띄운 프로세스가 끝났는지를 먼저 본다 (승인하거나 취소하면 끝난다).
-        """
-        if self.claude_job.state != "logging_in":
-            return
-        poll = getattr(self._login, "poll", None)
-        done = poll() is not None if poll else self.claude(fresh=True).logged_in
-        if done:
-            self._login = None
-            self._status = None
-            self.claude_job = ClaudeJob()
+        self.settle("claude")
 
     def register_mcp(self) -> tuple[bool, str]:
         return claudesetup.register_mcp(self.run)
@@ -248,10 +391,10 @@ class SetupFlow:
     # ---------- Codex ----------
 
     def codex(self, fresh: bool = False) -> claudesetup.ClaudeStatus:
+        """활성 계정의 상태."""
         now = time.monotonic()
         if fresh or self._codex_status is None or now - self._codex_status[0] > STATUS_TTL:
-            status = codexsetup.status(self.run, home=self.codex_home)
-            self._codex_status = (now, status)
+            self._codex_status = (now, self._read_status("codex", self.account("codex")))
         return self._codex_status[1]
 
     def install_codex(self) -> None:
@@ -271,25 +414,11 @@ class SetupFlow:
         self.background(work)
 
     def login_codex(self) -> None:
-        """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다."""
-        try:
-            self._codex_login = self.spawn(codexsetup.login_command(tool("codex")))
-        except OSError as e:
-            self.codex_job = ClaudeJob("error", f"Codex 로그인을 띄우지 못했어요: {e}")
-            return
-        self._codex_status = None
-        self.codex_job = ClaudeJob("logging_in")
+        """활성 계정으로 로그인한다."""
+        self._start_login("codex", self.account("codex"), new=False)
 
     def codex_settled(self) -> None:
-        """띄운 `codex login`이 끝났으면 (승인하거나 취소하면) 작업 표시를 지운다."""
-        if self.codex_job.state != "logging_in":
-            return
-        poll = getattr(self._codex_login, "poll", None)
-        done = poll() is not None if poll else self.codex(fresh=True).logged_in
-        if done:
-            self._codex_login = None
-            self._codex_status = None
-            self.codex_job = ClaudeJob()
+        self.settle("codex")
 
     def codex_registered(self) -> list[str] | None:
         return codexsetup.registered_command(self.codex_home)

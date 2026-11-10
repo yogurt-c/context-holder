@@ -181,3 +181,10 @@ class _PlainNames:
 
     def cache_clear(self) -> None:
         pass
+
+
+@pytest.fixture(autouse=True)
+def isolated_app_home(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """앱 폴더(~/.context-holder)를 건드리지 않게 한다. 계정 폴더도 여기에 생긴다."""
+    if "CONTEXT_HOLDER_HOME" not in __import__("os").environ:
+        monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path_factory.mktemp("app-home")))

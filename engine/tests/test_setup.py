@@ -41,6 +41,8 @@ class FakeRun:
 
     def __call__(self, args, timeout):
         self.calls.append(list(args))
+        if args[0] == "/usr/bin/env":  # 계정 설정 폴더를 넘기는 앞부분은 건너뛴다
+            args = args[2:]
         key = " ".join(args[1:3])
         if args[0] == "/bin/bash":
             key = "install"
@@ -79,6 +81,7 @@ def flow(tmp_path, monkeypatch):
         tmp_path / "app-state.json",
         claude_config=tmp_path / ".claude.json",
         codex_home=tmp_path / ".codex",
+        accounts_root=tmp_path / "accounts",
         clock=lambda: NOW,
         run=FakeRun(),
         spawn=lambda args: events["spawned"].append(args),
@@ -195,7 +198,9 @@ def test_install_then_login(flow):
     assert flow.claude_job.state == "idle" and flow._status is None
     flow.login_claude()
     assert flow.claude_job.state == "logging_in" and flow.busy()
-    assert flow.events["spawned"] == [["claude", "auth", "login", "--claudeai"]]
+    assert flow.events["spawned"] == [
+        [*flow.prefix("claude"), "claude", "auth", "login", "--claudeai"]
+    ]
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     flow.claude_settled()
     assert flow.claude_job.state == "idle" and flow.claude().detail == "max"
@@ -218,7 +223,7 @@ def test_relogin_waits_for_login_process(flow):
     assert flow.claude_job.state == "logging_in"  # 로그인돼 있어도 아직 승인 전
     login.code = 0
     flow.claude_settled()
-    assert flow.claude_job.state == "idle" and flow._login is None
+    assert flow.claude_job.state == "idle" and flow.logging_in("claude") is None
 
 
 def test_install_failure_and_busy_guard(flow):
@@ -415,8 +420,9 @@ def test_settings_actions(flow, tmp_path, no_real_keychain):
     assert "WDJB-MJHT" in panel and 'hx-trigger="every 2s"' in panel
     flow.github = setupflow.GitHubLogin(state="error", message="GitHub 로그인에 실패했다")
     assert "GitHub 로그인에 실패했다" in c.get("/setup/panel").text  # 취소해도 이유가 보인다
-    waiting = c.post("/settings/claude", headers=HTMX).text
-    assert "승인하세요" in waiting and 'hx-trigger="every 2s"' in waiting
+    login = {"agent": "claude", "account": "system"}
+    waiting = c.post("/settings/account/login", data=login, headers=HTMX).text
+    assert "승인하세요" in waiting and "every 2s" in waiting
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     done = c.get("/settings/connections").text  # 승인이 끝나면 문구와 다시 묻기가 사라진다
     assert "승인하세요" not in done and "every 2s" not in done
@@ -444,7 +450,7 @@ def test_reconnect_redraws_mcp_status(flow, tmp_path):
     c = screen(flow, tmp_path)
     first = c.get("/settings/connections").text
     assert "다른 위치로 연결돼 있어요" in first
-    assert "연결됨 · me@example.com (max)" in first  # 어느 계정인지 보인다 (계정을 바꿨는지 확인)
+    assert "시스템 기본값: me@example.com" in first  # 어느 계정인지 보인다 (계정을 바꿨는지 확인)
 
     class Registering(FakeRun):
         def __call__(self, args, timeout):
@@ -463,7 +469,7 @@ def test_reconnect_redraws_mcp_status(flow, tmp_path):
 def test_settings_without_wiki_or_claude(flow, tmp_path):
     flow.run = FakeRun({"auth status": (127, "")})
     panel = screen(flow, tmp_path).get("/settings/connections").text
-    assert "로그인이 필요해요" in panel and "Claude Code가 없어요" in panel and "설치하기" in panel
+    assert "로그인 필요" in panel and "Claude Code가 없어요" in panel and "설치하기" in panel
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     flow._status = None
     assert "연결되지 않았어요" in screen(flow, tmp_path / "b").get("/settings/connections").text
@@ -539,7 +545,7 @@ def test_codex_login_and_status(flow):
     assert flow.codex().installed and not flow.codex().logged_in
     flow.login_codex()
     assert flow.codex_job.state == "logging_in" and flow.busy()
-    assert flow.events["spawned"] == [["codex", "login"]]
+    assert flow.events["spawned"] == [[*flow.prefix("codex"), "codex", "login"]]
     flow.run = FakeRun({"login status": (0, "Logged in using ChatGPT")})
     flow.codex_settled()
     assert flow.codex_job.state == "idle" and flow.codex().logged_in
@@ -563,12 +569,15 @@ def test_codex_status_is_cached_and_login_failure_is_shown(flow):
 def test_settings_choose_agent_and_show_codex(flow, tmp_path):
     c = screen(flow, tmp_path)
     page = c.get("/settings").text
-    assert 'name="agent" value="claude"' in page and 'name="agent" value="codex"' in page
-    form = {"hour": "08", "minute": "10", "theme": "system", "agent": "codex"}
-    assert "저장했어요" in c.post("/settings", data=form, headers=HTMX).text
+    assert 'name="agent" value="claude" checked' in page and 'name="agent" value="codex"' in page
+    chosen = c.post("/settings/agent", data={"agent": "codex"}, headers=HTMX)
+    assert chosen.headers["HX-Trigger"] == "agent-changed"  # 연결 영역도 다시 그린다
+    assert 'name="agent" value="codex" checked' in chosen.text
     assert appsettings.load(flow.settings_path).agent == "codex"
-    assert 'name="agent" value="codex" checked' in c.get("/settings").text
-    assert c.post("/settings", data={**form, "agent": "gemini"}, headers=HTMX).status_code == 400
+    assert c.post("/settings/agent", data={"agent": "gemini"}, headers=HTMX).status_code == 400
+    form = {"hour": "08", "minute": "10", "theme": "system"}
+    c.post("/settings", data=form, headers=HTMX)
+    assert appsettings.load(flow.settings_path).agent == "codex"  # 수집 설정을 바꿔도 그대로
 
     flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (127, "")})
     panel = c.get("/settings/connections").text
@@ -576,17 +585,18 @@ def test_settings_choose_agent_and_show_codex(flow, tmp_path):
     assert 'hx-post="/settings/codex/install"' in panel
     flow.background = lambda work: None
     installing = c.post("/settings/codex/install", headers=HTMX).text
-    assert "설치 중" in installing and 'hx-trigger="every 2s"' in installing
+    assert "설치 중" in installing and "every 2s" in installing
     flow.codex_job = setupflow.ClaudeJob()
 
     flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (1, "")})
     flow._codex_status = None  # 상태는 몇 초 재사용한다
     panel = c.get("/settings/connections").text
-    assert "Codex" in panel and 'hx-post="/settings/codex"' in panel
-    waiting = c.post("/settings/codex", headers=HTMX).text
-    assert "승인하세요" in waiting and 'hx-trigger="every 2s"' in waiting
+    assert "터미널의 Codex CLI에 로그인돼 있지 않아요" in panel
+    login = {"agent": "codex", "account": "system"}
+    waiting = c.post("/settings/account/login", data=login, headers=HTMX).text
+    assert "승인하세요" in waiting and "every 2s" in waiting
     flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (0, "Logged in")})
-    flow._codex_status = None  # 상태는 몇 초 재사용한다
+    flow._codex_status = None
     done = c.get("/settings/connections").text
     assert "every 2s" not in done and "요약에 쓰는 중" in done
 
@@ -677,9 +687,11 @@ def test_settings_codex_mcp_row(flow, tmp_path):
     c = screen(flow, tmp_path)
     flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (0, "Logged in")})
     panel = c.get("/settings/connections").text
-    assert "Codex에서 위키 검색" in panel and 'hx-post="/settings/codex/mcp"' in panel
+    wiki_rows = panel.split("위키 검색")[1]
+    assert "Claude Code" in wiki_rows and 'hx-post="/settings/codex/mcp"' in wiki_rows
     register_codex(flow, "/old/ctx")
-    assert "이 앱이 아닌 다른 위치로" in c.get("/settings/connections").text.split("Codex에서")[1]
+    codex_row = c.get("/settings/connections").text.split('hx-post="/settings/mcp"')[1]
+    assert "이 앱이 아닌 다른 위치로" in codex_row and "다른 위치" in codex_row
     flow.run = FakeRun({"login status": (0, "Logged in"), "mcp add": (1, "<boom>")})
     assert "&lt;boom&gt;" in c.post("/settings/codex/mcp", headers=HTMX).text
     flow.run = FakeRun({"login status": (0, "Logged in")})
@@ -695,3 +707,148 @@ def test_regroup_hint_names_the_chosen_agent(flow, tmp_path):
     appsettings.update(flow.settings_path, agent="codex")
     page = c.get("/decisions").text
     assert "Codex에 보내" in page and "Claude에 보내" not in page
+
+
+# ---------- 계정 ----------
+
+
+def test_added_account_logs_in_its_own_folder_and_becomes_active(flow, tmp_path):
+    class Login:
+        code = None
+
+        def poll(self):
+            return self.code
+
+    login = Login()
+    spawned = []
+    flow.spawn = lambda args: spawned.append(args) or login
+    flow.add_account("codex")
+    [account] = [a.id for a in flow.accounts("codex")]
+    folder = tmp_path / "accounts" / "codex" / account
+    assert spawned == [["/usr/bin/env", f"CODEX_HOME={folder}", "codex", "login"]]
+    assert flow.logging_in("codex") == account and flow.busy()
+    flow.add_account("codex")  # 승인을 기다리는 동안은 하나만
+    assert len(flow.accounts("codex")) == 1
+
+    flow.run = FakeRun({"login status": (0, "Logged in using ChatGPT")})
+    flow.codex_settled()
+    assert flow.codex_job.state == "logging_in"  # 아직 승인 전
+    login.code = 0
+    flow.codex_settled()
+    assert flow.account("codex") == account and flow.codex_job.state == "idle"
+    flow.run = FakeRun()
+    flow.codex()
+    assert flow.run.calls == [["/usr/bin/env", f"CODEX_HOME={folder}", "codex", "login", "status"]]
+
+
+def test_cancelled_add_removes_the_empty_account(flow):
+    flow.spawn = lambda args: None  # poll이 없으면 로그인 상태로 끝났는지 본다
+    flow.add_account("claude")
+    assert len(flow.accounts("claude")) == 1
+    flow.run = FakeRun({"auth status": (0, json.dumps({"loggedIn": False}))})
+    flow.claude_settled()
+    assert flow.claude_job.state == "logging_in"  # 아직 로그인 전이면 기다린다
+    flow.claude_job = setupflow.ClaudeJob("logging_in")
+
+    class Done:
+        def poll(self):
+            return 1
+
+    flow._logins["claude"] = setupflow.Login(flow.logging_in("claude"), True, Done())
+    flow.claude_settled()
+    assert flow.accounts("claude") == [] and flow.account("claude") == "system"
+
+    def broken(args):
+        raise OSError("없음")
+
+    flow.spawn = broken
+    flow.add_account("claude")
+    assert flow.claude_job.state == "error" and flow.accounts("claude") == []
+
+
+def test_added_codex_account_reads_its_own_auth_file(flow, tmp_path):
+    from context_holder import agentaccounts
+    from tests.test_codexsetup import write_auth
+
+    account = agentaccounts.create("codex", NOW, tmp_path / "accounts")
+    write_auth(tmp_path / "accounts" / "codex" / account, {"email": "app@x.com"})
+    flow.codex_home.mkdir(parents=True)
+    write_auth(flow.codex_home, {"email": "terminal@x.com"})
+    flow.run = FakeRun({"login status": (0, "Logged in using ChatGPT")})
+    assert flow.codex().account == "terminal@x.com"
+    assert flow.system_status("codex").account == "terminal@x.com"
+    flow.choose_account("codex", account)
+    assert flow.codex().account == "app@x.com"  # 고르면 상태를 다시 읽는다
+    assert flow.system_status("codex").account == "terminal@x.com"
+    assert flow.accounts("codex")[0].email == "app@x.com"  # 목록에 쓸 이메일을 남긴다
+
+
+def test_choose_account_resets_status_and_rejects_unknown(flow):
+    flow.run = FakeRun()
+    flow.claude()
+    flow.claude_job = setupflow.ClaudeJob("error", "옛 오류")
+    flow.choose_account("claude", "system")
+    assert appsettings.load(flow.settings_path).claude_account == "system"
+    assert flow._status is None and flow.claude_job.state == "idle"
+    flow.run = FakeRun()
+    flow.claude()
+    assert flow.run.calls == [["claude", "auth", "status", "--json"]]
+    with pytest.raises(ValueError):
+        flow.choose_account("claude", "work")
+
+
+def test_settings_account_cards(flow, tmp_path):
+    from context_holder import agentaccounts
+
+    account = agentaccounts.create("claude", NOW, tmp_path / "accounts")
+    agentaccounts.remember("claude", account, "me@home.com", "pro", "", tmp_path / "accounts")
+    c = screen(flow, tmp_path)
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (1, "")})
+    panel = c.get("/settings/connections").text
+    assert "시스템 기본값: me@example.com" in panel and "me@home.com" in panel
+    assert panel.count("사용 중") == 2  # Claude · Codex 모두 시스템 기본값
+    assert 'hx-post="/settings/account/add"' in panel
+
+    picked = {"agent": "claude", "account": account}
+    assert (
+        c.post(
+            "/settings/account", data={**picked, "account": "0badc0de"}, headers=HTMX
+        ).status_code
+        == 400
+    )
+    home = json.dumps({"loggedIn": True, "email": "me@home.com", "subscriptionType": "pro"})
+    flow.run = FakeRun({"auth status": (0, home), "login status": (1, "")})
+    panel = c.post("/settings/account", data=picked, headers=HTMX).text
+    assert appsettings.load(flow.settings_path).claude_account == account
+    [card] = [li for li in panel.split('<li class="acct-card') if account in li]
+    assert "사용 중" in card and "다시 로그인" in card and "제거" in card
+
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
+    c.post("/settings/account/remove", data=picked, headers=HTMX)
+    logout = ["/usr/bin/env", f"CLAUDE_CONFIG_DIR={tmp_path / 'accounts' / 'claude' / account}"]
+    assert [*logout, "claude", "auth", "logout"] in flow.run.calls  # 키체인 로그인도 지운다
+    assert flow.accounts("claude") == [] and flow.account("claude") == "system"
+    for path in ("/settings/account", "/settings/account/login", "/settings/account/remove"):
+        bad = c.post(path, data={"agent": "x", "account": "system"}, headers=HTMX)
+        assert bad.status_code == 400
+    assert c.post("/settings/account/add", data={"agent": "x"}, headers=HTMX).status_code == 400
+
+    class Waiting:
+        def poll(self):
+            return None  # 아직 브라우저 승인 전
+
+    flow.spawn = lambda args: Waiting()
+    adding = c.post("/settings/account/add", data={"agent": "codex"}, headers=HTMX).text
+    assert "새 계정" in adding and "승인하세요" in adding and "every 2s" in adding
+
+
+def test_deleted_or_unknown_accounts_fall_back_safely(flow, tmp_path):
+    from context_holder import agentaccounts
+
+    account = agentaccounts.create("codex", NOW, tmp_path / "accounts")
+    flow.choose_account("codex", account)
+    agentaccounts.remove("codex", account, tmp_path / "accounts")  # 폴더를 손으로 지웠다
+    assert flow.account("codex") == "system" and flow.prefix("codex") == []
+    flow.relogin_account("codex", "0badc0de")
+    flow.remove_account("codex", "system")
+    assert flow.codex_job.state == "idle" and flow.run.calls == []

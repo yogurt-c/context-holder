@@ -10,7 +10,7 @@ import os
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -55,6 +55,7 @@ class Run(NamedTuple):
 
 Runner = Callable[[list[str], str, float, str], Run]
 
+ENV_NOT_FOUND = 127  # `/usr/bin/env`가 명령을 찾지 못했다 (계정 폴더를 넘길 때)
 AUTH_HINTS = ("login", "log in", "sign in", "api key", "unauthorized", "oauth", "access token")
 LIMIT_HINTS = ("usage limit", "rate limit", "limit reached", "quota")
 
@@ -81,14 +82,17 @@ class ClaudeCli:
         runner: Runner = subprocess_runner,
         executable: str | None = None,  # 없으면 찾는다 (앱은 PATH가 짧다)
         timeout: float = 300.0,
+        prefix: Sequence[str] = (),  # 계정 설정 폴더 (agentaccounts.command_prefix)
     ):
         self.model = model
         self.runner = runner
         self.executable = executable or tool("claude")
         self.timeout = timeout
+        self.prefix = list(prefix)
 
     def structured(self, prompt: str, system: str, schema: dict[str, Any]) -> LlmResult:
         args = [
+            *self.prefix,
             self.executable,
             "-p",
             "--output-format",
@@ -112,11 +116,14 @@ class ClaudeCli:
 
     def _run(self, args: list[str], prompt: str, workdir: str) -> Run:
         try:
-            return self.runner(args, prompt, self.timeout, workdir)
+            run = self.runner(args, prompt, self.timeout, workdir)
         except FileNotFoundError as e:
             raise LlmError(ErrorKind.NOT_INSTALLED, "Claude Code가 설치돼 있지 않다") from e
         except subprocess.TimeoutExpired as e:
             raise LlmError(ErrorKind.TIMEOUT, f"{self.timeout:.0f}초 안에 끝나지 않았다") from e
+        if self.prefix and run.returncode == ENV_NOT_FOUND:
+            raise LlmError(ErrorKind.NOT_INSTALLED, "Claude Code가 설치돼 있지 않다")
+        return run
 
 
 class CodexCli:
@@ -128,17 +135,20 @@ class CodexCli:
         runner: Runner = subprocess_runner,
         executable: str | None = None,
         timeout: float = 300.0,
+        prefix: Sequence[str] = (),
     ):
         self.model = model
         self.runner = runner
         self.executable = executable or tool("codex")
         self.timeout = timeout
+        self.prefix = list(prefix)
 
     def structured(self, prompt: str, system: str, schema: dict[str, Any]) -> LlmResult:
         with tempfile.TemporaryDirectory(prefix="ctx-codex-") as workdir:
             schema_file = Path(workdir) / "schema.json"
             schema_file.write_text(json.dumps(strict_schema(schema)), encoding="utf-8")
             args = [
+                *self.prefix,
                 self.executable,
                 "exec",
                 "--json",
@@ -162,22 +172,25 @@ class CodexCli:
 
     def _run(self, args: list[str], prompt: str, workdir: str) -> Run:
         try:
-            return self.runner(args, prompt, self.timeout, workdir)
+            run = self.runner(args, prompt, self.timeout, workdir)
         except FileNotFoundError as e:
             raise LlmError(ErrorKind.NOT_INSTALLED, "Codex CLI가 설치돼 있지 않다") from e
         except subprocess.TimeoutExpired as e:
             raise LlmError(ErrorKind.TIMEOUT, f"{self.timeout:.0f}초 안에 끝나지 않았다") from e
+        if self.prefix and run.returncode == ENV_NOT_FOUND:
+            raise LlmError(ErrorKind.NOT_INSTALLED, "Codex CLI가 설치돼 있지 않다")
+        return run
 
 
 class StructuredLlm(Protocol):
     def structured(self, prompt: str, system: str, schema: dict[str, Any]) -> LlmResult: ...
 
 
-def make_llm(agent: str, model: str | None = None) -> StructuredLlm:
+def make_llm(agent: str, model: str | None = None, prefix: Sequence[str] = ()) -> StructuredLlm:
     if agent == "claude":
-        return ClaudeCli(model=model or "sonnet")
+        return ClaudeCli(model=model or "sonnet", prefix=prefix)
     if agent == "codex":
-        return CodexCli(model=model)
+        return CodexCli(model=model, prefix=prefix)
     raise ValueError(f"모르는 에이전트: {agent}")
 
 

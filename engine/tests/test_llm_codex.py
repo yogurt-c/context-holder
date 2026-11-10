@@ -188,3 +188,31 @@ def test_make_llm_picks_the_agent():
     assert make_llm("codex", "o4").model == "o4"
     with pytest.raises(ValueError):
         make_llm("gemini")
+
+
+def test_account_prefix_runs_agents_with_their_config_folder():
+    runner = FakeRunner(Run(0, success('{"items": [], "decision": null}'), ""))
+    prefix = ["/usr/bin/env", "CODEX_HOME=/acc/codex"]
+
+    CodexCli(runner=runner, executable="codex", prefix=prefix).structured("p", "s", SCHEMA)
+
+    assert runner.calls[0]["args"][:4] == [*prefix, "codex", "exec"]
+
+
+@pytest.mark.parametrize("cls", [ClaudeCli, CodexCli])
+def test_missing_command_behind_env_is_not_installed(cls):
+    run = Run(127, "", "env: codex: No such file or directory")
+    runner = FakeRunner(run) if cls is CodexCli else (lambda args, stdin, timeout, cwd: run)
+    cli = cls(runner=runner, executable="x", prefix=["/usr/bin/env", "A=b"])
+
+    with pytest.raises(LlmError) as excinfo:
+        cli.structured("p", "s", SCHEMA)
+
+    assert excinfo.value.kind is ErrorKind.NOT_INSTALLED
+
+
+def test_make_llm_passes_the_account_prefix():
+    prefix = ["/usr/bin/env", "CLAUDE_CONFIG_DIR=/acc/claude"]
+    assert make_llm("claude", prefix=prefix).prefix == prefix
+    assert make_llm("codex", prefix=prefix).prefix == prefix
+    assert make_llm("codex").prefix == []

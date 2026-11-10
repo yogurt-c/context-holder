@@ -12,7 +12,7 @@ import base64
 import json
 import os
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +32,10 @@ def codex_home() -> Path:
 def status(
     run: Run = run_command,
     codex: Callable[[], str] = lambda: tool("codex"),
-    home: Path | None = None,
+    home: Path | None = None,  # auth.json을 읽을 설정 폴더
+    prefix: Sequence[str] = (),  # 계정 설정 폴더 (agentaccounts.command_prefix)
 ) -> ClaudeStatus:
-    code, out = run([codex(), "login", "status"], TIMEOUT)
+    code, out = run([*prefix, codex(), "login", "status"], TIMEOUT)
     if code == 127:
         return ClaudeStatus(False, False)
     if code != 0:
@@ -50,8 +51,12 @@ def install_command() -> list[str]:
     return ["/bin/bash", "-c", f"curl -fsSL {INSTALL_SCRIPT} | sh"]
 
 
-def login_command(codex: str) -> list[str]:
-    return [codex, "login"]
+def login_command(codex: str, prefix: Sequence[str] = ()) -> list[str]:
+    return [*prefix, codex, "login"]
+
+
+def logout_command(codex: str, prefix: Sequence[str] = ()) -> list[str]:
+    return [*prefix, codex, "logout"]
 
 
 def engine_command() -> list[str]:

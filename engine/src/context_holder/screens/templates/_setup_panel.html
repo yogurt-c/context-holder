@@ -41,6 +41,7 @@
           </li>
         </ul>
       </form>
+      <p class="tiny">이 계정으로 요약 · 분류해요. 여러 계정을 바꿔 쓰려면 나중에 설정에서 계정을 추가하세요.</p>
       {% if cl.logged_in %}
         <p class="lede">연결됨{% if cl.label %} · {{ cl.label }}{% endif %}</p>
       {% elif job.state == "installing" %}

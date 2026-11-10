@@ -112,3 +112,13 @@ def test_register_replaces_existing(monkeypatch):
         ["/bin/codex", "mcp", "add", "context-holder", "--", "/a/ctx", "mcp"],
     ]
     assert not codexsetup.register_mcp(FakeRun((0, ""), (1, "boom")), codex="c")[0]
+
+
+def test_status_and_login_use_the_account_folder(tmp_path):
+    write_auth(tmp_path, {"email": "app@x.com"})
+    prefix = ["/usr/bin/env", f"CODEX_HOME={tmp_path}"]
+    run = FakeRun((0, "Logged in using ChatGPT"))
+    status = codexsetup.status(run, lambda: "codex", tmp_path, prefix)
+    assert status.account == "app@x.com"
+    assert run.calls == [[*prefix, "codex", "login", "status"]]
+    assert codexsetup.login_command("codex", prefix) == [*prefix, "codex", "login"]

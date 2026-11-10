@@ -52,9 +52,11 @@ def run_command(args: Sequence[str], timeout: float) -> tuple[int, str]:  # prag
 
 
 def status(
-    run: Run = run_command, claude: Callable[[], str] = lambda: tool("claude")
+    run: Run = run_command,
+    claude: Callable[[], str] = lambda: tool("claude"),
+    prefix: Sequence[str] = (),  # 계정 설정 폴더 (agentaccounts.command_prefix)
 ) -> ClaudeStatus:
-    code, out = run([claude(), "auth", "status", "--json"], TIMEOUT)
+    code, out = run([*prefix, claude(), "auth", "status", "--json"], TIMEOUT)
     if code == 127:
         return ClaudeStatus(False, False)
     try:
@@ -75,8 +77,12 @@ def install_command() -> list[str]:
     return ["/bin/bash", "-c", f"curl -fsSL {INSTALL_SCRIPT} | bash"]
 
 
-def login_command(claude: str) -> list[str]:
-    return [claude, "auth", "login", "--claudeai"]
+def login_command(claude: str, prefix: Sequence[str] = ()) -> list[str]:
+    return [*prefix, claude, "auth", "login", "--claudeai"]
+
+
+def logout_command(claude: str, prefix: Sequence[str] = ()) -> list[str]:
+    return [*prefix, claude, "auth", "logout"]
 
 
 def engine_command() -> list[str]:

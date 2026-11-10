@@ -98,3 +98,17 @@ def test_translocated_engine_path(monkeypatch):
     moved = "/private/var/folders/x/T/AppTranslocation/ABC/d/context-holder.app/Contents/MacOS/x"
     monkeypatch.setattr(claudesetup, "engine_command", lambda: [moved, "mcp"])
     assert claudesetup.translocated()
+
+
+def test_status_and_login_use_the_account_folder():
+    prefix = ["/usr/bin/env", "CLAUDE_CONFIG_DIR=/acc/claude"]
+    run = FakeRun((0, json.dumps({"loggedIn": True})))
+    assert claudesetup.status(run, lambda: "claude", prefix).logged_in
+    assert run.calls == [[*prefix, "claude", "auth", "status", "--json"]]
+    assert claudesetup.login_command("claude", prefix) == [
+        *prefix,
+        "claude",
+        "auth",
+        "login",
+        "--claudeai",
+    ]

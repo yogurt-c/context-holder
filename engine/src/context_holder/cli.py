@@ -14,6 +14,7 @@ import httpx
 import typer
 
 from context_holder import __version__, appsettings
+from context_holder.agentaccounts import command_prefix
 from context_holder.auth import TokenMissing, github_token
 from context_holder.classify import (
     Bucket,
@@ -76,11 +77,12 @@ MODEL_OPTION = typer.Option(None, help="에이전트 모델. 없으면 에이전
 
 
 def _llm(agent: str | None, model: str | None) -> StructuredLlm:
-    chosen = agent or appsettings.load(home() / "app-state.json").agent
+    settings = appsettings.load(home() / "app-state.json")
+    chosen = agent or settings.agent
     if chosen not in AGENTS:
         typer.echo(f"모르는 에이전트: {chosen} (고를 수 있는 것: {', '.join(AGENTS)})", err=True)
         raise typer.Exit(code=2)
-    return make_llm(chosen, model)
+    return make_llm(chosen, model, command_prefix(chosen, settings.account(chosen)))
 
 
 def _print_version(value: bool) -> None:

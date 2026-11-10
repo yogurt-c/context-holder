@@ -1,20 +1,90 @@
-<section class="panel settings-group" aria-label="연결" id="connections"{% if c.claude_waiting or c.codex_waiting or c.codex_installing %} hx-get="/settings/connections" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
-  <h2 class="panel-head">연결</h2>
-  <dl class="kv body">
-    <dt>GitHub</dt>
-    <dd>{% if c.token_source == "app" %}로그인됨{% elif c.token_source == "gh" %}GitHub CLI 로그인을 쓰고 있어요{% else %}<span class="warn">로그인이 필요해요</span>{% endif %}{% if c.remote %} · <code>{{ c.remote | replace("https://github.com/", "") | replace(".git", "") }}</code>{% endif %}
-      <span class="act"><button type="button" class="btn sm" hx-post="/settings/github" hx-disabled-elt="this"><span class="when-idle">다시 로그인</span><span class="when-busy">확인 중…</span></button></span></dd>
-    <dt>Claude</dt>
-    <dd>{% if c.claude.logged_in %}연결됨{% if c.claude.label %} · {{ c.claude.label }}{% endif %}{% elif c.claude.installed %}<span class="warn">로그인이 필요해요</span>{% else %}<span class="warn">Claude Code가 없어요</span>{% endif %}{% if c.agent == "claude" %} · 요약에 쓰는 중{% endif %}
-      <span class="act" id="claude-act">{% if c.claude_waiting %}<span class="done-label waiting"><span class="ut-spin" aria-hidden="true"></span>브라우저에서 승인하세요</span>{% elif c.claude.installed %}{% if c.claude_error %}<span class="warn">{{ c.claude_error }}</span> {% endif %}<button type="button" class="btn sm" hx-post="/settings/claude" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">다시 연결</span><span class="when-busy">확인 중…</span></button>{% else %}<a class="btn sm" href="/setup">설치하기</a>{% endif %}</span></dd>
-    <dt>Codex</dt>
-    <dd>{% if c.codex.logged_in %}연결됨{% if c.codex.label %} · {{ c.codex.label }}{% endif %}{% elif c.codex.installed %}<span class="warn">로그인이 필요해요</span>{% elif not c.codex_installing %}<span class="warn">Codex CLI가 없어요</span> · <code>{{ c.codex_install }}</code>{% endif %}{% if c.agent == "codex" %} · 요약에 쓰는 중{% endif %}
-      <span class="act" id="codex-act">{% if c.codex_installing %}<span class="done-label waiting"><span class="ut-spin" aria-hidden="true"></span>설치 중 (약 30초)</span>{% elif c.codex_waiting %}<span class="done-label waiting"><span class="ut-spin" aria-hidden="true"></span>브라우저에서 승인하세요</span>{% elif c.codex.installed %}{% if c.codex_error %}<span class="warn">{{ c.codex_error }}</span> {% endif %}<button type="button" class="btn sm" hx-post="/settings/codex" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">{% if c.codex.logged_in %}다시 연결{% else %}로그인{% endif %}</span><span class="when-busy">확인 중…</span></button>{% else %}{% if c.codex_error %}<span class="warn">{{ c.codex_error }}</span> {% endif %}<button type="button" class="btn sm" hx-post="/settings/codex/install" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">설치하기</span><span class="when-busy">시작하는 중…</span></button>{% endif %}</span></dd>
-    <dt>Claude Code에서 위키 검색</dt>
-    <dd>{% if c.translocated %}<span class="warn">앱을 응용 프로그램 폴더로 옮긴 뒤 연결하세요</span>{% elif c.mcp_ok %}Claude Code가 기술 결정 전에 이 위키를 찾아봐요{% elif not c.claude.installed %}<span class="warn">Claude Code를 설치하면 추가할 수 있어요</span>{% elif c.registered %}<span class="warn">이 앱이 아닌 다른 위치로 연결돼 있어요.</span> 다시 연결하면 이 앱으로 바뀌어요{% else %}<span class="warn">연결되지 않았어요</span>{% endif %}
-      <span class="act" id="mcp-act">{% if c.mcp_message %}<span class="done-label">{{ c.mcp_message }}</span>{% elif c.claude.installed and not c.translocated %}<button type="button" class="btn sm" hx-post="/settings/mcp" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">다시 연결</span><span class="when-busy">확인 중…</span></button>{% endif %}</span></dd>
-    <dt>Codex에서 위키 검색</dt>
-    <dd>{% if c.translocated %}<span class="warn">앱을 응용 프로그램 폴더로 옮긴 뒤 연결하세요</span>{% elif c.codex_mcp_ok %}Codex가 기술 결정 전에 이 위키를 찾아봐요{% elif not c.codex.installed %}<span class="warn">Codex CLI를 설치하면 추가할 수 있어요</span>{% elif c.codex_registered %}<span class="warn">이 앱이 아닌 다른 위치로 연결돼 있어요.</span> 다시 연결하면 이 앱으로 바뀌어요{% else %}<span class="warn">연결되지 않았어요</span>{% endif %}
-      <span class="act" id="codex-mcp-act">{% if c.codex_mcp_message %}<span class="done-label">{{ c.codex_mcp_message }}</span>{% elif c.codex.installed and not c.translocated %}<button type="button" class="btn sm" hx-post="/settings/codex/mcp" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">{% if c.codex_registered %}다시 연결{% else %}연결{% endif %}</span><span class="when-busy">확인 중…</span></button>{% endif %}</span></dd>
-  </dl>
-</section>
+{# 설정 · 연결. 관리 대상마다 패널 하나: 에이전트별 계정 → GitHub → 위키 검색(MCP).
+   에이전트 계정은 Orca처럼 카드 목록이다. 카드를 누르면 그 계정으로 요약 · 분류한다 #}
+{% import "_icons.html" as icons %}
+{% macro status(tone, label) %}<span class="conn-status">{% if tone == "spin" %}<span class="ut-spin" aria-hidden="true"></span>{% else %}<span class="dot {{ tone }}" aria-hidden="true"></span>{% endif %}{{ label }}</span>{% endmacro %}
+{% macro vals(agent, account="") %}{"agent": "{{ agent }}"{% if account %}, "account": "{{ account }}"{% endif %}}{% endmacro %}
+
+{% macro account_card(a, card) %}
+<li class="acct-card{% if card.active %} is-active{% endif %}">
+  <button type="button" class="acct-pick" aria-pressed="{{ 'true' if card.active else 'false' }}"{% if not card.active and not a.busy %} hx-post="/settings/account" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML"{% else %} disabled{% endif %}>
+    <span class="acct-title">
+      <span>{% if card.system %}시스템 기본값{% if card.email %}: {{ card.email }}{% endif %}{% elif card.email %}{{ card.email }}{% else %}새 계정{% endif %}</span>
+      {% if card.active %}<span class="badge ok">사용 중</span>{% endif %}
+      {% if not card.system %}<span class="badge plain">이 앱</span>{% endif %}
+    </span>
+    <span class="acct-meta">{% if card.waiting %}브라우저에서 승인하세요{% elif card.active and not card.logged_in and not card.system %}<span class="warn">로그인이 풀렸어요. 다시 로그인해 주세요</span>{% else %}{{ card.meta }}{% endif %}</span>
+  </button>
+  <div class="acct-actions">
+    {% if card.waiting %}{{ status("spin", "승인 대기") }}
+    {% elif not a.busy %}
+      {% if card.system and card.logged_in %}{% elif card.system %}<button type="button" class="btn sm" hx-post="/settings/account/login" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this">로그인</button>
+      {% else %}<button type="button" class="btn sm ghost" hx-post="/settings/account/login" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this">{{ icons.glyph("refresh") }}다시 로그인</button><button type="button" class="btn sm ghost" hx-post="/settings/account/remove" hx-vals='{{ vals(a.key, card.id) }}' hx-target="#connections" hx-swap="outerHTML" hx-confirm="{{ card.email or '이 계정' }}을 이 앱에서 지울까요? 이 계정의 로그인도 지워져요." hx-disabled-elt="this">{{ icons.glyph("trash") }}제거</button>{% endif %}
+    {% endif %}
+  </div>
+</li>
+{% endmacro %}
+
+<div id="connections" class="conn-area" hx-get="/settings/connections" hx-trigger="agent-changed from:body{% if c.polling %}, every 2s{% endif %}" hx-swap="outerHTML">
+  {% for a in c.agents %}
+  <section class="panel settings-group acct" aria-labelledby="acct-{{ a.key }}">
+    <div class="sec-head">
+      <h2 id="acct-{{ a.key }}"><span class="sec-icon is-{{ a.key }}">{{ icons.agent(a.key, 16) }}</span>{{ a.name }}{% if c.agent == a.key %}<span class="badge plain">요약에 쓰는 중</span>{% endif %}</h2>
+      <p>터미널의 {{ a.tool }} 로그인을 그대로 써도 되고, 계정을 추가하면 이 앱에서만 따로 바꿔 쓸 수 있어요.</p>
+    </div>
+    {% if not a.installed %}
+    <div class="acct-empty">
+      <div>
+        <p class="acct-title">{% if a.installing %}{{ a.tool }}를 설치하고 있어요{% else %}{{ a.tool }}가 없어요{% endif %}</p>
+        <p class="acct-meta">공식 설치 프로그램을 실행해요 · <code>{{ a.install_preview }}</code></p>
+        {% if a.error %}<p class="acct-error" role="alert">{{ a.error }}</p>{% endif %}
+      </div>
+      {% if a.installing %}{{ status("spin", "설치 중") }}{% elif a.install_post %}<button type="button" class="btn sm primary" hx-post="{{ a.install_post }}" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">설치하기</span><span class="when-busy">시작하는 중…</span></button>{% else %}<a class="btn sm primary" href="/setup">설치하기</a>{% endif %}
+    </div>
+    {% else %}
+    <div class="acct-sub">
+      <div><h3>계정</h3><p>카드를 누르면 그 계정으로 요약 · 분류해요.</p></div>
+      <button type="button" class="btn sm" hx-post="/settings/account/add" hx-vals='{{ vals(a.key) }}' hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"{% if a.busy %} disabled{% endif %}>{{ icons.glyph("plus") }}계정 추가</button>
+    </div>
+    <ul class="acct-list">{% for card in a.cards %}{{ account_card(a, card) }}{% endfor %}</ul>
+    {% if a.error %}<p class="acct-error" role="alert">{{ a.error }}</p>{% endif %}
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <section class="panel settings-group acct" aria-labelledby="acct-github">
+    <div class="sec-head">
+      <h2 id="acct-github"><span class="sec-icon">{{ icons.agent("github", 16) }}</span>GitHub</h2>
+      <p>수집한 글을 내 private 레포에 저장하고 기기끼리 맞춰요.</p>
+    </div>
+    <ul class="acct-list">
+      <li class="acct-card">
+        <div class="acct-pick">
+          <span class="acct-title">{% if c.remote %}{{ c.remote | replace("https://github.com/", "") | replace(".git", "") }}{% else %}context-wiki{% endif %}</span>
+          <span class="acct-meta">{% if c.token_source == "app" %}이 앱에서 로그인했어요{% elif c.token_source == "gh" %}GitHub CLI 로그인을 쓰고 있어요{% else %}위키를 받으려면 로그인해 주세요{% endif %}</span>
+        </div>
+        <div class="acct-actions">{% if c.token_source %}{{ status("", "연결됨") }}{% else %}{{ status("busy", "로그인 필요") }}{% endif %}<button type="button" class="btn sm" hx-post="/settings/github" hx-disabled-elt="this"><span class="when-idle">다시 로그인</span><span class="when-busy">확인 중…</span></button></div>
+      </li>
+    </ul>
+  </section>
+
+  <section class="panel settings-group acct" aria-labelledby="acct-mcp">
+    <div class="sec-head">
+      <h2 id="acct-mcp"><span class="sec-icon">{{ icons.agent("search", 16) }}</span>위키 검색</h2>
+      <p>터미널의 에이전트가 기술 결정 전에 이 위키의 사례를 찾아보게 연결해요. 터미널 로그인과 상관없어요.</p>
+    </div>
+    <ul class="acct-list">
+      {% for m in c.mcp %}{% set message = c["mcp_message_" ~ m.key] %}
+      <li class="acct-card">
+        <div class="acct-pick">
+          <span class="acct-title"><span class="sec-icon is-{{ m.key }} sm">{{ icons.agent(m.key, 13) }}</span>{{ m.name }}</span>
+          <span class="acct-meta">{% if c.translocated %}앱을 응용 프로그램 폴더로 옮긴 뒤 연결하세요{% elif m.ok %}{{ m.name }}가 기술 결정 전에 이 위키를 찾아봐요{% elif not m.installed %}{{ m.tool }}를 설치하면 추가할 수 있어요{% elif m.registered %}이 앱이 아닌 다른 위치로 연결돼 있어요. 다시 연결하면 이 앱으로 바뀌어요{% else %}연결되지 않았어요. 연결하면 다음 {{ m.name }} 세션부터 이 위키를 찾아봐요{% endif %}</span>
+        </div>
+        <div class="acct-actions">
+          {% if c.translocated %}{{ status("error", "옮겨야 함") }}{% elif m.ok %}{{ status("", "연결됨") }}{% elif not m.installed %}{{ status("idle", "설치 필요") }}{% elif m.registered %}{{ status("busy", "다른 위치") }}{% else %}{{ status("idle", "연결 안 됨") }}{% endif %}
+          {% if message %}<span class="done-label">{{ message }}</span>{% elif m.installed and not c.translocated %}<button type="button" class="btn sm" hx-post="{{ m.post }}" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">{% if m.registered %}다시 연결{% else %}연결{% endif %}</span><span class="when-busy">확인 중…</span></button>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>

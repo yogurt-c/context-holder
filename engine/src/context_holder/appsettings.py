@@ -10,6 +10,7 @@ from datetime import time
 from pathlib import Path
 from typing import Any
 
+from context_holder import agentaccounts
 from context_holder.llm import AGENTS
 
 THEMES = ("system", "light", "dark")
@@ -27,6 +28,11 @@ class Settings:
     auto_update: bool = True  # 새 버전을 자동으로 확인한다
     skipped_update: str = ""  # "이 버전 건너뛰기"를 누른 버전 (그 버전 팝업을 다시 띄우지 않는다)
     agent: str = "claude"  # 요약 · 분류 · 주제 정리에 쓸 에이전트 (llm.AGENTS)
+    claude_account: str = "system"  # system 또는 이 앱에서 추가한 계정 id (agentaccounts)
+    codex_account: str = "system"
+
+    def account(self, agent: str) -> str:
+        return self.codex_account if agent == "codex" else self.claude_account
 
     @property
     def daily_time(self) -> time:
@@ -46,6 +52,9 @@ def load(path: Path) -> Settings:
         settings = replace(settings, theme="system")
     if settings.agent not in AGENTS:
         settings = replace(settings, agent="claude")
+    for key in ("claude_account", "codex_account"):
+        if not agentaccounts.valid(str(getattr(settings, key))):
+            settings = replace(settings, **{key: agentaccounts.SYSTEM})
     return settings
 
 
@@ -62,6 +71,8 @@ def update(path: Path, **changes: Any) -> Settings:
         raise ValueError(f"모르는 화면 모드: {settings.theme}")
     if settings.agent not in AGENTS:
         raise ValueError(f"모르는 에이전트: {settings.agent}")
+    if not all(map(agentaccounts.valid, (settings.claude_account, settings.codex_account))):
+        raise ValueError("모르는 계정")
     save(path, settings)
     return settings
 

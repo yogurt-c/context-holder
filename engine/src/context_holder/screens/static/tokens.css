@@ -80,6 +80,7 @@
   --error-line: #FFC7C7;
   --mark: #FFF0B3;           /* 검색 하이라이트 */
   --strike: rgba(0, 0, 0, 0.35);
+  --claude: #D97757;         /* Claude 표시 색 (설정의 에이전트 아이콘에만) */
 
   /* 시안 바탕 (앱에는 없음) */
   --backdrop: #F2F2F2;

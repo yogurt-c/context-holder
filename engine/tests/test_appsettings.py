@@ -48,3 +48,15 @@ def test_agent_defaults_to_claude_and_rejects_unknown(tmp_path):
     path.write_text(json.dumps({"agent": "gemini", "theme": "dark"}))
     loaded = appsettings.load(path)
     assert loaded.agent == "claude" and loaded.theme == "dark"
+
+
+def test_accounts_default_to_system_and_accept_added_ids(tmp_path):
+    path = tmp_path / "s.json"
+    fresh = appsettings.load(path)
+    assert (fresh.claude_account, fresh.codex_account) == ("system", "system")
+    assert appsettings.update(path, claude_account="a1b2c3d4").account("claude") == "a1b2c3d4"
+    assert appsettings.load(path).account("codex") == "system"
+    with pytest.raises(ValueError):
+        appsettings.update(path, codex_account="../x")
+    path.write_text(json.dumps({"codex_account": "app"}))
+    assert appsettings.load(path).codex_account == "system"

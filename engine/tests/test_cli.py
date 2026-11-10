@@ -571,3 +571,18 @@ def test_llm_follows_app_setting_unless_agent_is_given(tmp_path, monkeypatch):
     assert isinstance(cli._llm("claude", "haiku"), ClaudeCli)
     with pytest.raises(typer.Exit):
         cli._llm("gemini", None)
+
+
+def test_llm_runs_with_the_chosen_account(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    from context_holder import agentaccounts, appsettings, cli
+
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
+    assert cli._llm("codex", None).prefix == []  # 시스템 기본값: 터미널 로그인
+    account = agentaccounts.create("codex", datetime.now(UTC))
+    appsettings.update(tmp_path / "app-state.json", codex_account=account)
+    assert cli._llm("codex", None).prefix == [
+        "/usr/bin/env",
+        f"CODEX_HOME={tmp_path / 'accounts' / 'codex' / account}",
+    ]

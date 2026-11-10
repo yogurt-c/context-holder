@@ -1,0 +1,10 @@
+{% import "_icons.html" as icons %}
+<section class="panel settings-group" aria-labelledby="agent-pick-title" id="agent-pick">
+  <div class="sec-head">
+    <h2 id="agent-pick-title">요약 · 분류 에이전트</h2>
+    <p>매일 수집의 분류 · 요약과 주제 정리를 맡아요. 어느 계정으로 돌릴지는 아래 에이전트 칸에서 골라요.</p>
+  </div>
+  <form class="agent-chips" role="radiogroup" aria-labelledby="agent-pick-title" hx-post="/settings/agent" hx-trigger="change" hx-target="#agent-pick" hx-swap="outerHTML">
+    {% for value, label in agents.items() %}<label class="agent-chip"><input type="radio" name="agent" value="{{ value }}"{% if agent == value %} checked{% endif %}><span>{{ icons.agent(value) }}{{ label }}<span class="chip-check">{{ icons.glyph("check", 12) }}</span></span></label>{% endfor %}
+  </form>
+</section>
