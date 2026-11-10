@@ -77,10 +77,9 @@ def test_menu_after_done_shows_lead_counts_and_next_run(setup, index):  # noqa: 
     head, sub = labels(event)[:2]
     assert head == "오늘 08:00 수집 완료, 신규 5건 · 소스 2곳 실패"
     assert sub == "이 기기에서 수집 · 다음 수집 월요일 09:30"
-    lead = event["items"][3]
-    assert lead["open"] == "/today" and lead["label"].endswith("…") and len(lead["label"]) == 40
+    assert item(event, "Today 열기")["open"] == "/today"
     assert item(event, "오늘 수집 완료")["enabled"] is False
-    assert item(event, "Inbox 정리 (1)")["open"] == "/inbox"
+    assert item(event, "Inbox 열기 (1)")["open"] == "/inbox"
     assert item(event, "요약 대기 1건")["enabled"] is False
 
 

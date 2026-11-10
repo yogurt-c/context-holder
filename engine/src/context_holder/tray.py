@@ -51,19 +51,16 @@ def status_event(
     record = scheduler.today_record()
     paused = scheduler.paused_until()
     head, sub, icon = _headline(scheduler, record, paused, now)
-    lead = _lead_title(scheduler.wiki, index, now)
     inbox = len(index.select("WHERE bucket = ?", (Bucket.INBOX.value,)))
     pending = len(index.select("WHERE status = ?", ("pending",)))
     items: list[dict[str, Any]] = [{"label": head, "enabled": False}]
     if sub:
         items.append({"label": sub, "enabled": False})
     items.append({"separator": True})
-    if lead:
-        items.append({"label": _clip(lead), "enabled": True, "open": "/today"})
     items += [
-        {"label": "오늘의 브리프 열기", "enabled": True, "open": "/today"},
-        {"label": "검색", "enabled": True, "open": "/search"},
-        {"label": f"Inbox 정리 ({inbox})" if inbox else "Inbox", "enabled": True, "open": "/inbox"},
+        {"label": "Today 열기", "enabled": True, "open": "/today"},
+        {"label": "Search 열기", "enabled": True, "open": "/search"},
+        {"label": f"Inbox 열기 ({inbox})" if inbox else "Inbox 열기", "enabled": True, "open": "/inbox"},
         {"separator": True},
         _sync_item(scheduler, record),
         _pause_item(paused),
@@ -208,11 +205,6 @@ def _pause_item(paused) -> dict[str, Any]:
         {"label": label, "enabled": True, "cmd": f"pause {key}"} for key, label in PAUSES.items()
     ]
     return {"label": "수집 일시정지", "enabled": True, "children": children}
-
-
-def _lead_title(wiki: Wiki, index: Index, now: datetime) -> str | None:
-    ranked = _today_ranked(wiki, index, now)
-    return ranked[0].article.title if ranked else None
 
 
 def _today_ranked(wiki: Wiki, index: Index, now: datetime):
