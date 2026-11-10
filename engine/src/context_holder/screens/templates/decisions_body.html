@@ -8,12 +8,20 @@
 {% else %}
 <div class="panes">
   <nav class="topics" aria-label="결정 주제">
-    <form hx-get="/decisions" hx-target="#decisions-body" hx-trigger="input changed delay:300ms from:#topic-q, submit" hx-push-url="true">
-      <label class="search-field topic-search">
-        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
-        <span class="sr-only">주제 찾기</span>
-        <input id="topic-q" name="q" type="search" value="{{ view.q }}" placeholder="주제 찾기" autocomplete="off">
-      </label>
+    <form hx-get="/decisions" hx-target="#decisions-body" hx-trigger="submit" hx-push-url="true">
+      <div class="suggest-anchor" data-suggest>
+        <div class="topic-search-row">
+          <label class="search-field topic-search">
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+            <span class="sr-only">주제 찾기</span>
+            <input id="topic-q" name="q" type="search" value="{{ view.q }}" placeholder="주제 찾기" autocomplete="off"
+                   aria-controls="decisions-suggest" hx-get="/suggest?for=decisions" hx-target="#decisions-suggest" hx-trigger="click, input changed delay:150ms" hx-sync="this:replace">
+          </label>
+          <button type="submit" class="btn">찾기</button>
+        </div>
+        {# 주제 목록을 다시 그려도 추천은 그대로 둔다 #}
+        <div id="decisions-suggest" class="suggest" aria-live="polite" hx-preserve="true"></div>
+      </div>
       {% if view.show_all %}<input type="hidden" name="all" value="1">{% endif %}
     </form>
     {% for area, items in view.areas %}

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -40,9 +40,11 @@ from context_holder.screens import (
     views,
 )
 from context_holder.screens.runs import alerts
+from context_holder.screens.suggestions import Suggester, Suggestion
 from context_holder.wiki import Wiki
 
 COOKIE = "ch_token"
+SUGGEST_MAX_QUERY = 60  # 추천은 검색어 앞부분만 본다
 STOP_FIXES = ("auth", "limit", "not_installed")  # 수집 카드에서 고칠 수 있는 멈춤 이유
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -96,7 +98,9 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     app.add_middleware(BaseHTTPMiddleware, dispatch=_guard(ctx))
 
     tools = WikiTools(ctx.index, ctx.wiki, ctx.embedder, ctx.device, ctx.mcp_log, ctx.clock)
-    search_lock = threading.Lock()  # 검색 모델과 인덱스 연결을 요청끼리 나눠 쓰지 않게
+    search_lock = threading.RLock()  # 검색 모델과 인덱스 연결을 요청끼리 나눠 쓰지 않게
+    suggester = Suggester(ctx.wiki, ctx.index, ctx.embedder, model_lock=search_lock)
+    suggester.warm()
     write_lock = threading.Lock()  # Inbox 파일 이동이 겹치지 않게
 
     addition = addarticle.AddArticleJob(ctx, write_lock, search_lock, lambda: agent())
@@ -237,6 +241,25 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if request.headers.get("hx-request") == "true":  # 검색어 · 필터가 바뀌면 결과만 다시 그린다
             return templates.TemplateResponse(request, "search_body.html", {"view": view})
         return page(request, "search.html", "search", view=view)
+
+    @app.get("/suggest", response_class=HTMLResponse)
+    def suggest(
+        request: Request, q: str = "", to: str = Query("search", alias="for")
+    ) -> HTMLResponse:
+        """검색창 추천. Decisions에서는 넓은 주제 비교표로, Search에서는 그 문장으로 찾는다."""
+        with search_lock:
+            items = suggester.suggest(q[:SUGGEST_MAX_QUERY])
+
+        def url(s: Suggestion) -> str:
+            if to == "decisions":
+                return "/decisions?" + urlencode({"sel": s.topic})
+            return "/search?" + urlencode({"q": s.text})
+
+        if not items:  # 빈 상자를 그리지 않는다
+            return HTMLResponse("")
+        return templates.TemplateResponse(
+            request, "_suggest.html", {"items": [(s, url(s)) for s in items], "q": q.strip()}
+        )
 
     @app.get("/article/{article_id}", response_class=HTMLResponse)
     def article(request: Request, article_id: str) -> Response:

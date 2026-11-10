@@ -8,6 +8,9 @@
 .topic-search { min-width: 0; }
 .topic-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; color: var(--ink); }
 .topic-search:focus-within { border-color: var(--decision); }
+.topic-search-row { display: flex; gap: var(--sp-2); }
+.topic-search-row .search-field { flex: 1; }
+.topics .suggest-anchor { flex-direction: column; }  /* 추천은 왼쪽 열 폭 안에서 목록 위로 뜬다 (넘치면 스크롤 영역에 잘린다) */
 .topics h3 { font-size: var(--fs-micro); font-weight: 500; color: var(--ink-faint); padding: var(--sp-3) var(--sp-2) var(--sp-1); }
 .topic {
   display: flex; align-items: center; gap: var(--sp-2); padding: 7px var(--sp-2); border-radius: var(--r-control);
@@ -88,6 +91,6 @@
 .skel-head .skel:nth-child(2) { width: 46%; height: 30px; }
 .skel-head .skel:nth-child(3) { width: 38%; height: 15px; }
 .skel-matrix { display: grid; grid-template-columns: 96px repeat(3, minmax(160px, 1fr)); gap: var(--sp-5) var(--sp-4); padding: var(--sp-4); border: 1px solid var(--rule); border-radius: var(--r-card); }
-.skel-matrix .skel { height: 48px; }
+.skel-matrix .skel { height: 48px; border-radius: var(--r-control); }  /* 큰 칸은 알약 모양이 어색하다 */
 .skel-matrix .skel:nth-child(4n + 1) { height: 12px; width: 60%; }
 .topics[aria-busy="true"] { opacity: 0.55; transition: opacity var(--dur-short) var(--ease); }

@@ -1,6 +1,6 @@
 /* Search 화면. docs/ui/search.html 시안의 스타일 */
 .search-form { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.query-bar { padding: var(--sp-4) var(--sp-5) var(--sp-3); border-bottom: 1px solid var(--rule-soft); }
+.query-bar { display: flex; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5) var(--sp-3); border-bottom: 1px solid var(--rule-soft); }
 .search-field.lg input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; color: var(--ink); }
 .search-field.lg input::placeholder { color: var(--ink-faint); }
 .search-field.lg:focus-within { border-color: var(--decision); }

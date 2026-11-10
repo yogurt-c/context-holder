@@ -71,6 +71,10 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 
 /* ---------- 본문 영역 ---------- */
 .content { display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding-bottom: 28px; } /* 시안 표기 띠 높이 */
+/* 사이드바를 뺀 영역의 가운데에 둔다. 위쪽 바 · 검색 바의 구분선은 끝까지 잇는다 (넘치는 선은 .content가 자른다) */
+.content { --page-max: 1280px; padding-inline: max(0px, calc((100% - var(--page-max)) / 2)); }
+.content:has(> .decisions-body) { padding-inline: 0; }  /* 비교표는 옆으로 넓게 쓴다 */
+.toolbar, .query-bar { border-image: linear-gradient(var(--rule), var(--rule)) 0 0 1 0 / 0 0 1px 0 / 0 100vw; }
 .toolbar {
   height: 52px; flex: none; display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-5);
   border-bottom: 1px solid var(--rule); background: var(--paper);
@@ -91,6 +95,28 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .search-field:focus-within { border-color: var(--ink-faint); box-shadow: 0 0 0 3px var(--rule-soft); }
 .search-field .q { flex: 1; }
 .search-field .caret { display: inline-block; width: 1.5px; height: 18px; background: var(--decision); vertical-align: middle; margin-left: 1px; }
+
+/* ---------- 검색창 추천 (_suggest.html) ---------- */
+.suggest-anchor { position: relative; display: flex; flex: 1; min-width: 0; }
+.suggest-anchor > .search-field { flex: 1; }
+.suggest {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30; max-height: min(60vh, 420px); overflow-y: auto;
+  padding: var(--sp-1); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-card); box-shadow: var(--shadow-panel);
+}
+.suggest:empty { display: none; }
+.suggest-head { padding: var(--sp-2) var(--sp-2) var(--sp-1); font-size: var(--fs-micro); font-weight: 500; color: var(--ink-faint); }
+.suggest-list { list-style: none; margin: 0; padding: 0; }
+.suggest-item {
+  display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2); border-radius: var(--r-control);
+  color: var(--ink); text-decoration: none; transition: background var(--dur-micro) var(--ease);
+}
+.suggest-item:hover { background: var(--decision-tint); }
+.suggest-item:focus-visible { outline: 2px solid var(--decision); outline-offset: -2px; background: var(--decision-tint); }
+.suggest-item:active { background: var(--decision-soft); }
+.suggest-text { font-size: var(--fs-small); line-height: 1.4; white-space: normal; }
+.suggest-topic { font-size: var(--fs-micro); color: var(--ink-faint); }
+.suggest-skel-row .skel { height: 12px; width: 38%; }
+.suggest-skel-row .skel:first-child { height: 14px; }
 
 /* ---------- 버튼: 여덟 가지 상태 ---------- */
 .btn {
@@ -229,7 +255,14 @@ a.btn, a.chip { text-decoration: none; }
 .article-detail .section-head { font-size: 12px; font-weight: 500; color: var(--ink-faint); margin-bottom: var(--sp-2); }
 .article-detail .decision-card { margin-bottom: var(--sp-4); box-shadow: none; }
 /* 받아 오는 동안: 실제 글과 같은 자리에 회색 막대 (같은 높이라 내용이 들어와도 모달이 튀지 않는다) */
-.skel { display: block; height: 0.9em; border-radius: var(--r-paper); background: var(--rule-soft); animation: skel-pulse 1.4s ease-in-out infinite; }
+/* 모든 자리표시: 둥근 막대 위로 빛이 지나간다 (토스식, transform만 움직인다) */
+.skel { position: relative; display: block; height: 0.9em; overflow: hidden; border-radius: 999px; background: var(--rule-soft); }
+.skel::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--surface) 50%, transparent);
+  animation: shimmer 1.2s var(--ease) infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
 .is-loading .kicker { display: flex; gap: var(--sp-2); }
 .is-loading .kicker .skel { width: 72px; height: 14px; }
 .is-loading .kicker .skel + .skel { width: 64px; }
@@ -240,7 +273,6 @@ a.btn, a.chip { text-decoration: none; }
 .skel-lines .skel { width: 96%; }
 .skel-lines .skel:nth-child(2) { width: 91%; }
 .skel-lines .skel:nth-child(3) { width: 72%; }
-@keyframes skel-pulse { 50% { opacity: 0.45; } }
 .load-failed .failed-head { margin-top: var(--sp-3); font-size: var(--fs-h3); font-weight: 600; color: var(--ink); }
 .load-failed .note { margin: var(--sp-1) 0 var(--sp-4); }
 .is-opening { opacity: 0.6; text-decoration: underline; text-underline-offset: 3px; }
@@ -300,6 +332,10 @@ a.btn, a.chip { text-decoration: none; }
 .add-modal input { width: 100%; padding: var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-paper); background: var(--surface); color: var(--ink); font: inherit; }
 .add-modal .actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
 .add-modal [hidden] { display: none; }
+.add-skel { display: grid; gap: var(--sp-3); margin-top: var(--sp-4); }  /* 안내 한 줄 · 입력칸 · 버튼 자리 */
+.add-skel .skel { width: 72%; height: 13px; }
+.add-skel .skel:nth-child(2) { width: 100%; height: 42px; border-radius: var(--r-paper); }
+.add-skel .skel:nth-child(3) { width: 72px; height: 32px; justify-self: end; border-radius: var(--r-control); }
 
 .add-status-note { position: fixed; right: var(--sp-5); bottom: 100px; z-index: 30; width: min(380px, calc(100vw - 48px)); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-window); box-shadow: var(--shadow-panel); font-size: 13px; animation: ut-in var(--dur-short) var(--ease); }
 .add-status-row { display: flex; align-items: center; gap: var(--sp-2); min-height: 24px; }  /* 버튼(.btn.sm)이 있는 상태와 높이를 맞춘다 */

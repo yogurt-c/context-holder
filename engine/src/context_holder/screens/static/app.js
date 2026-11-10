@@ -206,7 +206,7 @@ document.addEventListener("click", (event) => {
   const modal = document.getElementById("add-modal");
   if (!modal) return;
   if (event.target.closest("[data-add-open]")) {
-    document.getElementById("add-body").textContent = "불러오는 중…";
+    document.getElementById("add-body").replaceChildren(document.getElementById("add-loading").content.cloneNode(true));
     if (!modal.open) modal.showModal();
   }
   if (event.target === modal || event.target.closest("[data-add-close]")) modal.close();
@@ -266,4 +266,35 @@ document.addEventListener("htmx:afterRequest", (event) => {
   const note = body.querySelector(".add-network-error");
   if (note) note.hidden = false;
   else body.textContent = "연결하지 못했어요. 창을 닫고 다시 열어 주세요.";
+});
+
+// 검색창 추천: 검색창과 추천 밖으로 나가면 닫는다. 추천을 누르는 동안에는 검색창 포커스를 지킨다.
+const closeSuggest = (anchor) => anchor.querySelector(".suggest")?.replaceChildren();
+// 불러오는 동안: 토스처럼 빛이 지나가는 자리표시. 입력하면 바로 바꾸고, 눌러서 다시 열 때는 있던 추천을 둔다
+const showSuggestLoading = (box) => {
+  if (!box.querySelector(".suggest-skel")) box.replaceChildren(document.getElementById("suggest-loading").content.cloneNode(true));
+};
+const suggestBox = (elt) => elt?.closest?.("[data-suggest]")?.querySelector(".suggest");
+document.addEventListener("input", (event) => {  // 입력을 멈추기를 기다리는 동안에도 보인다
+  const box = suggestBox(event.target);
+  if (box) showSuggestLoading(box);
+});
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const box = event.detail.target;
+  if (box?.classList.contains("suggest") && !box.children.length) showSuggestLoading(box);
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  const box = event.detail.target;
+  if (!box?.classList.contains("suggest")) return;
+  if (!event.detail.successful) box.replaceChildren();  // 추천은 없어도 그만이다
+});
+document.addEventListener("mousedown", (event) => {
+  if (event.target.closest(".suggest")) event.preventDefault();
+});
+document.addEventListener("focusout", (event) => {
+  const anchor = event.target.closest?.("[data-suggest]");
+  if (anchor && !anchor.contains(event.relatedTarget)) closeSuggest(anchor);
+});
+document.addEventListener("submit", (event) => {
+  event.target.querySelectorAll("[data-suggest]").forEach(closeSuggest);
 });

@@ -55,5 +55,17 @@
     <button type="button" class="btn sm" data-retry>다시 시도</button>
   </div>
 </template>
+{# 글 추가 창을 불러오는 동안 (app.js) #}
+<template id="add-loading">
+  <p class="sr-only" role="status">불러오는 중이에요</p>
+  <div class="add-skel" aria-hidden="true"><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+</template>
+{# 검색창 추천을 불러오는 동안 (app.js): 문장 두 줄짜리 추천과 같은 높이의 막대 #}
+<template id="suggest-loading">
+  <p class="sr-only" role="status">추천 검색어를 불러오는 중이에요</p>
+  <div class="suggest-skel" aria-hidden="true">
+    {% for w in (78, 62, 70) %}<div class="suggest-skel-row"><span class="skel" style="width: {{ w }}%"></span><span class="skel"></span></div>{% endfor %}
+  </div>
+</template>
 </body>
 </html>

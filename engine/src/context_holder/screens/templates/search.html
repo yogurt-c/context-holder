@@ -5,13 +5,18 @@
     <div class="toolbar"><span class="title">Search</span><span class="sub"><span>글 {{ view.article_total }}건</span><span>결정 사례 {{ view.decision_total }}건</span></span></div>
     <form class="search-form" action="/search" method="get" role="search"
           hx-get="/search" hx-target="#search-body" hx-push-url="true"
-          hx-trigger="input changed delay:350ms from:#q, change, submit">
+          hx-trigger="submit, change from:#search-body">{# 검색어는 Enter · 검색 버튼으로, 필터는 바로 #}
       <div class="query-bar">
-        <label class="search-field lg">
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
-          <span class="sr-only">검색어</span>
-          <input id="q" name="q" type="search" value="{{ view.query.q }}" placeholder="기술 주제, 회사, 결정을 찾아요" autocomplete="off" autofocus>
-        </label>
+        <div class="suggest-anchor" data-suggest>
+          <label class="search-field lg">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+            <span class="sr-only">검색어</span>
+            <input id="q" name="q" type="search" value="{{ view.query.q }}" placeholder="기술 주제, 회사, 결정을 찾아요" autocomplete="off" autofocus
+                   aria-controls="search-suggest" hx-get="/suggest?for=search" hx-target="#search-suggest" hx-trigger="click, input changed delay:150ms" hx-sync="this:replace">
+          </label>
+          <div id="search-suggest" class="suggest" aria-live="polite"></div>
+        </div>
+        <button type="submit" class="btn primary lg">검색</button>
       </div>
       <div id="search-body" class="search-body">{% include "search_body.html" %}</div>
     </form>
