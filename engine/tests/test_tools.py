@@ -44,3 +44,12 @@ def test_tool_falls_back_to_name(monkeypatch):
     monkeypatch.setattr(tools, "find_tool", lambda name: None)
     assert tools.tool("nothing-here") == "nothing-here"
     tools.tool.cache_clear()
+
+
+def test_codex_is_only_the_official_install(monkeypatch, tmp_path):
+    # Homebrew · npm으로 깐 다른 codex가 PATH에 있어도 공식 설치 프로그램의 위치만 쓴다
+    tools.tool.cache_clear()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(tools, "find_tool", lambda name: "/opt/homebrew/bin/codex")
+    assert tools.tool("codex") == str(tmp_path / ".local" / "bin" / "codex")
+    tools.tool.cache_clear()

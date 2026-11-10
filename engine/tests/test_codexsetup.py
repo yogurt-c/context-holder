@@ -6,14 +6,24 @@ import json
 from context_holder import codexsetup
 from context_holder.claudesetup import ClaudeStatus
 
+CURRENT_HELP = "--json --output-schema <FILE> --ignore-user-config"  # 요즘 codex exec --help
+
 
 class FakeRun:
-    def __init__(self, *results):
+    """codex 명령 흉내. 결과를 차례로 돌려준다. exec --help · --version은 따로 답한다."""
+
+    def __init__(self, *results, help_text=CURRENT_HELP, version="codex-cli 0.167.0"):
         self.results = list(results)
+        self.help_text = help_text
+        self.version = version
         self.calls = []
 
     def __call__(self, args, timeout):
         self.calls.append(list(args))
+        if args[-2:] == ["exec", "--help"]:
+            return 0, self.help_text
+        if args[-1] == "--version":
+            return 0, self.version
         return self.results.pop(0) if self.results else (0, "")
 
 
@@ -38,7 +48,7 @@ def test_status_states(tmp_path):
 
     assert status == ClaudeStatus(True, True, "plus", "me@x.com")
     assert status.label == "me@x.com (plus)"
-    assert run.calls == [["codex", "login", "status"]]
+    assert run.calls == [["codex", "login", "status"], ["codex", "exec", "--help"]]
     assert codexsetup.status(FakeRun((1, "Not logged in")), lambda: "codex", tmp_path) == (
         ClaudeStatus(True, False)
     )
@@ -120,5 +130,71 @@ def test_status_and_login_use_the_account_folder(tmp_path):
     run = FakeRun((0, "Logged in using ChatGPT"))
     status = codexsetup.status(run, lambda: "codex", tmp_path, prefix)
     assert status.account == "app@x.com"
-    assert run.calls == [[*prefix, "codex", "login", "status"]]
+    assert run.calls[0] == [*prefix, "codex", "login", "status"]
     assert codexsetup.login_command("codex", prefix) == [*prefix, "codex", "login"]
+
+
+def test_old_codex_without_summary_options_is_outdated(tmp_path):
+    old = FakeRun(
+        (0, "Logged in using ChatGPT"),
+        help_text="--json --skip-git-repo-check",
+        version="codex-cli 0.22.0",
+    )
+    assert codexsetup.status(old, lambda: "codex", tmp_path).outdated == "0.22.0"
+    logged_out = FakeRun((1, "Not logged in"), help_text="--json", version="?")
+    assert codexsetup.status(logged_out, lambda: "codex", tmp_path).outdated == "알 수 없는 버전"
+    current = FakeRun((0, "Logged in using ChatGPT"))
+    assert codexsetup.status(current, lambda: "codex", tmp_path).outdated == ""
+
+
+class PortRun:
+    """lsof · ps 흉내. holders: 포트를 잡은 pid → (uid, 명령). 끄면 목록에서 빠진다."""
+
+    def __init__(self, holders, stubborn=False):
+        self.holders = dict(holders)
+        self.stubborn = stubborn
+        self.calls = []
+
+    def __call__(self, args, timeout):
+        self.calls.append(list(args))
+        if args[0].endswith("lsof"):
+            return (0, "\n".join(map(str, self.holders))) if self.holders else (1, "")
+        pid = int(args[-1])
+        uid, command = self.holders.get(pid, (None, ""))
+        return (0, f"{uid} {command}") if uid is not None else (1, "")
+
+    def kill(self, pid):
+        if not self.stubborn:
+            self.holders.pop(pid)
+
+
+def test_free_port_does_nothing_when_nobody_listens():
+    run = PortRun({})
+    assert codexsetup.free_login_port(run, run.kill, lambda s: None, uid=501) == ""
+    assert run.calls == [["/usr/sbin/lsof", "-nP", "-iTCP:1455", "-sTCP:LISTEN", "-t"]]
+
+
+def test_free_port_stops_a_leftover_codex_login():
+    run = PortRun({52378: (501, "/Users/me/.nvm/.../bin/codex login")})
+    killed = []
+
+    def kill(pid):
+        killed.append(pid)
+        run.kill(pid)
+
+    assert codexsetup.free_login_port(run, kill, lambda s: None, uid=501) == ""
+    assert killed == [52378]
+
+
+def test_free_port_leaves_other_programs_and_users_alone():
+    for holder in ((501, "/usr/bin/python3 -m http.server 1455"), (0, "/bin/codex login")):
+        run = PortRun({7: holder})
+        reason = codexsetup.free_login_port(run, run.kill, lambda s: None, uid=501)
+        assert "다른 프로그램" in reason and 7 in run.holders
+
+
+def test_free_port_gives_up_if_the_login_will_not_stop():
+    run = PortRun({9: (501, "codex login")}, stubborn=True)
+    naps = []
+    reason = codexsetup.free_login_port(run, run.kill, naps.append, uid=501)
+    assert "닫지 못했어요" in reason and len(naps) == 20

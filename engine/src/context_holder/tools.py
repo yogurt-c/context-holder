@@ -18,6 +18,10 @@ COMMON_DIRS = (
     "/usr/local/bin",
 )
 
+# 공식 설치 프로그램이 까는 곳만 쓰는 명령. Homebrew · npm으로 깐 다른 버전과 섞이지 않게 한다
+# (npm 판은 node가 PATH에 있어야 돌고, Homebrew 판은 오래된 채로 남기 쉽다)
+OFFICIAL = {"codex": "~/.local/bin/codex"}
+
 Runner = Callable[[list[str]], str | None]
 
 
@@ -52,4 +56,6 @@ def find_tool(
 @functools.cache
 def tool(name: str) -> str:
     """찾은 경로. 못 찾으면 이름 그대로 (실행할 때 '설치되지 않음'으로 드러난다)."""
+    if name in OFFICIAL:
+        return str(Path(OFFICIAL[name]).expanduser())
     return find_tool(name) or name

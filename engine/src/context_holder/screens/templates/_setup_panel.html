@@ -42,7 +42,7 @@
         </ul>
       </form>
       <p class="tiny">이 계정으로 요약 · 분류해요. 여러 계정을 바꿔 쓰려면 나중에 설정에서 계정을 추가하세요.</p>
-      {% if cl.logged_in %}
+      {% if cl.logged_in and not cl.outdated %}
         <p class="lede">연결됨{% if cl.label %} · {{ cl.label }}{% endif %}</p>
       {% elif job.state == "installing" %}
         <div class="wait"><span class="spinner" aria-hidden="true"></span>{{ s.agent_tool }} 설치 중 (공식 설치 프로그램, 약 30초)</div>
@@ -53,7 +53,10 @@
       {% else %}
         <p class="lede">{% if s.agent == "codex" %}요약과 분류에 쓸 Codex를 연결해요. ChatGPT Plus 이상 구독으로 동작하고 API 키는 필요 없어요.{% else %}요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요.{% endif %} 구독 사용량은 하루 몇 번 정도 써요.</p>
         {% if job.state == "error" %}<p class="error-line" role="alert">{{ job.message }}</p>{% endif %}
-        {% if not cl.installed %}
+        {% if cl.outdated %}
+        <p class="tiny">{{ s.agent_tool }} {{ cl.outdated }}은 너무 오래돼 요약에 쓸 수 없어요. 공식 설치 프로그램으로 업데이트해요: <code>{{ s.install_preview }}</code></p>
+        <button type="button" class="btn primary" hx-post="/setup/{{ s.agent }}/install" hx-target="#setup-panel" hx-swap="outerHTML">{{ s.agent_tool }} 업데이트</button>
+        {% elif not cl.installed %}
         <p class="tiny">{{ s.agent_tool }}가 없어요. 공식 설치 프로그램을 실행해요: <code>{{ s.install_preview }}</code></p>
         <button type="button" class="btn primary" hx-post="/setup/{{ s.agent }}/install" hx-target="#setup-panel" hx-swap="outerHTML">{{ s.agent_tool }} 설치</button>
         {% else %}

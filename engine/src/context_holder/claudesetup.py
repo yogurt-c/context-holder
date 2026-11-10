@@ -31,6 +31,7 @@ class ClaudeStatus:
     detail: str = ""  # 구독 종류 (max, pro, team 등)
     account: str = ""  # 로그인한 계정 이메일. 이 기기의 설정 화면에만 보인다 (계정을 바꿨는지 확인)
     org: str = ""  # 팀 · 조직 계정이면 조직 이름
+    outdated: str = ""  # 앱이 쓰는 옵션이 없는 옛 버전이면 그 버전 (업데이트가 필요하다)
 
     @property
     def label(self) -> str:

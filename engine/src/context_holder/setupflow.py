@@ -5,6 +5,8 @@
 """
 
 import logging
+import os
+import signal
 import subprocess
 import threading
 import time
@@ -63,6 +65,7 @@ class SetupFlow:
     spawn: Callable[[list[str]], object] = field(default=lambda args: _spawn(args))
     background: Callable[[Callable[[], None]], None] = field(default=lambda work: _thread(work))
     sleep: Callable[[float], None] = time.sleep
+    kill: Callable[[int], None] = field(default=lambda pid: os.kill(pid, signal.SIGTERM))
     open_url: Callable[[str], object] = webbrowser.open
     copy: Callable[[str], None] = field(default=lambda text: _pbcopy(text))
     claude_config: Path | None = None  # 테스트에서 바꾼다. 없으면 Claude Code 설정 파일
@@ -221,6 +224,13 @@ class SetupFlow:
     def _start_login(self, agent: str, account: str, new: bool) -> None:
         """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다 (settle)."""
         login = claudesetup.login_command if agent == "claude" else codexsetup.login_command
+        if agent == "codex":
+            reason = codexsetup.free_login_port(self.run, self.kill, self.sleep)
+            if reason:
+                if new:
+                    agentaccounts.remove(agent, account, self.accounts_root)
+                self._set_job(agent, ClaudeJob("error", reason))
+                return
         try:
             process = self.spawn(login(tool(agent), self.prefix(agent, account)))
         except OSError as e:
@@ -295,7 +305,8 @@ class SetupFlow:
         settings = appsettings.load(self.settings_path)
         if settings.setup_done:
             return False
-        if self.ready() and self.agent_status().logged_in and self.agent_mcp_ok():
+        ready = self.ready() and self.agent_status().logged_in
+        if ready and not self.agent_status().outdated and self.agent_mcp_ok():
             appsettings.update(self.settings_path, setup_done=True)
             return False
         return True

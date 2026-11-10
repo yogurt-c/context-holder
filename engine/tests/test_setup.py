@@ -1,6 +1,7 @@
 """첫 실행 설정 흐름과 설정 화면."""
 
 import json
+import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -46,6 +47,8 @@ class FakeRun:
         key = " ".join(args[1:3])
         if args[0] == "/bin/bash":
             key = "install"
+        if key == "exec --help":  # 요약에 쓰는 옵션이 있는 요즘 codex
+            return self.answers.get(key, (0, "--output-schema --ignore-user-config"))
         return self.answers.get(key, (0, ""))
 
 
@@ -738,7 +741,10 @@ def test_added_account_logs_in_its_own_folder_and_becomes_active(flow, tmp_path)
     assert flow.account("codex") == account and flow.codex_job.state == "idle"
     flow.run = FakeRun()
     flow.codex()
-    assert flow.run.calls == [["/usr/bin/env", f"CODEX_HOME={folder}", "codex", "login", "status"]]
+    assert flow.run.calls == [
+        ["/usr/bin/env", f"CODEX_HOME={folder}", "codex", "login", "status"],
+        ["codex", "exec", "--help"],
+    ]
 
 
 def test_cancelled_add_removes_the_empty_account(flow):
@@ -934,3 +940,52 @@ def test_cancel_buttons_on_settings_and_setup(flow, tmp_path):
     panel = c.post("/setup/login/cancel", data={"agent": "codex"}, headers=HTMX).text
     assert flow.codex_job.state == "idle" and "승인하세요" not in panel
     assert c.post("/setup/login/cancel", data={"agent": "x"}, headers=HTMX).status_code == 400
+
+
+def test_outdated_codex_asks_for_an_update(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    old_help = {"exec --help": (0, "--json"), "--version": (0, "codex-cli 0.22.0")}
+    flow.run = FakeRun(
+        {"auth status": (0, LOGGED_IN), "login status": (0, "Logged in"), **old_help}
+    )
+    panel = c.get("/settings/connections").text
+    assert "Codex CLI 0.22.0은 너무 오래됐어요" in panel and ">업데이트<" in panel
+    assert (
+        'hx-post="/settings/account/add"' not in panel.split("Codex</h2>")[1].split("</section>")[0]
+    )
+    flow.choose_agent("codex")
+    flow._codex_status = None
+    setup = c.get("/setup/panel").text
+    assert "Codex CLI 업데이트" in setup and "0.22.0은 너무 오래돼" in setup
+
+
+def test_codex_login_clears_a_leftover_login_first(flow):
+    held = {"pids": "52378"}
+
+    class Ports(FakeRun):
+        def __call__(self, args, timeout):
+            if args[0].endswith("lsof"):
+                return (0, held["pids"]) if held["pids"] else (1, "")
+            if args[0] == "/bin/ps":
+                return 0, f"{os.getuid()} /Users/me/bin/codex login"
+            return super().__call__(args, timeout)
+
+    killed = []
+    flow.run = Ports()
+    flow.kill = lambda pid: killed.append(pid) or held.update(pids="")
+    flow.add_account("codex")
+    assert killed == [52378] and flow.codex_job.state == "logging_in"
+
+    flow.cancel_login("codex")
+    held["pids"] = "7"  # 이번엔 다른 프로그램이 포트를 잡았다
+
+    class Other(Ports):
+        def __call__(self, args, timeout):
+            if args[0] == "/bin/ps":
+                return 0, f"{os.getuid()} /usr/bin/python3 -m http.server 1455"
+            return super().__call__(args, timeout)
+
+    flow.run = Other()
+    flow.add_account("codex")
+    assert flow.codex_job.state == "error" and "다른 프로그램" in flow.codex_job.message
+    assert flow.accounts("codex") == []

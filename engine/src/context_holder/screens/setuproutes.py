@@ -55,7 +55,7 @@ def setup_view(
         "journey": journey,
         "current": next((step.key for step in journey.steps if not step.done), None),
         "sync": sync,
-        "can_finish": github_done and status.logged_in,
+        "can_finish": github_done and status.logged_in and not status.outdated,
         "hours": HOURS,
         "minutes": MINUTES,
     }
@@ -154,7 +154,8 @@ def agent_view(flow: SetupFlow, agent: str, active_status) -> dict[str, Any]:
         "key": agent,
         "name": AGENTS[agent],
         "tool": tool,
-        "installed": active_status.installed,
+        "installed": active_status.installed and not active_status.outdated,
+        "outdated": active_status.outdated,
         "installing": job.state == "installing",
         "busy": job.state in ("installing", "logging_in"),
         "error": job.message if job.state == "error" else "",

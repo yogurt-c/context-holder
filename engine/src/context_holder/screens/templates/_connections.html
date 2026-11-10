@@ -34,11 +34,11 @@
     {% if not a.installed %}
     <div class="acct-empty">
       <div>
-        <p class="acct-title">{% if a.installing %}{{ a.tool }}를 설치하고 있어요{% else %}{{ a.tool }}가 없어요{% endif %}</p>
-        <p class="acct-meta">공식 설치 프로그램을 실행해요 · <code>{{ a.install_preview }}</code></p>
+        <p class="acct-title">{% if a.installing %}{{ a.tool }}를 설치하고 있어요{% elif a.outdated %}{{ a.tool }} {{ a.outdated }}은 너무 오래됐어요{% else %}{{ a.tool }}가 없어요{% endif %}</p>
+        <p class="acct-meta">{% if a.outdated %}업데이트해야 요약 · 분류에 쓸 수 있어요{% else %}공식 설치 프로그램을 실행해요{% endif %} · <code>{{ a.install_preview }}</code></p>
         {% if a.error %}<p class="acct-error" role="alert">{{ a.error }}</p>{% endif %}
       </div>
-      {% if a.installing %}{{ status("spin", "설치 중") }}{% elif a.install_post %}<button type="button" class="btn sm primary" hx-post="{{ a.install_post }}" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">설치하기</span><span class="when-busy">시작하는 중…</span></button>{% else %}<a class="btn sm primary" href="/setup">설치하기</a>{% endif %}
+      {% if a.installing %}{{ status("spin", "설치 중") }}{% elif a.install_post %}<button type="button" class="btn sm primary" hx-post="{{ a.install_post }}" hx-target="#connections" hx-swap="outerHTML" hx-disabled-elt="this"><span class="when-idle">{% if a.outdated %}업데이트{% else %}설치하기{% endif %}</span><span class="when-busy">시작하는 중…</span></button>{% else %}<a class="btn sm primary" href="/setup">설치하기</a>{% endif %}
     </div>
     {% else %}
     <div class="acct-sub">
