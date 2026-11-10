@@ -134,11 +134,11 @@ document.addEventListener("click", (event) => {
   htmx.trigger(document.querySelector(".search-form"), "submit");
 });
 
-// 비교표: 사례 열의 아무 칸이나 누르면 그 글 상세를 연다. 같은 열 전체에 마우스 표시를 한다.
+// 비교표의 사례 열 · Today 리드 글: 아무 곳이나 누르면 그 글 상세를 연다. 비교표는 같은 열 전체에 마우스 표시를 한다.
 const sameColumn = (cell) => cell.closest(".matrix").querySelectorAll(`[data-article="${cell.dataset.article}"]`);
 document.addEventListener("click", (event) => {
-  const cell = event.target.closest(".matrix [data-article]");
-  if (!cell || event.target.closest("a")) return;  // 출처 링크는 htmx가 연다
+  const cell = event.target.closest(".matrix [data-article], .lead[data-article]");
+  if (!cell || event.target.closest("a, button")) return;  // 링크 · 버튼은 제 일을 한다
   if (String(window.getSelection())) return;  // 글을 고르는 중이면 열지 않는다
   htmx.ajax("GET", `/article/${encodeURIComponent(cell.dataset.article)}`, { target: "#modal-body", source: cell });
 });

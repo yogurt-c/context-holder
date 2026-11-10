@@ -22,9 +22,9 @@
         <section aria-label="오늘의 주요 이슈">
         {% if view.lead %}
           {% set r = view.lead.ranked %}{% set s = view.lead.stored %}
-          <article class="lead">
+          <article class="lead" data-article="{{ r.article.id }}">
             <div class="kicker"><span class="co-brand">{{ r.company }}</span>{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}</div>
-            <h2>{{ s.title }}</h2>
+            <h2><a href="#" hx-get="/article/{{ r.article.id }}" hx-target="#modal-body">{{ s.title }}</a></h2>
             {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
             {% if s.decision %}{% set d = s.decision %}
             {{ decision_card(d) }}

@@ -281,7 +281,9 @@ def test_today_shows_lead_with_decision_and_ranked_briefs(wiki, tmp_path):
     assert f'"article_id": "{lead}"' in page
     assert "글 0" in page and "영상, 요약만" in page
     assert "2건 더 보기" in page  # 리드 + 4건, 나머지 2건은 접는다
-    assert page.count('hx-target="#modal-body"') == 6  # 2~7위 제목은 상세 모달을 연다
+    assert page.count('hx-target="#modal-body"') == 7  # 리드와 2~7위 제목은 상세 모달을 연다
+    assert f'<article class="lead" data-article="{lead}">' in page  # 리드는 아무 곳이나 눌러도 연다
+    assert f'<h2><a href="#" hx-get="/article/{lead}"' in page  # 키보드로도 연다
     assert "요약 대기 1" in page
     assert "저장 7건, 보류 1건, 제외 2건" in page
     assert "보류 글" in page  # Inbox 미리보기
