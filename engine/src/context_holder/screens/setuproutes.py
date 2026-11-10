@@ -6,12 +6,18 @@ from typing import Any
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
-from context_holder import appsettings, claudesetup
+from context_holder import appsettings, claudesetup, codexsetup
 from context_holder.gitsync import WikiRepo
+from context_holder.llm import AGENT_TOOLS, AGENTS
 from context_holder.onboarding import Onboarding
 from context_holder.setupflow import SetupFlow, model_downloaded
 
 HOURS = [f"{h:02d}" for h in range(24)]
+MCP_HOSTS = {"claude": "Claude Code", "codex": "Codex"}  # 위키 검색을 붙이는 곳
+INSTALL_PREVIEW = {
+    "claude": " ".join(claudesetup.install_command()[2:]),
+    "codex": " ".join(codexsetup.install_command()[2:]),
+}
 MINUTES = [f"{m:02d}" for m in range(0, 60, 10)]
 
 
@@ -23,16 +29,24 @@ def setup_view(
 ) -> dict[str, Any]:
     """journey: 시작하기 단계별 완료. sync: 사이드바와 같은 수집 진행 (앱이 띄웠을 때만)."""
     flow.claude_settled()
-    claude = flow.claude()
+    flow.codex_settled()
+    agent = flow.agent()
+    status = flow.agent_status()
     # 다시 로그인하는 동안은 이전 토큰이 있어도 코드 입력 단계를 보인다
     github_done = flow.ready() and flow.github.state not in ("waiting", "connecting")
     return {
         "github": flow.github,
         "github_done": github_done,
         "token_source": flow.token_source(),
-        "claude": claude,
-        "claude_job": flow.claude_job,
-        "mcp_ok": flow.mcp_ok() if claude.installed else False,
+        "agent": agent,
+        "agents": AGENTS,
+        "agent_name": AGENTS[agent],
+        "agent_tool": AGENT_TOOLS[agent],
+        "mcp_host": MCP_HOSTS[agent],
+        "install_preview": INSTALL_PREVIEW[agent],
+        "status": status,
+        "job": flow.codex_job if agent == "codex" else flow.claude_job,
+        "mcp_ok": flow.agent_mcp_ok() if status.installed else False,
         "mcp_error": mcp_error,
         "translocated": claudesetup.translocated(),
         "settings": appsettings.load(flow.settings_path),
@@ -40,7 +54,7 @@ def setup_view(
         "journey": journey,
         "current": next((step.key for step in journey.steps if not step.done), None),
         "sync": sync,
-        "can_finish": github_done and claude.logged_in,
+        "can_finish": github_done and status.logged_in,
         "hours": HOURS,
         "minutes": MINUTES,
     }
@@ -50,6 +64,7 @@ def settings_view(models_dir, model_id: str, settings_path) -> dict[str, Any]:
     """바로 그릴 수 있는 것만. 연결 상태는 화면이 뜬 뒤 따로 채운다 (connections_view)."""
     return {
         "settings": appsettings.load(settings_path),
+        "agents": AGENTS,
         "model_ready": model_downloaded(models_dir, model_id),
         "hours": HOURS,
         "minutes": MINUTES,
@@ -58,9 +73,11 @@ def settings_view(models_dir, model_id: str, settings_path) -> dict[str, Any]:
 
 def connections_view(flow: SetupFlow) -> dict[str, Any]:
     flow.claude_settled()
+    flow.codex_settled()
     repo = WikiRepo.open(flow.wiki_root)
     claude = flow.claude()
     registered = flow.registered() if claude.installed else None
+    codex_registered = flow.codex_registered() if flow.codex().installed else None
     return {
         "token_source": flow.token_source(),
         "remote": repo.remote_url if repo else None,
@@ -70,6 +87,14 @@ def connections_view(flow: SetupFlow) -> dict[str, Any]:
         "translocated": claudesetup.translocated(),
         "claude_waiting": flow.claude_job.state == "logging_in",
         "claude_error": flow.claude_job.message if flow.claude_job.state == "error" else "",
+        "codex": flow.codex(),
+        "codex_waiting": flow.codex_job.state == "logging_in",
+        "codex_installing": flow.codex_job.state == "installing",
+        "codex_error": flow.codex_job.message if flow.codex_job.state == "error" else "",
+        "codex_install": INSTALL_PREVIEW["codex"],
+        "codex_registered": codex_registered is not None,
+        "codex_mcp_ok": codex_registered == codexsetup.engine_command(),
+        "agent": appsettings.load(flow.settings_path).agent,
     }
 
 
@@ -118,9 +143,27 @@ def add_routes(
         flow.login_claude()
         return setup_panel(request)
 
+    @app.post("/setup/agent", response_class=HTMLResponse)
+    def setup_agent(request: Request, agent: str = Form(...)) -> Response:
+        if agent not in AGENTS:
+            return PlainTextResponse("잘못된 값", status_code=400)
+        flow.choose_agent(agent)
+        return setup_panel(request)
+
+    @app.post("/setup/codex/install", response_class=HTMLResponse)
+    def setup_codex_install(request: Request) -> HTMLResponse:
+        flow.install_codex()
+        return setup_panel(request)
+
+    @app.post("/setup/codex/login", response_class=HTMLResponse)
+    def setup_codex_login(request: Request) -> HTMLResponse:
+        flow.login_codex()
+        return setup_panel(request)
+
     @app.post("/setup/mcp", response_class=HTMLResponse)
     def setup_mcp(request: Request) -> HTMLResponse:
-        ok, out = flow.register_mcp()
+        """고른 에이전트에 위키 검색을 붙인다."""
+        ok, out = flow.register_codex_mcp() if flow.agent() == "codex" else flow.register_mcp()
         error = "" if ok else f"연결하지 못했어요: {out[:120] or '이유를 알 수 없어요'}"
         response = setup_panel(request, error)
         if not ok:
@@ -160,9 +203,10 @@ def add_routes(
         weekends: bool = Form(False),
         notify: bool = Form(False),
         autostart: bool = Form(False),
+        agent: str = Form("claude"),
     ) -> Response:
         daily_at = _time(hour, minute)
-        if daily_at is None or theme not in appsettings.THEMES:
+        if daily_at is None or theme not in appsettings.THEMES or agent not in AGENTS:
             return PlainTextResponse("잘못된 값", status_code=400)
         saved = appsettings.update(
             flow.settings_path,
@@ -171,6 +215,7 @@ def add_routes(
             weekends=weekends,
             notify=notify,
             autostart=autostart,
+            agent=agent,
         )
         on_settings(saved)
         return HTMLResponse('<span class="done-label">저장했어요</span>')
@@ -187,6 +232,27 @@ def add_routes(
         return templates.TemplateResponse(
             request, "_connections.html", {"c": connections_view(flow)}
         )
+
+    @app.post("/settings/codex", response_class=HTMLResponse)
+    def settings_codex(request: Request) -> HTMLResponse:
+        flow.login_codex()
+        return templates.TemplateResponse(
+            request, "_connections.html", {"c": connections_view(flow)}
+        )
+
+    @app.post("/settings/codex/install", response_class=HTMLResponse)
+    def settings_codex_install(request: Request) -> HTMLResponse:
+        flow.install_codex()
+        return templates.TemplateResponse(
+            request, "_connections.html", {"c": connections_view(flow)}
+        )
+
+    @app.post("/settings/codex/mcp", response_class=HTMLResponse)
+    def settings_codex_mcp(request: Request) -> HTMLResponse:
+        ok, out = flow.register_codex_mcp()
+        view = connections_view(flow)
+        view["codex_mcp_message"] = "다시 연결했어요" if ok else f"연결하지 못했어요: {out[:120]}"
+        return templates.TemplateResponse(request, "_connections.html", {"c": view})
 
     @app.post("/settings/mcp", response_class=HTMLResponse)
     def settings_mcp(request: Request) -> HTMLResponse:

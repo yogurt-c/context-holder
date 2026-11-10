@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from context_holder import appsettings
+from context_holder.llm import AGENTS
 from context_holder.scheduler import needs_init
 from context_holder.topics import TOPICS_FILE
 from context_holder.wiki import Wiki
@@ -45,19 +46,19 @@ class Onboarding:
 
 
 def build(flow, wiki: Wiki, settings: appsettings.Settings, check: bool = True) -> Onboarding:
-    """flow: setupflow.SetupFlow. 설정을 마쳤으면 GitHub · Claude는 그때 갖춘 것으로 본다.
+    """flow: setupflow.SetupFlow. 설정을 마쳤으면 GitHub · 에이전트는 그때 갖춘 것으로 본다.
 
-    check가 거짓이면 `claude auth status`를 부르지 않고 마지막으로 확인한 상태만 쓴다
+    check가 거짓이면 에이전트 상태 명령을 부르지 않고 마지막으로 확인한 상태만 쓴다
     (사이드바는 화면마다 그린다).
     """
     started = settings.setup_done
     github = started or flow.ready()
-    claude = started or (flow.claude().logged_in if check else flow.claude_cached())
+    agent = started or (flow.agent_status().logged_in if check else flow.agent_cached())
     collected = github and not needs_init(wiki)
     return Onboarding(
         (
             Step("github", "GitHub 로그인과 위키 레포", github),
-            Step("claude", "Claude 연결", claude),
+            Step("agent", f"{AGENTS[settings.agent]} 연결", agent),
             Step("start", "수집 시작", started),
             Step("first_sync", "첫 수집", collected),
             Step("topics", "주제 정리", (wiki.root / TOPICS_FILE).exists()),

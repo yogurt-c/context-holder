@@ -1,4 +1,4 @@
-{# 시작하기 단계. 필수 단계에 번호를 붙이고, 선택 단계(Claude Code 검색)는 번호 없이 둔다.
+{# 시작하기 단계. 필수 단계에 번호를 붙이고, 선택 단계(위키 검색 연결)는 번호 없이 둔다.
    기다리는 일(승인 · 설치 · 수집)이 있으면 2초마다 다시 그린다 #}
 <section id="setup-panel" class="setup-panel"{% if s.busy %} hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   {% set gh = s.github %}
@@ -29,25 +29,32 @@
     </div>
   </article>
 
-  {% set cl = s.claude %}{% set job = s.claude_job %}
-  <article class="setup-step{% if s.current == "claude" %} cur{% endif %}">
+  {% set cl = s.status %}{% set job = s.job %}
+  <article class="setup-step{% if s.current == "agent" %} cur{% endif %}">
     <span class="ic {{ 'done' if cl.logged_in else ('run' if job.state in ('installing', 'logging_in') else 'todo') }}">{% if cl.logged_in %}✓{% else %}2{% endif %}</span>
     <div class="body">
-      <h2>Claude 연결 <small>요약 · 분류용</small></h2>
+      <h2>{{ s.agent_name }} 연결 <small>요약 · 분류용</small></h2>
+      <form hx-post="/setup/agent" hx-trigger="change" hx-target="#setup-panel" hx-swap="outerHTML">
+        <ul class="toggles agent-pick">
+          <li class="theme"><span>요약 · 분류에 쓸 에이전트</span>
+            {% for value, label in s.agents.items() %}<label class="radio"><input type="radio" name="agent" value="{{ value }}"{% if s.agent == value %} checked{% endif %}{% if s.busy %} disabled{% endif %}> {{ label }}</label>{% endfor %}
+          </li>
+        </ul>
+      </form>
       {% if cl.logged_in %}
         <p class="lede">연결됨{% if cl.label %} · {{ cl.label }}{% endif %}</p>
       {% elif job.state == "installing" %}
-        <div class="wait"><span class="spinner" aria-hidden="true"></span>Claude Code 설치 중 (공식 설치 프로그램, 약 30초)</div>
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>{{ s.agent_tool }} 설치 중 (공식 설치 프로그램, 약 30초)</div>
       {% elif job.state == "logging_in" %}
-        <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 Claude 로그인을 승인하세요</div>
+        <div class="wait"><span class="spinner" aria-hidden="true"></span>브라우저에서 {{ s.agent_name }} 로그인을 승인하세요</div>
       {% else %}
-        <p class="lede">요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요. 구독 사용량은 하루 몇 번 정도 써요.</p>
+        <p class="lede">{% if s.agent == "codex" %}요약과 분류에 쓸 Codex를 연결해요. ChatGPT Plus 이상 구독으로 동작하고 API 키는 필요 없어요.{% else %}요약과 분류에 쓸 Claude를 연결해요. Pro/Max 구독으로 동작하고 API 키는 필요 없어요.{% endif %} 구독 사용량은 하루 몇 번 정도 써요.</p>
         {% if job.state == "error" %}<p class="error-line" role="alert">{{ job.message }}</p>{% endif %}
         {% if not cl.installed %}
-        <p class="tiny">Claude Code가 없어요. 공식 설치 프로그램(claude.ai/install.sh)을 실행해요.</p>
-        <button type="button" class="btn primary" hx-post="/setup/claude/install" hx-target="#setup-panel" hx-swap="outerHTML">Claude Code 설치</button>
+        <p class="tiny">{{ s.agent_tool }}가 없어요. 공식 설치 프로그램을 실행해요: <code>{{ s.install_preview }}</code></p>
+        <button type="button" class="btn primary" hx-post="/setup/{{ s.agent }}/install" hx-target="#setup-panel" hx-swap="outerHTML">{{ s.agent_tool }} 설치</button>
         {% else %}
-        <button type="button" class="btn primary" hx-post="/setup/claude/login" hx-target="#setup-panel" hx-swap="outerHTML">Claude 로그인</button>
+        <button type="button" class="btn primary" hx-post="/setup/{{ s.agent }}/login" hx-target="#setup-panel" hx-swap="outerHTML">{{ s.agent_name }} 로그인</button>
         {% endif %}
       {% endif %}
     </div>
@@ -56,17 +63,17 @@
   <article class="setup-step optional">
     <span class="ic {{ 'done' if s.mcp_ok else 'todo' }}">{% if s.mcp_ok %}✓{% else %}+{% endif %}</span>
     <div class="body">
-      <h2>Claude Code에서 위키 검색 <small>선택</small></h2>
+      <h2>{{ s.mcp_host }}에서 위키 검색 <small>선택</small></h2>
       {% if s.mcp_ok %}
-        <p class="lede">연결됨. Claude Code가 기술 결정 전에 이 위키를 찾아봐요. 새로 연 Claude Code 세션부터 적용돼요.</p>
+        <p class="lede">연결됨. {{ s.mcp_host }}가 기술 결정 전에 이 위키를 찾아봐요. 새로 연 {{ s.mcp_host }} 세션부터 적용돼요.</p>
       {% else %}
-        <p class="lede">터미널에서 쓰는 Claude Code가 기술 결정을 내리기 전에 이 위키의 사례를 찾아보게 연결해요.</p>
+        <p class="lede">터미널에서 쓰는 {{ s.mcp_host }}가 기술 결정을 내리기 전에 이 위키의 사례를 찾아보게 연결해요.</p>
         {% if s.translocated %}
         <p class="error-line" role="alert">앱을 응용 프로그램 폴더로 옮긴 뒤 다시 열어 주세요. 지금 위치는 macOS가 잠시 쓰는 임시 경로라 연결해도 곧 끊겨요.</p>
         {% else %}
         {% if s.mcp_error %}<p class="error-line" role="alert">{{ s.mcp_error }}</p>{% endif %}
-        <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>Claude Code에 추가</button>
-        {% if not cl.installed %}<p class="tiny">2단계에서 Claude Code를 설치하면 추가할 수 있어요.</p>{% endif %}
+        <button type="button" class="btn" hx-post="/setup/mcp" hx-target="#setup-panel" hx-swap="outerHTML"{% if not cl.installed %} disabled{% endif %}>{{ s.mcp_host }}에 추가</button>
+        {% if not cl.installed %}<p class="tiny">2단계에서 {{ s.agent_tool }}를 설치하면 추가할 수 있어요.</p>{% endif %}
         {% endif %}
       {% endif %}
     </div>
@@ -88,7 +95,7 @@
           <li><label><input type="checkbox" name="notify" value="true"{% if st.notify %} checked{% endif %}> 수집 완료 알림</label></li>
         </ul>
         <button class="btn primary lg finish"{% if not s.can_finish %} disabled{% endif %}>시작하기</button>
-        {% if not s.can_finish %}<p class="tiny">GitHub와 Claude를 연결하면 시작할 수 있어요. Claude Code 검색은 나중에 설정에서 추가해도 돼요.</p>{% endif %}
+        {% if not s.can_finish %}<p class="tiny">GitHub와 {{ s.agent_name }}를 연결하면 시작할 수 있어요. {{ s.mcp_host }} 검색은 나중에 설정에서 추가해도 돼요.</p>{% endif %}
       </form>
       {% endif %}
     </div>
@@ -122,7 +129,7 @@
       {% if grouped %}
         <p class="lede"><a href="/decisions">Decisions</a>에서 회사별 결정을 주제마다 비교할 수 있어요.</p>
       {% elif collected %}
-        <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. Claude를 한 번 불러요.</p>
+        <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. {{ s.agent_name }}를 한 번 불러요.</p>
         <a class="btn primary" href="/decisions">Decisions에서 주제 정리</a>
       {% else %}
         <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. 첫 수집이 끝나면 할 수 있어요.</p>

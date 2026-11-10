@@ -26,7 +26,7 @@ from context_holder import appsettings, onboarding
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
-from context_holder.llm import ClaudeCli
+from context_holder.llm import AGENTS, ClaudeCli
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     articleview,
@@ -135,9 +135,14 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     if ctx.updates is not None:
         updateroutes.add_routes(app, ctx.updates, templates, busy, ctx.clock)
 
+    def agent() -> str:
+        return appsettings.load(ctx.settings_path).agent if ctx.settings_path else "claude"
+
+    templates.env.globals["agent_name"] = lambda: AGENTS[agent()]
+
     def current_alerts() -> list:
         pending = len(ctx.index.select("WHERE status = ?", ("pending",)))
-        return alerts(ctx.wiki, pending, ctx.clock())
+        return alerts(ctx.wiki, pending, ctx.clock(), agent())
 
     @app.get("/")
     def home() -> RedirectResponse:
@@ -187,7 +192,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
             return PlainTextResponse("없는 글", status_code=404)
         return templates.TemplateResponse(request, "_article.html", {"a": view})
 
-    regroup = decisionsview.RegroupJob(ctx.wiki, ctx.regroup_llm)
+    regroup = decisionsview.RegroupJob(ctx.wiki, ctx.regroup_llm, agent)
 
     @app.get("/decisions", response_class=HTMLResponse)
     def decisions(

@@ -36,3 +36,15 @@ def test_update_rejects_bad_values(tmp_path):
     with pytest.raises(ValueError):
         appsettings.update(path, theme="neon")
     assert not path.exists()
+
+
+def test_agent_defaults_to_claude_and_rejects_unknown(tmp_path):
+    path = tmp_path / "s.json"
+    assert appsettings.load(path).agent == "claude"
+    assert appsettings.update(path, agent="codex").agent == "codex"
+    assert appsettings.load(path).agent == "codex"
+    with pytest.raises(ValueError):
+        appsettings.update(path, agent="gemini")
+    path.write_text(json.dumps({"agent": "gemini", "theme": "dark"}))
+    loaded = appsettings.load(path)
+    assert loaded.agent == "claude" and loaded.theme == "dark"

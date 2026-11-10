@@ -46,14 +46,14 @@
           <ul class="body suggest">
             {% for m in view.missed %}
             <li><span class="q">{{ m.call }}</span>
-              <div class="why">Claude가 찾았지만 위키에 없었어요{% if m.times > 1 %} ({{ m.times }}회){% endif %}</div></li>
+              <div class="why">에이전트가 찾았지만 위키에 없었어요{% if m.times > 1 %} ({{ m.times }}회){% endif %}</div></li>
             {% endfor %}
             {% for s in view.suggestions %}
             <li><a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.url }}</a>
-              <div class="why">Claude가 {{ short_day(s.day) }}에 추천{% if s.reason %}: {{ s.reason }}{% endif %}</div></li>
+              <div class="why">에이전트가 {{ short_day(s.day) }}에 추천{% if s.reason %}: {{ s.reason }}{% endif %}</div></li>
             {% endfor %}
           </ul>
-          {% else %}<p class="note mcp-note">아직 후보가 없어요. Claude가 찾았지만 위키에 없던 주제와 Claude가 추천한 글이 여기에 모여요.</p>{% endif %}
+          {% else %}<p class="note mcp-note">아직 후보가 없어요. Claude Code나 Codex가 위키에서 찾았지만 없던 주제와 추천한 글이 여기에 모여요.</p>{% endif %}
         </section>
       </aside>
     </div></div>

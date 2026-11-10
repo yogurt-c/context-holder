@@ -15,6 +15,9 @@
           <li class="theme"><span>화면 모드</span>
             {% for value, label in [("system", "시스템"), ("light", "라이트"), ("dark", "다크")] %}<label class="radio"><input type="radio" name="theme" value="{{ value }}" data-theme-choice{% if st.theme == value %} checked{% endif %}> {{ label }}</label>{% endfor %}
           </li>
+          <li class="theme"><span>요약 · 분류 에이전트</span>
+            {% for value, label in v.agents.items() %}<label class="radio"><input type="radio" name="agent" value="{{ value }}"{% if st.agent == value %} checked{% endif %}> {{ label }}</label>{% endfor %}
+          </li>
         </ul>
         <p class="note settings-note">Mac이 꺼져 있었다면 켜거나 깨울 때 수집해요. 하루 한 번만, 먼저 맡은 기기가 수집해요.</p>
       </form>
@@ -24,7 +27,7 @@
         {# 최종 모양 그대로 두고 값 자리만 비워 둔다. 결과가 와도 아래 블록이 밀리지 않는다 #}
         <p class="sr-only" role="status">연결 상태를 확인하는 중이에요</p>
         <dl class="kv body is-loading" aria-hidden="true">
-          {% for name in ("GitHub", "Claude", "Claude Code에서 위키 검색") %}
+          {% for name in ("GitHub", "Claude", "Codex", "Claude Code에서 위키 검색", "Codex에서 위키 검색") %}
           <dt>{{ name }}</dt><dd><span class="skel kv-skel"></span><span class="act"><span class="skel btn-skel"></span></span></dd>
           {% endfor %}
         </dl>

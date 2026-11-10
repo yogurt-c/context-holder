@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 from context_holder import topics as topicmod
 from context_holder.classify import StructuredLlm
 from context_holder.index import Index, IndexedArticle, normalize_topic
-from context_holder.llm import ErrorKind, LlmError
+from context_holder.llm import AGENT_TOOLS, AGENTS, ErrorKind, LlmError
 from context_holder.wiki import Wiki
 
 AREA_ORDER = (
@@ -32,11 +32,12 @@ AREA_ORDER = (
 OTHER_AREA = "기타"
 MIN_SHOWN = 2  # 기본으로는 사례가 2건 이상인 주제만 보인다 (비교할 수 있는 것)
 CONFIDENCE = {"high": 3, "medium": 2, "low": 1}
-LLM_ERRORS = {
-    ErrorKind.NOT_INSTALLED: "Claude Code가 없어요. 설정에서 설치하세요.",
-    ErrorKind.AUTH: "Claude 로그인이 필요해요. 설정에서 다시 연결하세요.",
-    ErrorKind.LIMIT: "Claude 사용 한도에 걸렸어요. 나중에 다시 시도해 주세요.",
+LLM_ERRORS = {  # {name}: Claude · Codex, {tool}: Claude Code · Codex CLI
+    ErrorKind.NOT_INSTALLED: "{tool}가 없어요. 설정에서 확인하세요.",
+    ErrorKind.AUTH: "{name} 로그인이 필요해요. 설정에서 다시 연결하세요.",
+    ErrorKind.LIMIT: "{name} 사용 한도에 걸렸어요. 나중에 다시 시도해 주세요.",
 }
+LLM_ERROR_DEFAULT = "{name}가 답하지 않았어요. 다시 시도해 주세요."
 
 
 @dataclass(frozen=True)
@@ -212,6 +213,7 @@ class RegroupJob:
 
     wiki: Wiki
     llm: Callable[[], StructuredLlm]
+    agent: Callable[[], str] = lambda: "claude"  # 설정에서 고른 에이전트 (오류 문구에 쓴다)
     background: Callable[[Callable[[], None]], None] = field(
         default=lambda work: threading.Thread(target=work, daemon=True).start()
     )
@@ -238,7 +240,10 @@ class RegroupJob:
             result = topicmod.regroup(self.wiki, self.llm(), progress)
         except LlmError as e:
             self.state = "error"
-            self.message = LLM_ERRORS.get(e.kind, "Claude가 답하지 않았어요. 다시 시도해 주세요.")
+            agent = self.agent()
+            self.message = LLM_ERRORS.get(e.kind, LLM_ERROR_DEFAULT).format(
+                name=AGENTS[agent], tool=AGENT_TOOLS[agent]
+            )
             return
         self.state = "done"
         left = f" {result.left}건은 다음에 다시 정리해요." if result.left else ""

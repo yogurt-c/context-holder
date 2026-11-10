@@ -43,7 +43,7 @@ from context_holder.init import (
     progress,
     run_init,
 )
-from context_holder.llm import ClaudeCli
+from context_holder.llm import AGENTS, StructuredLlm, make_llm
 from context_holder.mcpeval import evaluate_mcp, load_decision_queries
 from context_holder.mcpserver import build_server
 from context_holder.mcptools import WikiTools
@@ -68,6 +68,19 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+
+AGENT_OPTION = typer.Option(
+    None, help="요약 · 분류에 쓸 에이전트 (claude | codex). 없으면 앱 설정."
+)
+MODEL_OPTION = typer.Option(None, help="에이전트 모델. 없으면 에이전트 기본값 (Claude는 sonnet).")
+
+
+def _llm(agent: str | None, model: str | None) -> StructuredLlm:
+    chosen = agent or appsettings.load(home() / "app-state.json").agent
+    if chosen not in AGENTS:
+        typer.echo(f"모르는 에이전트: {chosen} (고를 수 있는 것: {', '.join(AGENTS)})", err=True)
+        raise typer.Exit(code=2)
+    return make_llm(chosen, model)
 
 
 def _print_version(value: bool) -> None:
@@ -149,13 +162,14 @@ def classify_command(
     profile_path: Path | None = typer.Option(
         None, "--profile", help="profile.yaml 경로. 없으면 기본 기준."
     ),
-    model: str = typer.Option("sonnet", help="분류에 쓸 Claude 모델."),
+    agent: str | None = AGENT_OPTION,
+    model: str | None = MODEL_OPTION,
     out: Path | None = typer.Option(None, help="판정 결과를 JSONL로 저장할 파일."),
 ) -> None:
-    """모은 글의 관련도를 Claude로 매겨 저장 · 보류 · 버림으로 나눈다."""
+    """모은 글의 관련도를 에이전트로 매겨 저장 · 보류 · 버림으로 나눈다."""
     profile = _profile_or_exit(profile_path)
     articles = _read_articles(articles_path)
-    result = classify(ClaudeCli(model=model), articles, profile)
+    result = classify(_llm(agent, model), articles, profile)
     _print_decisions(result, articles)
     if out:
         _write_decisions(result, articles, out)
@@ -235,7 +249,8 @@ def eval_classify_command(
         help="ctx classify --out 파일. 다시 분류하지 않는다.",
     ),
     profile_path: Path | None = typer.Option(None, "--profile", help="profile.yaml 경로."),
-    model: str = typer.Option("sonnet", help="분류에 쓸 Claude 모델."),
+    agent: str | None = AGENT_OPTION,
+    model: str | None = MODEL_OPTION,
 ) -> None:
     """평가셋 라벨과 분류기 판정을 비교해 정밀도, 놓친 글, 추천 경계값을 보여 준다."""
     try:
@@ -257,7 +272,7 @@ def eval_classify_command(
             raise typer.Exit(code=2)
         order = {lb.url: i for i, lb in enumerate(labels)}
         articles.sort(key=lambda a: order[a.url])
-        result = classify(ClaudeCli(model=model), articles, _profile_or_exit(profile_path))
+        result = classify(_llm(agent, model), articles, _profile_or_exit(profile_path))
         decisions = list(result.decisions)
     else:
         typer.echo("--articles 또는 --decisions 중 하나가 필요하다.", err=True)
@@ -327,7 +342,8 @@ def sync_command(
     days: int | None = typer.Option(
         None, min=1, help="최근 며칠의 글을 볼지. 없으면 처음 30일, 이후 7일."
     ),
-    model: str = typer.Option("sonnet", help="분류 · 요약에 쓸 Claude 모델."),
+    agent: str | None = AGENT_OPTION,
+    model: str | None = MODEL_OPTION,
     events: bool = typer.Option(
         False, "--events", help="진행률을 JSON 한 줄씩 쓴다 (앱의 스케줄러가 읽는다)."
     ),
@@ -344,7 +360,7 @@ def sync_command(
             report = run_sync(
                 wiki,
                 client,
-                ClaudeCli(model=model),
+                _llm(agent, model),
                 now=datetime.now(UTC),
                 days=days or default_days(wiki),
                 etags=etags,
@@ -415,7 +431,7 @@ def _print_sync(report: SyncReport) -> None:
         f"(사용량 환산 ${report.cost_usd:.3f})"
     )
     if report.stopped_reason:
-        typer.echo(f"Claude 호출을 멈췄다: {report.stopped_reason}. 다음 실행에서 이어서 한다.")
+        typer.echo(f"에이전트 호출을 멈췄다: {report.stopped_reason}. 다음 실행에서 이어서 한다.")
 
 
 STATUS_LABEL = {
@@ -436,10 +452,11 @@ def init_command(
     ),
     per_source: int = typer.Option(50, "--per-source", min=1, help="소스마다 가져올 최대 글 수."),
     days: int = typer.Option(365, min=1, help="이 기간보다 오래된 글은 가져오지 않는다."),
-    model: str = typer.Option("sonnet", help="분류 · 요약에 쓸 Claude 모델."),
+    agent: str | None = AGENT_OPTION,
+    model: str | None = MODEL_OPTION,
     status: bool = typer.Option(False, "--status", help="진행 상황만 보여 준다."),
     dry_run: bool = typer.Option(
-        False, "--dry-run", help="Claude 없이 소스별로 가져올 글 수만 본다."
+        False, "--dry-run", help="에이전트 없이 소스별로 가져올 글 수만 본다."
     ),
     events: bool = typer.Option(
         False, "--events", help="진행률을 JSON 한 줄씩 쓴다 (앱의 스케줄러가 읽는다)."
@@ -487,7 +504,7 @@ def init_command(
             result = run_init(
                 wiki,
                 client,
-                ClaudeCli(model=model),
+                _llm(agent, model),
                 now=datetime.now(UTC),
                 settings=settings,
                 on_progress=on_batch,
@@ -496,7 +513,9 @@ def init_command(
         if result.finished:
             typer.echo("초기 수집을 마쳤다.")
         elif result.stopped_reason:
-            typer.echo(f"Claude 호출을 멈췄다: {result.stopped_reason}. 다시 실행하면 이어서 한다.")
+            typer.echo(
+                f"에이전트 호출을 멈췄다: {result.stopped_reason}. 다시 실행하면 이어서 한다."
+            )
         summary = {"saved": result.saved, "inboxed": result.inboxed, "dropped": result.dropped}
         return Work(result, summary, finished=result.finished)
 
@@ -707,7 +726,7 @@ def serve_command(
             download_model=lambda: _download_model(wiki),
             on_settings=bridge.apply_settings if bridge else lambda settings: None,
             updates=bridge.updates if bridge else None,
-            regroup_llm=lambda: ClaudeCli(),
+            regroup_llm=lambda: _llm(None, None),
         )
 
     serve(

@@ -171,7 +171,7 @@ def no_real_keychain(monkeypatch: pytest.MonkeyPatch) -> MemoryKeychain:
 def plain_tool_names(monkeypatch: pytest.MonkeyPatch) -> None:
     """외부 명령은 이름 그대로 쓴다. 테스트가 이 기기에 무엇이 설치됐는지에 기대지 않게."""
     plain = _PlainNames()
-    for module in ("llm", "claudesetup", "setupflow", "auth"):
+    for module in ("llm", "claudesetup", "codexsetup", "setupflow", "auth"):
         monkeypatch.setattr(f"context_holder.{module}.tool", plain)
 
 

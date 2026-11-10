@@ -33,7 +33,7 @@ def group_topics(wiki: Wiki) -> None:
 def test_counts_required_steps_only(flow, tmp_path):  # noqa: F811
     wiki = fresh_wiki(tmp_path)
     progress = onboarding.build(flow, wiki, appsettings.Settings())
-    assert [s.key for s in progress.steps] == ["github", "claude", "start", "first_sync", "topics"]
+    assert [s.key for s in progress.steps] == ["github", "agent", "start", "first_sync", "topics"]
     assert (progress.done, progress.total, progress.complete) == (0, 5, False)
 
 
@@ -51,7 +51,7 @@ def test_steps_follow_the_wiki(flow, tmp_path):  # noqa: F811
 def test_sidebar_check_does_not_call_claude(flow, tmp_path):  # noqa: F811
     flow.run.calls.clear()
     progress = onboarding.build(flow, fresh_wiki(tmp_path), appsettings.Settings(), check=False)
-    assert not progress.is_done("claude") and flow.run.calls == []
+    assert not progress.is_done("agent") and flow.run.calls == []
 
 
 def test_pending_remembers_completion(flow, tmp_path):  # noqa: F811

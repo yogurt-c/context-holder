@@ -1,5 +1,7 @@
 import json
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
 from context_holder import __version__
@@ -306,7 +308,7 @@ def test_sync_runs_on_wiki_and_keeps_etags_on_this_device(monkeypatch, tmp_path)
     assert "저장 1 · 보류 1 · 버림 0" in result.output
     assert "새 글 0건" not in result.output and '"event"' not in result.output
     assert "요약 대기 1" in result.output and "이전 대기 완료 2" in result.output
-    assert "Claude 호출을 멈췄다: limit: 한도" in result.output
+    assert "에이전트 호출을 멈췄다: limit: 한도" in result.output
     assert json.loads((home / "etag-cache.json").read_text()) == {"toss": '"new"'}
 
 
@@ -556,3 +558,16 @@ def test_eval_mcp_scores_without_printing_wiki_content(monkeypatch, tmp_path):
     assert "놓침: kafka 암호화" in result.output
     assert "초당 100만 건" not in result.output
     assert not (tmp_path / "home/mcp-queries.jsonl").exists()  # 실제 질의 로그에 섞지 않는다
+
+
+def test_llm_follows_app_setting_unless_agent_is_given(tmp_path, monkeypatch):
+    from context_holder import appsettings, cli
+    from context_holder.llm import ClaudeCli, CodexCli
+
+    monkeypatch.setenv("CONTEXT_HOLDER_HOME", str(tmp_path))
+    assert isinstance(cli._llm(None, None), ClaudeCli)
+    appsettings.update(tmp_path / "app-state.json", agent="codex")
+    assert isinstance(cli._llm(None, None), CodexCli)
+    assert isinstance(cli._llm("claude", "haiku"), ClaudeCli)
+    with pytest.raises(typer.Exit):
+        cli._llm("gemini", None)

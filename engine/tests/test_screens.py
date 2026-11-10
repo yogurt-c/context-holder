@@ -189,7 +189,7 @@ def test_run_status_for_each_state(wiki):
     assert not status(wiki, TODAY, "air", False).label.startswith("오늘")
 
 
-# ---------- Claude 검색 기록 ----------
+# ---------- 에이전트 검색 기록 ----------
 
 
 def test_mcp_entries_keep_recent_searches_only(tmp_path):

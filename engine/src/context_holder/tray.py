@@ -21,6 +21,7 @@ from typing import Any
 from context_holder.appsettings import Settings
 from context_holder.classify import Bucket
 from context_holder.index import Index
+from context_holder.llm import AGENTS
 from context_holder.scheduler import FOREVER, PAUSES, Scheduler
 from context_holder.screens.runs import run_records
 from context_holder.screens.views import configured_sources, local_day, rank, short_day
@@ -93,7 +94,7 @@ def notices(scheduler: Scheduler, index: Index) -> list[Notice]:
             found.append(
                 Notice(
                     "claude",
-                    "Claude 연결이 끊겼어요",
+                    f"{AGENTS[scheduler.settings().agent]} 연결이 끊겼어요",
                     "새 글은 가져만 두고 분류와 요약은 미뤘어요. 다음 수집 때 이어서 해요.",
                     "/today",
                 )
@@ -183,7 +184,8 @@ def _headline(
             head += f" · 소스 {failed}곳 실패"
         return head, f"{where} · 다음 수집 {_next_day(now)}", icon
     if record and record.get("status") == "stopped":
-        return "수집이 멈췄어요", "Claude 연결 문제예요. 다음 수집 때 이어서 해요", "error"
+        agent = AGENTS[scheduler.settings().agent]
+        return "수집이 멈췄어요", f"{agent} 연결 문제예요. 다음 수집 때 이어서 해요", "error"
     if scheduler.last and scheduler.last.ok is False:
         at = scheduler.last.at.astimezone().strftime("%H:%M")
         return "수집하지 못했어요", f"{at}에 실패 · 30분 뒤 다시 해요", "error"

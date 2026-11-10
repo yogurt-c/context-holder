@@ -565,3 +565,11 @@ def test_sync_without_app_is_refused(wiki, tmp_path):
     c, _ = make_client(wiki, tmp_path)
     assert c.post("/sync", headers=HTMX).status_code == 409
     assert c.get("/sync-card").headers["HX-Refresh"] == "true"
+
+
+def test_stopped_alert_names_the_chosen_agent(wiki):
+    run_file(wiki, TODAY, {"status": "stopped", "result": {"stopped": "limit"}})
+    assert alerts(wiki, 0, NOW)[0].title.startswith("Claude 사용 한도")
+    assert alerts(wiki, 0, NOW, agent="codex")[0].title.startswith("Codex 사용 한도")
+    run_file(wiki, TODAY, {"status": "stopped", "result": {"stopped": "not_installed"}})
+    assert "Codex CLI를 찾지 못해" in alerts(wiki, 0, NOW, agent="codex")[0].title

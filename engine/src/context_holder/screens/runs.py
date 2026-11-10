@@ -1,7 +1,7 @@
 """수집 기록(`state/runs/{날짜}.json`)을 읽어 상태 알림을 만든다 (plan 7장 상태별 화면).
 
 - 며칠째 수집하지 못했다: 마지막 기록이 이틀 이상 지났다.
-- 수집이 멈췄다: 마지막 기록이 Claude 로그인 · 한도 문제로 멈췄다.
+- 수집이 멈췄다: 마지막 기록이 에이전트 로그인 · 한도 문제로 멈췄다.
 """
 
 import json
@@ -10,14 +10,15 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from context_holder.llm import AGENT_TOOLS, AGENTS
 from context_holder.wiki import Wiki
 
 RUNS_DIR = "state/runs"
 STALE_DAYS = 2
-STOP_TITLE = {
-    "auth": "Claude 로그인이 만료돼 수집이 멈췄어요.",
-    "limit": "Claude 사용 한도에 걸려 수집이 멈췄어요.",
-    "not_installed": "Claude Code를 찾지 못해 수집이 멈췄어요.",
+STOP_TITLE = {  # {name}: Claude · Codex, {tool}: Claude Code · Codex CLI
+    "auth": "{name} 로그인이 만료돼 수집이 멈췄어요.",
+    "limit": "{name} 사용 한도에 걸려 수집이 멈췄어요.",
+    "not_installed": "{tool}를 찾지 못해 수집이 멈췄어요.",
 }
 STOP_DEFAULT = "수집이 중간에 멈췄어요."
 
@@ -44,7 +45,7 @@ def run_records(wiki: Wiki) -> list[tuple[date, dict[str, Any]]]:
     return records
 
 
-def alerts(wiki: Wiki, pending: int, now: datetime) -> list[Alert]:
+def alerts(wiki: Wiki, pending: int, now: datetime, agent: str = "claude") -> list[Alert]:
     records = run_records(wiki)
     if not records:  # 아직 한 번도 수집하지 않은 위키: 사이드바가 알려 준다
         return []
@@ -56,7 +57,9 @@ def alerts(wiki: Wiki, pending: int, now: datetime) -> list[Alert]:
         found.append(
             Alert(
                 "busy",
-                STOP_TITLE.get(kind, STOP_DEFAULT),
+                STOP_TITLE.get(kind, STOP_DEFAULT).format(
+                    name=AGENTS[agent], tool=AGENT_TOOLS[agent]
+                ),
                 f"{last_day.month}월 {last_day.day}일 수집에서 멈췄어요.{waiting}",
             )
         )

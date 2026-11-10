@@ -78,6 +78,7 @@ def flow(tmp_path, monkeypatch):
         tmp_path / "wiki",
         tmp_path / "app-state.json",
         claude_config=tmp_path / ".claude.json",
+        codex_home=tmp_path / ".codex",
         clock=lambda: NOW,
         run=FakeRun(),
         spawn=lambda args: events["spawned"].append(args),
@@ -528,3 +529,169 @@ def test_translocated_app_asks_to_move_first(flow, tmp_path, monkeypatch):
     assert "응용 프로그램 폴더로 옮긴 뒤" in c.get("/setup").text
     panel = c.get("/settings/connections").text
     assert "옮긴 뒤 연결하세요" in panel and 'hx-post="/settings/mcp"' not in panel
+
+
+# ---------- Codex ----------
+
+
+def test_codex_login_and_status(flow):
+    flow.run = FakeRun({"login status": (1, "Not logged in")})
+    assert flow.codex().installed and not flow.codex().logged_in
+    flow.login_codex()
+    assert flow.codex_job.state == "logging_in" and flow.busy()
+    assert flow.events["spawned"] == [["codex", "login"]]
+    flow.run = FakeRun({"login status": (0, "Logged in using ChatGPT")})
+    flow.codex_settled()
+    assert flow.codex_job.state == "idle" and flow.codex().logged_in
+
+
+def test_codex_status_is_cached_and_login_failure_is_shown(flow):
+    flow.run = FakeRun({"login status": (127, "")})
+    flow.codex()
+    flow.codex()
+    assert len(flow.run.calls) == 1
+    assert not flow.codex(fresh=True).installed
+
+    def broken(args):
+        raise OSError("없음")
+
+    flow.spawn = broken
+    flow.login_codex()
+    assert flow.codex_job.state == "error" and "Codex" in flow.codex_job.message
+
+
+def test_settings_choose_agent_and_show_codex(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    page = c.get("/settings").text
+    assert 'name="agent" value="claude"' in page and 'name="agent" value="codex"' in page
+    form = {"hour": "08", "minute": "10", "theme": "system", "agent": "codex"}
+    assert "저장했어요" in c.post("/settings", data=form, headers=HTMX).text
+    assert appsettings.load(flow.settings_path).agent == "codex"
+    assert 'name="agent" value="codex" checked' in c.get("/settings").text
+    assert c.post("/settings", data={**form, "agent": "gemini"}, headers=HTMX).status_code == 400
+
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (127, "")})
+    panel = c.get("/settings/connections").text
+    assert "Codex CLI가 없어요" in panel and "chatgpt.com/codex/install.sh" in panel
+    assert 'hx-post="/settings/codex/install"' in panel
+    flow.background = lambda work: None
+    installing = c.post("/settings/codex/install", headers=HTMX).text
+    assert "설치 중" in installing and 'hx-trigger="every 2s"' in installing
+    flow.codex_job = setupflow.ClaudeJob()
+
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (1, "")})
+    flow._codex_status = None  # 상태는 몇 초 재사용한다
+    panel = c.get("/settings/connections").text
+    assert "Codex" in panel and 'hx-post="/settings/codex"' in panel
+    waiting = c.post("/settings/codex", headers=HTMX).text
+    assert "승인하세요" in waiting and 'hx-trigger="every 2s"' in waiting
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (0, "Logged in")})
+    flow._codex_status = None  # 상태는 몇 초 재사용한다
+    done = c.get("/settings/connections").text
+    assert "every 2s" not in done and "요약에 쓰는 중" in done
+
+
+def register_codex(flow, command: str) -> None:
+    """Codex 설정 파일에 등록된 것처럼 쓴다."""
+    flow.codex_home.mkdir(parents=True, exist_ok=True)
+    (flow.codex_home / "config.toml").write_text(
+        f'[mcp_servers.context-holder]\ncommand = "{command}"\nargs = ["mcp"]\n'
+    )
+
+
+def test_install_codex_runs_official_script(flow):
+    flow.run = FakeRun({"install": (0, "ok"), "login status": (127, "")})
+    assert not flow.codex().installed
+    flow.install_codex()
+    assert flow.codex_job.state == "idle" and flow._codex_status is None
+    assert flow.run.calls[-1][-1] == "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+    flow.run = FakeRun({"install": (1, "network")})
+    flow.install_codex()
+    assert flow.codex_job.state == "error" and "network" in flow.codex_job.message
+    flow.codex_job = setupflow.ClaudeJob("installing")
+    flow.install_codex()  # 진행 중이면 무시
+    assert flow.codex_job.state == "installing" and flow.busy()
+
+
+def test_codex_mcp_registration(flow):
+    assert not flow.codex_mcp_ok()
+    register_codex(flow, "/old/ctx")
+    assert flow.codex_registered() == ["/old/ctx", "mcp"] and not flow.codex_mcp_ok()
+    flow.run = FakeRun()
+    assert flow.register_codex_mcp()[0]
+    assert ["codex", "mcp", "add", "context-holder", "--", "/a/ctx", "mcp"] in flow.run.calls
+    register_codex(flow, "/a/ctx")
+    assert flow.codex_mcp_ok()
+
+
+def test_chosen_agent_decides_what_setup_needs(flow, monkeypatch):
+    monkeypatch.setattr(auth, "gh_lookup", lambda: "gho")
+    (flow.wiki_root / ".git").mkdir(parents=True)
+    flow.choose_agent("codex")
+    assert flow.agent() == "codex"
+    flow.run = FakeRun({"auth status": (127, ""), "login status": (0, "Logged in")})
+    assert flow.agent_status().logged_in and flow.agent_cached()
+    register(flow, "/a/ctx")  # Claude Code 등록은 Codex를 고르면 보지 않는다
+    assert flow.needed()
+    register_codex(flow, "/a/ctx")
+    assert not flow.needed()  # Claude 없이 Codex만으로 이미 연결된 기기
+    with pytest.raises(ValueError):
+        flow.choose_agent("gemini")
+
+
+def test_setup_follows_the_chosen_agent(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (127, "")})
+    page = c.get("/setup").text
+    assert "Claude 연결" in page and 'name="agent" value="claude" checked' in page
+    assert "Claude Code에서 위키 검색" in page
+
+    assert c.post("/setup/agent", data={"agent": "gemini"}, headers=HTMX).status_code == 400
+    panel = c.post("/setup/agent", data={"agent": "codex"}, headers=HTMX).text
+    assert appsettings.load(flow.settings_path).agent == "codex"
+    assert "Codex 연결" in panel and "Codex에서 위키 검색" in panel
+    assert "curl -fsSL https://chatgpt.com/codex/install.sh | sh" in panel
+    assert 'hx-post="/setup/codex/install"' in panel and "ChatGPT Plus" in panel
+    assert "GitHub와 Codex를 연결하면" in panel
+
+    flow.background = lambda work: None
+    assert "Codex CLI 설치 중" in c.post("/setup/codex/install", headers=HTMX).text
+    flow.codex_job = setupflow.ClaudeJob()
+    flow.run = FakeRun({"login status": (1, "")})
+    flow._codex_status = None
+    assert 'hx-post="/setup/codex/login"' in c.get("/setup/panel").text
+    waiting = c.post("/setup/codex/login", headers=HTMX).text
+    assert "브라우저에서 Codex 로그인을 승인하세요" in waiting and "every 2s" in waiting
+    assert "disabled" in waiting.split('name="agent" value="claude"')[1].split(">")[0]
+
+    flow.codex_job = setupflow.ClaudeJob()
+    flow.run = FakeRun({"login status": (0, "Logged in"), "mcp add": (0, "")})
+    flow._codex_status = None
+    c.post("/setup/mcp", headers=HTMX)
+    assert ["codex", "mcp", "add", "context-holder", "--", "/a/ctx", "mcp"] in flow.run.calls
+    register_codex(flow, "/a/ctx")
+    assert "Codex가 기술 결정 전에 이 위키를 찾아봐요" in c.get("/setup/panel").text
+
+
+def test_settings_codex_mcp_row(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (0, "Logged in")})
+    panel = c.get("/settings/connections").text
+    assert "Codex에서 위키 검색" in panel and 'hx-post="/settings/codex/mcp"' in panel
+    register_codex(flow, "/old/ctx")
+    assert "이 앱이 아닌 다른 위치로" in c.get("/settings/connections").text.split("Codex에서")[1]
+    flow.run = FakeRun({"login status": (0, "Logged in"), "mcp add": (1, "<boom>")})
+    assert "&lt;boom&gt;" in c.post("/settings/codex/mcp", headers=HTMX).text
+    flow.run = FakeRun({"login status": (0, "Logged in")})
+    register_codex(flow, "/a/ctx")
+    done = c.post("/settings/codex/mcp", headers=HTMX).text
+    assert "다시 연결했어요" in done
+    assert "Codex가 기술 결정 전에" in c.get("/settings/connections").text
+
+
+def test_regroup_hint_names_the_chosen_agent(flow, tmp_path):
+    c = screen(flow, tmp_path)
+    assert "Claude에 보내" in c.get("/decisions").text
+    appsettings.update(flow.settings_path, agent="codex")
+    page = c.get("/decisions").text
+    assert "Codex에 보내" in page and "Claude에 보내" not in page

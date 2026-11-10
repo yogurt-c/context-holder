@@ -225,3 +225,21 @@ def test_mcp_lists_and_finds_by_broad_topic(tmp_path):
         "사이드카 버전 관리",
         "서비스 메시 도입",
     }
+
+
+def test_regroup_job_names_the_chosen_agent(tmp_path):
+    wiki = make_wiki(tmp_path)
+    add(wiki, "https://t/1", "글", topic="캐시")
+    for kind, text in (
+        (ErrorKind.AUTH, "Codex 로그인이 필요해요"),
+        (ErrorKind.NOT_INSTALLED, "Codex CLI가 없어요"),
+        (ErrorKind.FAILED, "Codex가 답하지 않았어요"),
+    ):
+        job = RegroupJob(
+            wiki,
+            lambda k=kind: FakeLlm([LlmError(k, "x")]),
+            background=lambda w: w(),
+            agent=lambda: "codex",
+        )
+        job.start(busy=False)
+        assert text in job.message

@@ -280,3 +280,14 @@ def test_progress_dataclass_reexport():
 def test_clock_constant_is_monday():
     assert MONDAY_8.astimezone().weekday() in (0, 6) and MONDAY_8.tzinfo is UTC
     assert datetime(2026, 11, 9).weekday() == 0
+
+
+def test_stopped_notice_and_menu_name_the_chosen_agent(setup, index):  # noqa: F811
+    from context_holder.appsettings import Settings
+
+    scheduler, wiki, clock, *_ = setup
+    record(wiki, clock.now, status="stopped", device="air", result={"stopped": "limit"})
+    assert labels(status_event(scheduler, index))[1].startswith("Claude 연결 문제")
+    scheduler.settings = lambda: Settings(agent="codex")
+    assert notices(scheduler, index)[0].title == "Codex 연결이 끊겼어요"
+    assert labels(status_event(scheduler, index))[1].startswith("Codex 연결 문제")

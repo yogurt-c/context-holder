@@ -10,6 +10,8 @@ from datetime import time
 from pathlib import Path
 from typing import Any
 
+from context_holder.llm import AGENTS
+
 THEMES = ("system", "light", "dark")
 
 
@@ -24,6 +26,7 @@ class Settings:
     onboarding_done: bool = False  # 시작하기 단계를 모두 마쳤다 (사이드바에서 탭을 뺀다)
     auto_update: bool = True  # 새 버전을 자동으로 확인한다
     skipped_update: str = ""  # "이 버전 건너뛰기"를 누른 버전 (그 버전 팝업을 다시 띄우지 않는다)
+    agent: str = "claude"  # 요약 · 분류 · 주제 정리에 쓸 에이전트 (llm.AGENTS)
 
     @property
     def daily_time(self) -> time:
@@ -39,7 +42,11 @@ def load(path: Path) -> Settings:
         settings.daily_time  # noqa: B018 - 깨진 시각이면 기본값으로
     except (TypeError, ValueError):
         return Settings()
-    return settings if settings.theme in THEMES else replace(settings, theme="system")
+    if settings.theme not in THEMES:
+        settings = replace(settings, theme="system")
+    if settings.agent not in AGENTS:
+        settings = replace(settings, agent="claude")
+    return settings
 
 
 def save(path: Path, settings: Settings) -> None:
@@ -53,6 +60,8 @@ def update(path: Path, **changes: Any) -> Settings:
     settings.daily_time  # noqa: B018 - 잘못된 시각이면 ValueError
     if settings.theme not in THEMES:
         raise ValueError(f"모르는 화면 모드: {settings.theme}")
+    if settings.agent not in AGENTS:
+        raise ValueError(f"모르는 에이전트: {settings.agent}")
     save(path, settings)
     return settings
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import httpx
 
-from context_holder import appsettings, auth, claudesetup, deviceflow
+from context_holder import appsettings, auth, claudesetup, codexsetup, deviceflow
 from context_holder.connect import Connected, ConnectError, connect_wiki
 from context_holder.tools import tool
 
@@ -55,11 +55,15 @@ class SetupFlow:
     open_url: Callable[[str], object] = webbrowser.open
     copy: Callable[[str], None] = field(default=lambda text: _pbcopy(text))
     claude_config: Path | None = None  # 테스트에서 바꾼다. 없으면 Claude Code 설정 파일
+    codex_home: Path | None = None  # 테스트에서 바꾼다. 없으면 $CODEX_HOME 또는 ~/.codex
     on_ready: Callable[[], None] = lambda: None  # 위키 · 로그인이 갖춰졌다 (스케줄러를 깨운다)
     github: GitHubLogin = field(default_factory=GitHubLogin)
     claude_job: ClaudeJob = field(default_factory=ClaudeJob)
+    codex_job: ClaudeJob = field(default_factory=ClaudeJob)
     _status: tuple[float, claudesetup.ClaudeStatus] | None = None
     _login: object = None  # 띄운 `claude auth login` 프로세스
+    _codex_status: tuple[float, claudesetup.ClaudeStatus] | None = None
+    _codex_login: object = None  # 띄운 `codex login` 프로세스
 
     # ---------- 상태 ----------
 
@@ -79,16 +83,31 @@ class SetupFlow:
             self._status = (now, claudesetup.status(self.run))
         return self._status[1]
 
-    def claude_cached(self) -> bool:
+    # ---------- 고른 에이전트 ----------
+
+    def agent(self) -> str:
+        return appsettings.load(self.settings_path).agent
+
+    def choose_agent(self, agent: str) -> None:
+        appsettings.update(self.settings_path, agent=agent)
+
+    def agent_status(self, fresh: bool = False) -> claudesetup.ClaudeStatus:
+        return self.codex(fresh) if self.agent() == "codex" else self.claude(fresh)
+
+    def agent_cached(self) -> bool:
         """명령을 부르지 않고 마지막으로 확인한 로그인 상태만 본다 (사이드바처럼 자주 그리는 곳)."""
-        return self._status is not None and self._status[1].logged_in
+        status = self._codex_status if self.agent() == "codex" else self._status
+        return status is not None and status[1].logged_in
+
+    def agent_mcp_ok(self) -> bool:
+        return self.codex_mcp_ok() if self.agent() == "codex" else self.mcp_ok()
 
     def needed(self) -> bool:
         """첫 실행 설정을 보여 줄까. 이미 다 갖춘 기기(다른 방법으로 연결)면 끝난 것으로 남긴다."""
         settings = appsettings.load(self.settings_path)
         if settings.setup_done:
             return False
-        if self.ready() and self.claude().logged_in and self.mcp_ok():
+        if self.ready() and self.agent_status().logged_in and self.agent_mcp_ok():
             appsettings.update(self.settings_path, setup_done=True)
             return False
         return True
@@ -101,9 +120,10 @@ class SetupFlow:
 
     def busy(self) -> bool:
         """화면이 계속 다시 물어야 하나."""
-        return self.github.state in ("waiting", "connecting") or self.claude_job.state in (
-            "installing",
-            "logging_in",
+        return (
+            self.github.state in ("waiting", "connecting")
+            or self.claude_job.state in ("installing", "logging_in")
+            or self.codex_job.state in ("installing", "logging_in")
         )
 
     # ---------- GitHub ----------
@@ -224,6 +244,61 @@ class SetupFlow:
 
     def register_mcp(self) -> tuple[bool, str]:
         return claudesetup.register_mcp(self.run)
+
+    # ---------- Codex ----------
+
+    def codex(self, fresh: bool = False) -> claudesetup.ClaudeStatus:
+        now = time.monotonic()
+        if fresh or self._codex_status is None or now - self._codex_status[0] > STATUS_TTL:
+            status = codexsetup.status(self.run, home=self.codex_home)
+            self._codex_status = (now, status)
+        return self._codex_status[1]
+
+    def install_codex(self) -> None:
+        if self.codex_job.state not in ("idle", "error"):
+            return
+        self.codex_job = ClaudeJob("installing")
+
+        def work() -> None:
+            code, out = self.run(codexsetup.install_command(), INSTALL_TIMEOUT)
+            tool.cache_clear()  # 새로 설치한 codex를 찾게
+            self._codex_status = None
+            if code != 0:
+                self.codex_job = ClaudeJob("error", f"설치하지 못했어요 ({code}). {out[-200:]}")
+            else:
+                self.codex_job = ClaudeJob()
+
+        self.background(work)
+
+    def login_codex(self) -> None:
+        """브라우저 승인을 띄운다. 끝났는지는 화면이 상태를 다시 읽어 안다."""
+        try:
+            self._codex_login = self.spawn(codexsetup.login_command(tool("codex")))
+        except OSError as e:
+            self.codex_job = ClaudeJob("error", f"Codex 로그인을 띄우지 못했어요: {e}")
+            return
+        self._codex_status = None
+        self.codex_job = ClaudeJob("logging_in")
+
+    def codex_settled(self) -> None:
+        """띄운 `codex login`이 끝났으면 (승인하거나 취소하면) 작업 표시를 지운다."""
+        if self.codex_job.state != "logging_in":
+            return
+        poll = getattr(self._codex_login, "poll", None)
+        done = poll() is not None if poll else self.codex(fresh=True).logged_in
+        if done:
+            self._codex_login = None
+            self._codex_status = None
+            self.codex_job = ClaudeJob()
+
+    def codex_registered(self) -> list[str] | None:
+        return codexsetup.registered_command(self.codex_home)
+
+    def codex_mcp_ok(self) -> bool:
+        return self.codex_registered() == codexsetup.engine_command()
+
+    def register_codex_mcp(self) -> tuple[bool, str]:
+        return codexsetup.register_mcp(self.run)
 
     # ---------- 마치기 ----------
 
