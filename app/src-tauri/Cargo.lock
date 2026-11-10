@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "context-holder"
-version = "0.1.12"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
