@@ -37,6 +37,7 @@ class RunStatus:
     device: str | None = None
     counts: dict[str, int] = field(default_factory=dict)  # 신규 · 저장 · 보류 · 제외
     foot: str = ""
+    stopped: str = ""  # 멈춘 이유 (auth · limit · not_installed). 수집 카드가 고칠 길을 보인다
 
 
 @dataclass(frozen=True)
@@ -157,7 +158,8 @@ def run_status(wiki: Wiki, day: date, device: str, is_today: bool) -> RunStatus:
         label = "이 기기가 수집 중" if mine else f"{holder}가 수집 중"
         return RunStatus("running", label, mine, holder, counts, f"{started}에 시작")
     if status == "stopped":
-        return RunStatus("stopped", "수집이 중간에 멈췄어요", mine, holder, counts, where)
+        reason = str(result.get("stopped") or "")
+        return RunStatus("stopped", "수집이 중간에 멈췄어요", mine, holder, counts, where, reason)
     finished = _clock_time(record.get("finished_at"))
     head = f"오늘 {finished} 수집 완료" if is_today else f"{finished} 수집 완료"
     return RunStatus("done", head, mine, holder, counts, where)

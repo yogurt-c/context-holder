@@ -16,7 +16,7 @@ from context_holder.wiki import Wiki
 RUNS_DIR = "state/runs"
 STALE_DAYS = 2
 STOP_TITLE = {  # {name}: Claude · Codex, {tool}: Claude Code · Codex CLI
-    "auth": "{name} 로그인이 만료돼 수집이 멈췄어요.",
+    "auth": "{name} 로그인이 풀려 수집이 멈췄어요.",
     "limit": "{name} 사용 한도에 걸려 수집이 멈췄어요.",
     "not_installed": "{tool}를 찾지 못해 수집이 멈췄어요.",
 }

@@ -989,3 +989,77 @@ def test_codex_login_clears_a_leftover_login_first(flow):
     flow.add_account("codex")
     assert flow.codex_job.state == "error" and "다른 프로그램" in flow.codex_job.message
     assert flow.accounts("codex") == []
+
+
+# ---------- 수집 카드에서 로그인 문제 해결 ----------
+
+
+def stopped_today(tmp_path, kind):
+    from context_holder.wiki import Wiki
+    from tests.test_screens import TODAY, run_file
+
+    run_file(
+        Wiki(tmp_path / "screen-wiki"),
+        TODAY,
+        {"device": "air", "status": "stopped", "result": {"stopped": kind, "saved": 0}},
+    )
+
+
+def test_sync_card_relogs_in_and_retries_collection(flow, tmp_path):
+    from tests.test_screens_pages import FakeScheduler
+
+    scheduler = FakeScheduler()
+    c = screen(flow, tmp_path, scheduler=scheduler)
+    stopped_today(tmp_path, "auth")
+    flow.choose_agent("codex")
+    page = c.get("/today").text
+    assert "Codex 로그인이 풀렸어요" in page and 'hx-post="/sync/login"' in page
+
+    process = Hanging()
+    flow.spawn = lambda args: process
+    waiting = c.post("/sync/login", headers=HTMX).text
+    assert "승인하세요" in waiting and 'hx-get="/sync-card/login"' in waiting
+    assert 'hx-post="/sync/login/cancel"' in waiting and flow.codex_job.state == "logging_in"
+    still = c.get("/sync-card/login")
+    assert "승인하세요" in still.text and "HX-Refresh" not in still.headers
+
+    process.poll = lambda: 0  # 브라우저에서 승인했다
+    flow.run = FakeRun({"login status": (0, "Logged in using ChatGPT")})
+    done = c.get("/sync-card/login").text
+    assert scheduler.runs == 1 and "이 기기가 수집 중" in done  # 바로 다시 수집한다
+
+
+def test_sync_card_login_cancel_and_failure(flow, tmp_path):
+    from tests.test_screens_pages import FakeScheduler
+
+    scheduler = FakeScheduler()
+    c = screen(flow, tmp_path, scheduler=scheduler)
+    stopped_today(tmp_path, "auth")
+    flow.spawn = lambda args: Hanging()
+    assert "Claude 로그인이 풀렸어요" in c.get("/today").text  # 고른 에이전트 이름
+    c.post("/sync/login", headers=HTMX)
+    cancelled = c.post("/sync/login/cancel", headers=HTMX).text
+    assert "승인하세요" not in cancelled and 'hx-post="/sync/login"' in cancelled
+
+    class Quits:
+        def poll(self):
+            return 1  # 승인하지 않고 끝났다
+
+    flow.spawn = lambda args: Quits()
+    flow.run = FakeRun({"auth status": (0, json.dumps({"loggedIn": False}))})
+    c.post("/sync/login", headers=HTMX)
+    after = c.get("/sync-card/login").text
+    assert scheduler.runs == 0 and "로그인하지 못했어요" in after
+
+
+def test_sync_card_points_to_the_fix_for_limits_and_missing_tools(flow, tmp_path):
+    from tests.test_screens_pages import FakeScheduler
+
+    c = screen(flow, tmp_path, scheduler=FakeScheduler())
+    stopped_today(tmp_path, "limit")
+    page = c.get("/today").text
+    assert "Claude 사용 한도에 걸렸어요" in page and 'href="/settings#acct-claude"' in page
+    stopped_today(tmp_path, "not_installed")
+    assert "Claude Code가 없어요" in c.get("/today").text
+    stopped_today(tmp_path, "boom")
+    assert 'hx-post="/sync/login"' not in c.get("/today").text

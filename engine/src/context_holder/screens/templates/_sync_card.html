@@ -10,6 +10,24 @@
   <div class="head"><span class="dot {{ {'running': 'busy', 'stopped': 'error', 'none': 'idle'}.get(st.state, '') }}"></span>{{ st.label }}</div>
   {# 숫자는 평소 한 줄로 접어 두고, 누르면 네 줄로 펼친다 #}
   {% if st.counts %}<details class="sync-counts"><summary>새 글 {{ st.counts.get("신규", 0) }}건, 저장 {{ st.counts.get("저장", 0) }}건</summary><dl>{% for name, n in st.counts.items() %}<dt>{{ name }}</dt><dd>{{ n }}</dd>{% endfor %}</dl></details>{% endif %}
+  {% set fix = sync_fix(st) %}
+  {% if fix %}
+  <div class="sync-fix"{% if fix.waiting %} hx-get="/sync-card/login" hx-trigger="every 2s" hx-target="#sync-card" hx-swap="outerHTML"{% endif %}>
+    <p class="sync-fix-title">{% if fix.kind == "auth" %}{{ fix.name }} 로그인이 풀렸어요{% elif fix.kind == "limit" %}{{ fix.name }} 사용 한도에 걸렸어요{% else %}{{ fix.tool }}가 없어요{% endif %}</p>
+    {% if fix.waiting %}
+    <p class="sync-fix-note"><span class="ut-spin" aria-hidden="true"></span>브라우저에서 승인하세요</p>
+    <button type="button" class="btn sm ghost" hx-post="/sync/login/cancel" hx-target="#sync-card" hx-swap="outerHTML">취소</button>
+    {% elif fix.kind == "auth" %}
+    {% if fix.error %}<p class="sync-fix-error" role="alert">{{ fix.error }}</p>{% endif %}
+    <button type="button" class="btn sm primary" hx-post="/sync/login" hx-target="#sync-card" hx-swap="outerHTML" hx-disabled-elt="this">다시 로그인</button>
+    <p class="sync-fix-note">로그인하면 바로 다시 수집해요.</p>
+    {% elif fix.kind == "limit" %}
+    <a class="btn sm" href="/settings#acct-{{ fix.agent }}">계정 바꾸기</a>
+    {% else %}
+    <a class="btn sm" href="/settings#acct-{{ fix.agent }}">설치하기</a>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if st.foot %}<div class="foot">{{ st.foot }}</div>{% endif %}
   {% if sync and sync.paused %}<div class="foot">수집 일시정지 중 ({{ sync.paused }})</div>{% endif %}
   {% if sync and sync.can_run %}<button type="button" class="btn sm sync-now" hx-post="/sync" hx-target="#sync-card" hx-swap="outerHTML">지금 수집</button>{% endif %}

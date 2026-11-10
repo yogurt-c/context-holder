@@ -26,7 +26,7 @@ from context_holder import appsettings, onboarding
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
-from context_holder.llm import AGENTS, ClaudeCli
+from context_holder.llm import AGENT_TOOLS, AGENTS, ClaudeCli
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     articleview,
@@ -42,6 +42,7 @@ from context_holder.screens.runs import alerts
 from context_holder.wiki import Wiki
 
 COOKIE = "ch_token"
+STOP_FIXES = ("auth", "limit", "not_installed")  # 수집 카드에서 고칠 수 있는 멈춤 이유
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
@@ -139,6 +140,26 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return appsettings.load(ctx.settings_path).agent if ctx.settings_path else "claude"
 
     templates.env.globals["agent_name"] = lambda: AGENTS[agent()]
+
+    # 수집 카드에서 다시 로그인하고, 승인되면 바로 다시 수집한다 ({"agent": …} · {"error": …})
+    login_retry: dict[str, str] = {}
+
+    def sync_fix(status: views.RunStatus) -> dict[str, Any] | None:
+        """에이전트 문제로 멈췄으면 카드에 보일 원인과 해결 방법."""
+        if ctx.flow is None or status.state != "stopped" or status.stopped not in STOP_FIXES:
+            return None
+        chosen = agent()
+        job = ctx.flow.job(chosen)
+        return {
+            "kind": status.stopped,
+            "agent": chosen,
+            "name": AGENTS[chosen],
+            "tool": AGENT_TOOLS[chosen],
+            "waiting": job.state == "logging_in",
+            "error": login_retry.get("error") or (job.message if job.state == "error" else ""),
+        }
+
+    templates.env.globals["sync_fix"] = sync_fix
 
     def current_alerts() -> list:
         pending = len(ctx.index.select("WHERE status = ?", ("pending",)))
@@ -269,6 +290,42 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if ctx.scheduler is None:
             return PlainTextResponse("앱에서만 수집할 수 있다", status_code=409)
         ctx.scheduler.run_now()
+        return sync_card(request)
+
+    @app.post("/sync/login", response_class=HTMLResponse)
+    def sync_login(request: Request) -> Response:
+        if ctx.flow is None:
+            return PlainTextResponse("앱에서만 로그인할 수 있다", status_code=409)
+        chosen = agent()
+        login_retry.clear()
+        ctx.flow.relogin_account(chosen, ctx.flow.account(chosen))
+        login_retry["agent"] = chosen
+        return sync_card(request)
+
+    @app.get("/sync-card/login", response_class=HTMLResponse)
+    def sync_login_poll(request: Request) -> HTMLResponse:
+        """승인을 기다린다. 로그인됐으면 바로 다시 수집하고, 아니면 이유를 남긴다."""
+        chosen = login_retry.get("agent")
+        if ctx.flow is None or not chosen:
+            return sync_card(request)
+        ctx.flow.settle(chosen)
+        state = ctx.flow.job(chosen).state
+        if state == "logging_in":
+            return sync_card(request)
+        login_retry.clear()
+        if state != "error":  # error: 띄우지 못했거나 시간이 지났다. 작업 메시지를 보인다
+            if ctx.flow.agent_status(fresh=True).logged_in:
+                if ctx.scheduler is not None:
+                    ctx.scheduler.run_now()
+            else:
+                login_retry["error"] = "로그인하지 못했어요. 다시 시도해 주세요."
+        return sync_card(request)
+
+    @app.post("/sync/login/cancel", response_class=HTMLResponse)
+    def sync_login_cancel(request: Request) -> HTMLResponse:
+        chosen = login_retry.pop("agent", None)
+        if ctx.flow is not None and chosen:
+            ctx.flow.cancel_login(chosen)
         return sync_card(request)
 
     @app.get("/{name}", response_class=HTMLResponse)

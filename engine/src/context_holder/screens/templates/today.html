@@ -63,7 +63,7 @@
           </details>
           {% endif %}
         {% else %}
-          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">시작하기</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
+          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">시작하기</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% elif view.status.state == "stopped" %}수집이 중간에 멈춰 아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
           {% if view.recent %}
           <h3 class="panel-head">최근 7일 상위 글</h3>
           {% set mark_recent = view.recent | map(attribute="1") | rejectattr("article.decision_topic") | list | length > 0 %}

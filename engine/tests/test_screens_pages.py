@@ -463,9 +463,16 @@ def test_stopped_alert_names_the_reason_and_pending(wiki, tmp_path):
     run_file(wiki, TODAY, {"status": "stopped", "result": {"stopped": "auth"}})
     add(wiki, "https://t/p", "대기 글", pending=True)
     (found,) = alerts(wiki, 1, NOW)
-    assert found.tone == "busy" and "로그인이 만료" in found.title and "요약 대기 1건" in found.body
+    assert found.tone == "busy" and "로그인이 풀려" in found.title and "요약 대기 1건" in found.body
     c, _ = make_client(wiki, tmp_path)
-    assert "로그인이 만료" in c.get("/today").text and "로그인이 만료" in c.get("/sources").text
+    assert "로그인이 풀려" in c.get("/today").text and "로그인이 풀려" in c.get("/sources").text
+
+
+def test_stopped_day_does_not_claim_everything_was_classified(wiki, tmp_path):
+    run_file(wiki, TODAY, {"status": "stopped", "result": {"stopped": "auth", "saved": 0}})
+    c, _ = make_client(wiki, tmp_path)
+    today = c.get("/today").text
+    assert "아직 분류하지 못한 글" in today and "모두 보류나 제외로" not in today
 
 
 def test_stopped_alert_for_old_records_without_reason(wiki):
@@ -573,3 +580,9 @@ def test_stopped_alert_names_the_chosen_agent(wiki):
     assert alerts(wiki, 0, NOW, agent="codex")[0].title.startswith("Codex 사용 한도")
     run_file(wiki, TODAY, {"status": "stopped", "result": {"stopped": "not_installed"}})
     assert "Codex CLI를 찾지 못해" in alerts(wiki, 0, NOW, agent="codex")[0].title
+
+
+def test_sync_login_needs_the_app_and_a_pending_login(wiki, tmp_path):
+    c = app_client(wiki, tmp_path, FakeScheduler())
+    assert c.post("/sync/login", headers=HTMX).status_code == 409
+    assert c.get("/sync-card/login").status_code == 200  # 기다리는 로그인이 없으면 카드만
