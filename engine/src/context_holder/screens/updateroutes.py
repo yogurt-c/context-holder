@@ -4,6 +4,7 @@
 팝업과 설정 영역은 그 신호와 시간으로 스스로 다시 그린다.
 """
 
+import time
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -15,6 +16,7 @@ from context_holder.screens.views import short_day
 from context_holder.updates import WORKING, Updates
 
 CHANGED = {"HX-Trigger": "update-changed"}
+SPIN_MS = 900  # .ut-icon.spin 한 바퀴 (components.css)
 
 
 def update_view(updates: Updates | None, busy: bool, now: datetime) -> dict[str, Any] | None:
@@ -44,7 +46,12 @@ def add_routes(
 
     @app.get("/update/toast", response_class=HTMLResponse)
     def toast(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(request, "_update_toast.html", {"update": view()})
+        context = {
+            "update": view(),
+            "shown": request.query_params.get("shown") == "1",
+            "spin_phase": int(time.monotonic() * 1000) % SPIN_MS,
+        }
+        return templates.TemplateResponse(request, "_update_toast.html", context)
 
     @app.get("/settings/update", response_class=HTMLResponse)
     def settings_update(request: Request) -> HTMLResponse:

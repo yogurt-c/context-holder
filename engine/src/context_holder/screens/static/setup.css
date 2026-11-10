@@ -64,7 +64,6 @@
 .us-num.old { font-weight: 400; color: var(--ink-faint); }
 .us-arrow { color: var(--ink-faint); }
 .us-status { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--ink-faint); flex: 1; min-width: 0; }
-.us-status .ut-num { font-family: inherit; font-size: inherit; }
 .us-status a { color: var(--ink); text-decoration-color: var(--rule-strong); }
 .us-status a:hover { text-decoration-color: currentColor; }
 .us-ok { color: var(--ink-soft); }

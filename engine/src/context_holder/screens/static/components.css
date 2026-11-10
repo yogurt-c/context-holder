@@ -253,28 +253,29 @@ a.btn, a.chip { text-decoration: none; }
 
 /* ---------- 앱 업데이트 팝업 (우측 하단) ---------- */
 .update-toast {
-  --ut-accent: var(--decision);
+  --ut-accent: var(--ink);
   position: fixed; right: var(--sp-5); bottom: calc(28px + var(--sp-4)); z-index: 40; width: 320px;
   background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-window);
-  box-shadow: var(--shadow-panel); padding: var(--sp-4) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 3px);
+  box-shadow: var(--shadow-panel); padding: var(--sp-4) var(--sp-4) var(--sp-3);
   font-size: 13px; color: var(--ink-soft); overflow: hidden;
   animation: ut-in var(--dur-short) var(--ease) both;
 }
-.update-toast::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ut-accent); }
+.update-toast.shown { animation: none; } /* 다시 그릴 때는 떠오르지 않는다 */
 .update-toast.downloading { --ut-accent: var(--busy); }
 .update-toast.ready { --ut-accent: var(--ok); }
 .update-toast.error { --ut-accent: var(--error); }
 .ut-head { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: 14px; }
 .ut-head strong { font-weight: 650; }
-.ut-pct { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--busy-ink); font-variant-numeric: tabular-nums; }
-/* 제목 앞 아이콘: 모든 상태가 같은 18px 원, 색만 왼쪽 띠를 따른다 */
+.ut-pct { margin-left: auto; font-size: 12.5px; color: var(--busy-ink); font-variant-numeric: tabular-nums; }
+/* 제목 앞 아이콘: 모든 상태가 같은 18px 원, 색만 상태를 따른다 */
 .ut-icon { width: 18px; height: 18px; flex: none; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; line-height: 1; color: var(--on-ink); background: var(--ut-accent); }
 .ut-icon.spin { background: none; border: 2px solid var(--busy-line); border-top-color: var(--busy); animation: spin 0.9s linear infinite; }
 .ut-wait { font-size: 12.5px; color: var(--busy-ink); }
 .ut-spin { width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid var(--busy-line); border-top-color: var(--busy); animation: spin 0.9s linear infinite; display: inline-block; }
 .ut-body { margin-top: var(--sp-2); line-height: 1.55; }
-.ut-body a, .us-status a { color: var(--decision-ink); text-decoration: underline; text-underline-offset: 2px; }
-.ut-num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ut-body a, .us-status a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 2px; }
+.ut-body a:hover { text-decoration-color: currentColor; }
+.ut-num { font-variant-numeric: tabular-nums; }
 .ut-bar { margin-top: var(--sp-3); height: 6px; border-radius: 3px; }
 .ut-bar i, .us-bar i { transition: width var(--dur-short) var(--ease); }
 .bar.indeterminate i { animation: ut-slide 1.2s var(--ease) infinite; }

@@ -244,6 +244,10 @@ def test_toast_on_every_page(made, tmp_path):
     feed(updates, state="downloading", version="0.2.0", done=10_000_000, total=40_000_000)
     toast = c.get("/update/toast").text
     assert "25%" in toast and "every 1s" in toast and 'aria-valuenow="25"' in toast
+    # 1초마다 다시 그려도 떠오르는 효과는 처음 한 번만 (팝업이 위아래로 들썩이지 않게)
+    assert 'hx-get="/update/toast?shown=1"' in toast and "update-toast downloading" in toast
+    assert "update-toast downloading shown" in c.get("/update/toast?shown=1").text
+    assert 'style="animation-delay:-' in toast  # 도는 아이콘이 매초 처음으로 돌아가지 않는다
     feed(updates, state="downloading", version="0.2.0")
     assert "indeterminate" in c.get("/update/toast").text
     feed(updates, state="ready", version="0.2.0")
@@ -259,6 +263,7 @@ def test_toast_on_every_page(made, tmp_path):
         updates.state.state == "available" and not updates.toast()
     )  # 닫으면 이번 실행에서는 숨긴다
     assert "<aside" not in c.get("/update/toast").text
+    assert 'hx-get="/update/toast"' in c.get("/update/toast?shown=1").text  # 숨기면 다시 처음부터
     feed(updates, state="available", version="0.3.0")
     c.post("/update/skip", headers=HTMX)
     assert appsettings.load(tmp_path / "app-state.json").skipped_update == "0.3.0"
