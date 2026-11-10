@@ -14,6 +14,7 @@ from context_holder import appsettings, auth, claudesetup, setupflow
 from context_holder.connect import Connected, ConnectError
 from context_holder.screens.app import COOKIE, create_app
 from context_holder.setupflow import SetupFlow, model_downloaded
+from context_holder.wiki import Wiki
 from tests.test_screens import TOKEN, context
 
 NOW = datetime(2026, 11, 9, 3, tzinfo=UTC)
@@ -1063,3 +1064,68 @@ def test_sync_card_points_to_the_fix_for_limits_and_missing_tools(flow, tmp_path
     assert "Claude Code가 없어요" in c.get("/today").text
     stopped_today(tmp_path, "boom")
     assert 'hx-post="/sync/login"' not in c.get("/today").text
+
+
+def connect_wiki_dir(flow) -> Wiki:
+    (flow.wiki_root / ".git").mkdir(parents=True, exist_ok=True)
+    return Wiki(flow.wiki_root)
+
+
+def test_roles_can_be_chosen_only_after_github(flow, tmp_path):
+    c = screen(flow, tmp_path)
+
+    panel = c.get("/setup").text
+    assert "어떤 글을 모을까요?" in panel and "GitHub를 연결하면 고를 수 있어요" in panel
+    assert 'value="backend" checked disabled' in panel and 'value="ml" disabled' in panel
+    assert c.post("/settings/roles", data={"roles": ["ml"]}, headers=HTMX).status_code == 400
+
+
+def test_roles_are_saved_to_the_wiki_on_each_change(flow, tmp_path):
+    wiki = connect_wiki_dir(flow)
+    c = screen(flow, tmp_path)
+    assert 'value="ai" checked>' in c.get("/setup").text  # 기본 직군
+
+    saved = c.post("/settings/roles", data={"roles": ["backend", "security"]}, headers=HTMX)
+
+    assert "저장했어요" in saved.text and "<html" not in saved.text
+    assert 'value="security" checked>' in saved.text and 'value="ai">' in saved.text
+    assert wiki.roles() == ("backend", "security")
+
+
+def test_unchecking_every_role_keeps_the_saved_ones(flow, tmp_path):
+    wiki = connect_wiki_dir(flow)
+    wiki.set_roles(["data"])
+    c = screen(flow, tmp_path)
+
+    kept = c.post("/settings/roles", data={}, headers=HTMX)
+
+    assert "직군을 하나 이상 골라 주세요" in kept.text
+    assert 'value="data" checked>' in kept.text
+    assert wiki.roles() == ("data",)
+
+
+def test_finishing_setup_writes_the_default_roles_once(flow, tmp_path):
+    wiki = connect_wiki_dir(flow)
+    c = screen(flow, tmp_path)
+
+    c.post("/setup/finish", data={"hour": "09", "minute": "30"}, headers=HTMX)
+    assert wiki.roles() == ("backend", "frontend", "ai", "infra", "data")
+
+    wiki.set_roles(["ml"])
+    c.post("/setup/finish", data={"hour": "09", "minute": "30"}, headers=HTMX)
+    assert wiki.roles() == ("ml",)  # 이미 고른 직군은 그대로 둔다
+
+
+def test_legacy_profile_shows_defaults_until_a_role_is_chosen(flow, tmp_path):
+    wiki = connect_wiki_dir(flow)
+    (wiki.root / "config").mkdir()
+    (wiki.root / "config/profile.yaml").write_text(
+        "include:\n  - {topic: 백엔드, about: DB}\n", encoding="utf-8"
+    )
+
+    page = screen(flow, tmp_path).get("/settings").text
+
+    assert "수집할 직군" in page and "지금은 예전 수집 기준을 써요" in page
+    assert "이미 모은 글은 바뀌거나 지워지지 않아요" in page
+    assert "이 위키를 쓰는 모든 기기에 함께 적용돼요" in page
+    assert 'value="frontend" checked>' in page

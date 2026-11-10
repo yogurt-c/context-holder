@@ -68,7 +68,7 @@ def test_prompt_contains_criteria_excerpt_and_feedback_examples():
     classify(llm, [article(1, "캐시 전략")], load_default_profile(), examples=examples)
 
     prompt, system = llm.prompts[0]
-    assert "AI 엔지니어링" in system and "ML 모델링" in system
+    assert "AI 엔지니어링" in system and "선택하지 않은 직군" in system
     assert "캐시 전략 1" in prompt
     assert "FE News 11월 소식" in prompt
     assert len(prompt) < 4000  # 본문은 앞부분만 보낸다

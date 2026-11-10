@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from context_holder.sources import Mode, SourceConfigError, load_default_sources, load_sources
+from context_holder.sources import (
+    Mode,
+    SourceConfigError,
+    active,
+    load_default_sources,
+    load_sources,
+)
 
 
 def write(tmp_path: Path, text: str) -> Path:
@@ -68,12 +74,49 @@ def test_rejects_invalid_config(tmp_path: Path, body: str, message: str):
         load_sources(write(tmp_path, body))
 
 
-def test_default_sources_are_the_thirteen_from_readme():
+def test_default_sources_are_the_thirteen_from_readme_plus_role_blogs():
     sources = load_default_sources()
 
-    assert len(sources) == 13
-    assert sum(s.region == "domestic" for s in sources) == 9
-    assert {s.id for s in sources if s.mode is Mode.FETCH} == {"line", "oliveyoung", "kakao"}
+    always = [s for s in sources if not s.roles]
+    assert len(always) == 13
+    assert sum(s.region == "domestic" for s in always) == 9
+    assert {s.id for s in always if s.mode is Mode.FETCH} == {"line", "oliveyoung", "kakao"}
+    by_role = {r: {s.id for s in sources if r in s.roles} for r in ("ml", "frontend", "security")}
+    assert by_role == {
+        "ml": {"meta", "pinterest", "google-research", "spotify"},
+        "frontend": {"shopify", "grab"},
+        "security": {"trailofbits", "github-security"},
+    }
+
+
+def test_role_blogs_are_collected_only_when_their_role_is_chosen():
+    sources = load_default_sources()
+
+    ids = {s.id for s in active(sources, ["backend", "ai"])}
+    assert "toss" in ids and "meta" not in ids and "shopify" not in ids
+    assert {"meta", "toss"} <= {s.id for s in active(sources, ["ml"])}
+    # 직군을 고르지 않은 예전 위키는 모두 수집한다
+    assert len(active(sources, [])) == len(sources)
+
+
+def test_cloudflare_security_posts_are_left_to_the_classifier():
+    cloudflare = next(s for s in load_default_sources() if s.id == "cloudflare")
+
+    assert not cloudflare.excludes("CVE-2026-1234 advisory")
+
+
+def test_source_roles_must_be_a_list_of_ids_and_unknown_ids_never_match(tmp_path: Path):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        "sources:\n  - {id: a, name: A, region: overseas, feed: https://a.dev/rss, roles: ml}\n"
+    )
+    with pytest.raises(SourceConfigError, match="roles"):
+        load_sources(bad)
+    future = tmp_path / "future.yaml"
+    future.write_text(
+        "sources:\n  - {id: a, name: A, region: overseas, feed: https://a.dev/rss, roles: [game]}\n"
+    )
+    assert active(load_sources(future), ["backend"]) == ()
 
 
 @pytest.mark.parametrize(

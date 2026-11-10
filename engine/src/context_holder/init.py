@@ -124,7 +124,7 @@ def run_init(
     cutoff = now - timedelta(days=state["max_age_days"])
     sources = {s.id: s for s in wiki.sources()}
 
-    _discover(client, wiki, state, sources.values(), cutoff)
+    _discover(client, wiki, state, wiki.active_sources(), cutoff)
     budget = Budget()
     done = Counter[Bucket]()
     while not budget.stopped:
@@ -168,7 +168,7 @@ def preview(
     cutoff = now - timedelta(days=settings.max_age_days)
     seen, queued = wiki.seen_urls(), set[str]()
     found = {}
-    for source in wiki.sources():
+    for source in wiki.active_sources():
         items, error = _list_source(client, source, settings.per_source, cutoff, seen, queued)
         found[source.id] = (len(items), sum(bool(i["published"]) for i in items), error)
     return found

@@ -3,7 +3,7 @@
 {% block head %}<link rel="stylesheet" href="/static/setup.css">{% endblock %}
 {% block content %}
     {% set st = v.settings %}
-    <div class="toolbar"><span class="title">설정</span><span class="sub">이 기기에만 적용돼요</span></div>
+    <div class="toolbar"><span class="title">설정</span><span class="sub">수집할 직군은 이 위키의 모든 기기에, 나머지는 이 기기에만 적용돼요</span></div>
     <div class="scroll"><div class="settings-page">
       <form class="panel settings-group" hx-post="/settings" hx-trigger="change" hx-target="#saved" hx-swap="innerHTML">
         <h2 class="panel-head">수집과 앱 <span id="saved" aria-live="polite"></span></h2>
@@ -18,6 +18,12 @@
         </ul>
         <p class="note settings-note">Mac이 꺼져 있었다면 켜거나 깨울 때 수집해요. 하루 한 번만, 먼저 맡은 기기가 수집해요.</p>
       </form>
+
+      <section class="panel settings-group" aria-labelledby="roles-head">
+        <h2 class="panel-head" id="roles-head">수집할 직군</h2>
+        <div class="body">{% with r=v.roles %}{% include "_roles_pick.html" %}{% endwith %}</div>
+        <p class="note settings-note warn-note">바꾼 기준은 다음 수집부터 적용돼요. 이미 모은 글은 바뀌거나 지워지지 않아요. 이 위키를 쓰는 모든 기기에 함께 적용돼요.</p>
+      </section>
 
       {% with agents=v.agents, agent=v.agent %}{% include "_agent_pick.html" %}{% endwith %}
 

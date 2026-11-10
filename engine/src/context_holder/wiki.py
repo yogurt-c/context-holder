@@ -9,7 +9,7 @@
 import hashlib
 import json
 import re
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from importlib import resources
@@ -20,11 +20,12 @@ from urllib.parse import unquote, urlsplit
 import numpy as np
 import yaml
 
-from context_holder.classify import Bucket, Decision, Profile, load_profile
+from context_holder.classify import Bucket, Decision, Profile, ProfileError, load_profile
 from context_holder.collect import Article
 from context_holder.embed import DEFAULT_MODEL
 from context_holder.enrich import DecisionRecord, Enrichment
-from context_holder.sources import Source, load_sources
+from context_holder.roles import with_roles
+from context_holder.sources import Source, active, load_sources
 
 FOLDER = {Bucket.SAVE: "wiki", Bucket.INBOX: "inbox"}
 SLUG_MAX = 60
@@ -139,6 +140,27 @@ class Wiki:
 
     def profile(self) -> Profile:
         return load_profile(self.root / "config/profile.yaml")
+
+    def active_sources(self) -> tuple[Source, ...]:
+        """고른 직군으로 수집할 소스."""
+        return active(self.sources(), self.profile().roles)
+
+    def roles(self) -> tuple[str, ...]:
+        """위키에 고른 직군. 아직 고르지 않았으면(설정이 없거나 예전 profile) 빈 값."""
+        try:
+            return self.profile().roles
+        except ProfileError:
+            return ()
+
+    def set_roles(self, roles: Sequence[str]) -> None:
+        """고른 직군을 profile.yaml에 적는다. 다음 수집이 커밋 · push한다.
+
+        이미 저장한 글은 건드리지 않는다. 바뀐 기준은 다음 수집부터 쓴다.
+        """
+        self.ensure_config()
+        path = self.root / "config/profile.yaml"
+        text = with_roles(path.read_text(encoding="utf-8"), roles)
+        path.write_text(text, encoding="utf-8")
 
     # ---------- 본 글 기록 ----------
 

@@ -93,7 +93,9 @@
       {% if st.setup_done %}
         <p class="lede">매일 {{ st.daily_at }}에 수집해요{% if st.weekends %}(주말 포함){% endif %}. <a href="/settings">설정</a>에서 바꿀 수 있어요.</p>
       {% else %}
-      <p class="lede">수집 시각과 알림을 고르고 시작해요.</p>
+      <p class="lede">어떤 글을 모을지, 수집 시각과 알림을 고르고 시작해요.</p>
+      <h3 class="step-sub">어떤 글을 모을까요? <small>여러 개 고를 수 있어요</small></h3>
+      {% with r=s.roles %}{% include "_roles_pick.html" %}{% endwith %}
       <form hx-post="/setup/finish">
         <ul class="toggles">
           <li><label><input type="checkbox" name="autostart" value="true"{% if st.autostart %} checked{% endif %}> 로그인할 때 자동 실행</label></li>

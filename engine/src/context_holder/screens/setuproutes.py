@@ -1,16 +1,19 @@
 """첫 실행 설정(`/setup`)과 설정(`/settings`) 화면 (plan 3.2 · 7장)."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
 from context_holder import agentaccounts, appsettings, claudesetup, codexsetup
+from context_holder.classify import load_default_profile
 from context_holder.gitsync import WikiRepo
 from context_holder.llm import AGENT_TOOLS, AGENTS
 from context_holder.onboarding import Onboarding
+from context_holder.roles import catalog
 from context_holder.setupflow import SetupFlow, model_downloaded
+from context_holder.wiki import Wiki
 
 HOURS = [f"{h:02d}" for h in range(24)]
 MCP_HOSTS = {"claude": "Claude Code", "codex": "Codex"}  # 위키 검색을 붙이는 곳
@@ -58,18 +61,42 @@ def setup_view(
         "can_finish": github_done and status.logged_in and not status.outdated,
         "hours": HOURS,
         "minutes": MINUTES,
+        "roles": roles_view(flow),
     }
 
 
-def settings_view(models_dir, model_id: str, settings_path) -> dict[str, Any]:
+def roles_view(flow: SetupFlow, error: str = "", saved: bool = False) -> dict[str, Any]:
+    """위키에 고른 직군. 아직 고르지 않았으면 기본 직군에 체크해 둔다."""
+    ready = flow.has_wiki()
+    wiki = Wiki(flow.wiki_root)
+    chosen = wiki.roles() if ready else ()
+    picked = chosen or load_default_profile().roles
+    return {
+        "roles": [(role, role.id in picked) for role in catalog().roles],
+        "ready": ready,
+        "legacy": ready and not chosen and (wiki.root / "config/profile.yaml").exists(),
+        "error": error,
+        "saved": saved,
+    }
+
+
+def ensure_roles(flow: SetupFlow) -> None:
+    """시작하기를 마칠 때 직군이 없으면(새 위키 · 예전 profile) 화면에 보인 기본 직군을 적는다."""
+    wiki = Wiki(flow.wiki_root)
+    if flow.has_wiki() and not wiki.roles():
+        wiki.set_roles(load_default_profile().roles)
+
+
+def settings_view(models_dir, model_id: str, flow: SetupFlow) -> dict[str, Any]:
     """바로 그릴 수 있는 것만. 연결 상태는 화면이 뜬 뒤 따로 채운다 (connections_view)."""
     return {
-        "settings": appsettings.load(settings_path),
+        "settings": appsettings.load(flow.settings_path),
         "agents": AGENTS,
-        "agent": appsettings.load(settings_path).agent,
+        "agent": appsettings.load(flow.settings_path).agent,
         "model_ready": model_downloaded(models_dir, model_id),
         "hours": HOURS,
         "minutes": MINUTES,
+        "roles": roles_view(flow),
     }
 
 
@@ -254,13 +281,29 @@ def add_routes(
         daily_at = _time(hour, minute)
         if daily_at is None:
             return PlainTextResponse("시각을 다시 골라 주세요", status_code=400)
+        ensure_roles(flow)
         on_settings(flow.finish(autostart, daily_at, notify))
         return Response(headers={"HX-Redirect": "/today"})
+
+    @app.post("/settings/roles", response_class=HTMLResponse)
+    def save_roles(
+        request: Request, roles: Annotated[list[str] | None, Form()] = None
+    ) -> HTMLResponse:
+        """수집할 직군. 위키에 적어 모든 기기가 같이 쓴다. 이미 모은 글은 그대로 둔다."""
+        if not flow.has_wiki():
+            return PlainTextResponse("위키를 먼저 연결해 주세요", status_code=400)
+        try:
+            Wiki(flow.wiki_root).set_roles(roles or [])
+        except ValueError:
+            view = roles_view(flow, error="직군을 하나 이상 골라 주세요")
+        else:
+            view = roles_view(flow, saved=True)
+        return templates.TemplateResponse(request, "_roles_pick.html", {"r": view})
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings(request: Request) -> HTMLResponse:
         models_dir, model_id = model()
-        view = settings_view(models_dir, model_id, flow.settings_path)
+        view = settings_view(models_dir, model_id, flow)
         return page(request, "settings.html", "settings", v=view)
 
     @app.get("/settings/connections", response_class=HTMLResponse)

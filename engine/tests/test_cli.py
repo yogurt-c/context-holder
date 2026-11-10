@@ -61,7 +61,7 @@ def test_collect_prints_report_and_writes_jsonl(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert "toss" in result.output and "HTTP 500" in result.output
-    assert len(captured["ids"]) == 13
+    assert len(captured["ids"]) == 21
     assert (datetime.now(UTC) - captured["since"]).days == 7
     [row] = [json.loads(line) for line in out.read_text().splitlines()]
     assert row["url"] == "https://toss.tech/a"

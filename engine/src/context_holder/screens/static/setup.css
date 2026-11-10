@@ -60,6 +60,18 @@
 .done-label.waiting { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .warn { color: var(--busy-ink); font-weight: 600; }
 .toggles .label { flex: 1; }
+
+/* ---------- 수집할 직군 (시작하기 3단계 · 설정) ---------- */
+.step-sub { font-size: 13px; font-weight: 600; color: var(--ink); margin: var(--sp-3) 0 var(--sp-2); }
+.step-sub small { font-weight: 500; color: var(--ink-faint); margin-left: var(--sp-2); }
+.role-list li { min-height: 38px; }
+.role-list .role-name { font-weight: 600; color: var(--ink); }
+.role-list small { margin-left: auto; text-align: right; }
+.role-list input:disabled, .role-list input:disabled + .role-name { cursor: not-allowed; opacity: 0.55; }
+.role-status { min-height: 1.5em; }
+.role-status .error-line { margin: 0; }
+.roles-pick + form { margin-top: var(--sp-4); }
+.warn-note { color: var(--busy-ink); }
 .time-select { margin-left: auto; display: inline-flex; gap: var(--sp-1); }
 .time-select select { font: inherit; font-size: 13px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-control); min-height: 32px; padding: 0 var(--sp-2); cursor: pointer; }
 .time-select select:hover { border-color: var(--rule-strong); }

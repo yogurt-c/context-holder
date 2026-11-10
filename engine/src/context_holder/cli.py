@@ -107,7 +107,7 @@ def main(
 @app.command("collect")
 def collect_command(
     sources_path: Path | None = typer.Option(
-        None, "--sources", help="sources.yaml 경로. 없으면 기본 13곳."
+        None, "--sources", help="sources.yaml 경로. 없으면 기본 소스 전체(직군 소스 포함)."
     ),
     days: int = typer.Option(30, min=1, help="최근 며칠 안의 글만 모은다."),
     out: Path | None = typer.Option(None, help="모은 글을 JSONL로 저장할 파일."),

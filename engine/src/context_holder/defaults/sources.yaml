@@ -2,6 +2,7 @@
 # mode: feed  = feed 본문 사용, 본문이 짧으면 원문 페이지를 가져온다
 #       fetch = feed에 요약만 있어 항상 원문 페이지를 가져온다
 # weight: Today 순위에 곱하는 회사 가중치. 없으면 1.0
+# roles: 이 직군을 골랐을 때만 수집한다 (profile.yaml의 roles). 없으면 늘 수집
 # archive: 첫 실행(ctx init) 때 feed보다 오래된 글 목록을 얻는 방법. 없으면 feed만 쓴다.
 #   Medium(당근, 무신사, Airbnb, Netflix)과 Cloudflare는 아카이브를 막거나 목록이 없어 feed만 쓴다.
 sources:
@@ -96,9 +97,53 @@ sources:
     name: Cloudflare
     region: overseas
     feed: https://blog.cloudflare.com/rss/
-    # 보안 공지 글 제외. M0에서 실제 글로 패턴을 보정한다
-    exclude_title: ["(?i)\\bCVE-\\d{4}", "(?i)security (advisory|bulletin)"]
+    # 보안 공지 글도 분류기가 판정한다. 보안 직군을 고르지 않으면 낮은 점수를 받는다
   - id: airbnb
     name: Airbnb
     region: overseas
     feed: https://medium.com/feed/airbnb-engineering
+
+  # ---------- 직군을 골랐을 때만 수집 ----------
+  - id: meta
+    name: Meta
+    region: overseas
+    feed: https://engineering.fb.com/feed/
+    roles: [ml]
+  - id: pinterest
+    name: Pinterest
+    region: overseas
+    feed: https://medium.com/feed/pinterest-engineering
+    roles: [ml]
+  - id: google-research
+    name: Google Research
+    region: overseas
+    feed: https://research.google/blog/rss/
+    mode: fetch
+    roles: [ml]
+  - id: spotify
+    name: Spotify
+    region: overseas
+    feed: https://engineering.atspotify.com/feed/
+    mode: fetch
+    roles: [ml]
+  - id: shopify
+    name: Shopify
+    region: overseas
+    feed: https://shopify.engineering/blog.atom
+    mode: fetch
+    roles: [frontend]
+  - id: grab
+    name: Grab
+    region: overseas
+    feed: https://engineering.grab.com/feed.xml
+    roles: [frontend]
+  - id: trailofbits
+    name: Trail of Bits
+    region: overseas
+    feed: https://blog.trailofbits.com/feed/
+    roles: [security]
+  - id: github-security
+    name: GitHub Security
+    region: overseas
+    feed: https://github.blog/security/feed/
+    roles: [security]

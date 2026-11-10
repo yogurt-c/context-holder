@@ -205,3 +205,28 @@ def test_seen_records_keep_content_hashes(tmp_path: Path):
     wiki.record_seen([decision("https://x/2")], when=NOW)
 
     assert wiki.seen_hashes() == frozenset({"h1"})
+
+
+def test_roles_are_written_to_the_profile_and_read_back(tmp_path: Path):
+    wiki = Wiki(tmp_path)
+    assert wiki.roles() == ()  # 설정이 아직 없다
+
+    wiki.set_roles(["security", "backend"])
+
+    assert wiki.roles() == ("backend", "security")
+    assert "roles: [backend, security]" in (tmp_path / "config/profile.yaml").read_text()
+    assert (tmp_path / "config/sources.yaml").exists()  # 기본 설정도 함께 넣는다
+
+
+def test_legacy_profile_has_no_roles_until_one_is_chosen(tmp_path: Path):
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/profile.yaml").write_text(
+        "include:\n  - {topic: 백엔드, about: DB}\n", encoding="utf-8"
+    )
+    wiki = Wiki(tmp_path)
+    assert wiki.roles() == ()
+
+    wiki.set_roles(["ml"])
+
+    assert wiki.roles() == ("ml",)
+    assert wiki.profile().include[-1].topic == "ML"

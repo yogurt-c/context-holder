@@ -11,12 +11,19 @@ import yaml
 
 from context_holder.collect import Article
 from context_holder.llm import LlmError, LlmResult
+from context_holder.roles import Topic, catalog
 
 EXCERPT_CHARS = 1200  # 분류에는 본문 앞부분만 보낸다
 BATCH_SIZE = 20
 # 기본 경계값. M0 평가셋으로 보정한 값 (engine/eval/README.md)
 DEFAULT_SAVE_AT = 0.6
 DEFAULT_INBOX_AT = 0.3
+# roles 없이 주제를 직접 적은 예전 profile의 독자와 판정 원칙
+LEGACY_AUDIENCE = "백엔드 · 프론트엔드 · AI 엔지니어"
+LEGACY_NOTE = (
+    "AI · ML 글이라고 통째로 거르지 않는다.\n"
+    "  AI를 엔지니어링에 쓰는 글은 수집하고, 모델 자체를 만드는 글은 제외한다."
+)
 
 
 class Bucket(StrEnum):
@@ -30,18 +37,28 @@ class ProfileError(ValueError):
 
 
 @dataclass(frozen=True)
-class Topic:
-    topic: str
-    about: str
-
-
-@dataclass(frozen=True)
 class Profile:
     include: tuple[Topic, ...]
     exclude: tuple[Topic, ...]
     borderline: tuple[Topic, ...] = ()  # 사람이 판단할 경계 주제 (보류 점수)
     save_at: float = DEFAULT_SAVE_AT
     inbox_at: float = DEFAULT_INBOX_AT
+    roles: tuple[str, ...] = ()  # 고른 직군 id. 비어 있으면 주제를 직접 적은 예전 profile
+    others: tuple[Topic, ...] = ()  # 고르지 않은 직군. 그 직군에만 해당하는 글을 거른다
+    notes: tuple[str, ...] = (LEGACY_NOTE,)  # 판정 원칙에 더할 문장
+
+    @property
+    def audience(self) -> str:
+        if not self.roles:
+            return LEGACY_AUDIENCE
+        names = [r.name for r in catalog().roles if r.id in self.roles]
+        return f"{', '.join(names)} 직군의 개발자"
+
+    @property
+    def topic_names(self) -> tuple[str, ...]:
+        """분류기가 고를 수 있는 기준 이름 (중복 없이 순서대로)."""
+        topics = self.include + self.borderline + self.exclude + self.others
+        return tuple(dict.fromkeys(t.topic for t in topics))
 
     def bucket_for(self, score: float) -> Bucket:
         if score >= self.save_at:
@@ -86,26 +103,28 @@ class StructuredLlm(Protocol):
     def structured(self, prompt: str, system: str, schema: dict[str, Any]) -> LlmResult: ...
 
 
-SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "items": {
-            "type": "array",
+def schema(profile: Profile) -> dict[str, Any]:
+    """topic은 기준 이름 중에서만 고르게 한다 (화면에서 직군별로 묶을 수 있게)."""
+    return {
+        "type": "object",
+        "properties": {
             "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "score": {"type": "number"},
-                    "topic": {"type": "string"},
-                    "plus": {"type": "array", "items": {"type": "string"}},
-                    "minus": {"type": "array", "items": {"type": "string"}},
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "score": {"type": "number"},
+                        "topic": {"type": "string", "enum": list(profile.topic_names)},
+                        "plus": {"type": "array", "items": {"type": "string"}},
+                        "minus": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["id", "score", "topic", "plus", "minus"],
                 },
-                "required": ["id", "score", "topic", "plus", "minus"],
-            },
-        }
-    },
-    "required": ["items"],
-}
+            }
+        },
+        "required": ["items"],
+    }
 
 
 def classify(
@@ -119,10 +138,11 @@ def classify(
     pending: list[Pending] = []
     cost = 0.0
     system = _system_prompt(profile)
+    output = schema(profile)
     for start in range(0, len(articles), batch_size):
         batch = articles[start : start + batch_size]
         try:
-            result = llm.structured(_user_prompt(batch, examples), system, SCHEMA)
+            result = llm.structured(_user_prompt(batch, examples), system, output)
         except LlmError as e:
             pending.extend(Pending(a.url, str(e)) for a in batch)
             continue
@@ -167,7 +187,15 @@ def _system_prompt(profile: Profile) -> str:
         borderline = (
             f"\n경계 주제 (보류 점수 {profile.inbox_at}~{profile.save_at}를 준다):\n{lines}\n"
         )
-    return f"""너는 백엔드 · 프론트엔드 · AI 엔지니어가 읽을 기술 블로그 글을 고르는 분류기다.
+    notes = "".join(f"- {n}\n" for n in profile.notes)
+    others = ""
+    if profile.others:
+        lines = "\n".join(f"- {t.topic}: {t.about}" for t in profile.others)
+        others = (
+            "\n선택하지 않은 직군 (이 직군에만 해당하는 글은 제외 기준처럼 낮은 점수를 준다. "
+            f"수집 기준에도 맞으면 수집 기준으로 판정한다):\n{lines}\n"
+        )
+    return f"""너는 {profile.audience}가 읽을 기술 블로그 글을 고르는 분류기다.
 각 글이 아래 수집 기준에 얼마나 맞는지 0~1 점수로 매긴다.
 
 수집 기준 (엔지니어링 결정과 경험이 담긴 글):
@@ -175,11 +203,9 @@ def _system_prompt(profile: Profile) -> str:
 
 제외 기준:
 {exclude}
-{borderline}
+{others}{borderline}
 판정 원칙:
-- AI · ML 글이라고 통째로 거르지 않는다.
-  AI를 엔지니어링에 쓰는 글은 수집하고, 모델 자체를 만드는 글은 제외한다.
-- 기술적 결정(문제, 선택지, 트레이드오프)이 드러날수록 점수를 높인다.
+{notes}- 기술적 결정(문제, 선택지, 트레이드오프)이 드러날수록 점수를 높인다.
 - 경계에 있는 글은 {profile.inbox_at}~{profile.save_at} 사이 점수를 준다.
 - plus에는 맞은 수집 기준, minus에는 걸린 제외 기준을 한국어로 짧게 적는다.
 - topic은 가장 가까운 기준 이름이다.
@@ -219,16 +245,40 @@ def parse_profile(data: Any, origin: str) -> Profile:
     if not isinstance(data, dict):
         raise ProfileError(f"{origin}: 매핑이어야 한다")
     include = _topics(data.get("include"), origin, "include")
-    if not include:
-        raise ProfileError(f"{origin}: include에 주제가 하나 이상 필요하다")
+    exclude = _topics(data.get("exclude"), origin, "exclude")
+    borderline = _topics(data.get("borderline"), origin, "borderline")
     thresholds = data.get("thresholds") or {}
     save_at = float(thresholds.get("save", DEFAULT_SAVE_AT))
     inbox_at = float(thresholds.get("inbox", DEFAULT_INBOX_AT))
     if not 0 <= inbox_at < save_at <= 1:
         raise ProfileError(f"{origin}: thresholds는 0 ≤ inbox < save ≤ 1 이어야 한다")
-    exclude = _topics(data.get("exclude"), origin, "exclude")
-    borderline = _topics(data.get("borderline"), origin, "borderline")
-    return Profile(include, exclude, borderline, save_at=save_at, inbox_at=inbox_at)
+    if "roles" not in data:  # 주제를 직접 적은 예전 profile
+        if not include:
+            raise ProfileError(f"{origin}: include에 주제가 하나 이상 필요하다")
+        return Profile(include, exclude, borderline, save_at=save_at, inbox_at=inbox_at)
+    roles = _roles(data["roles"], origin)
+    # 직군 기준 위에 profile에 직접 적은 주제를 더한다
+    criteria = catalog().criteria(roles)
+    return Profile(
+        criteria.include + include,
+        criteria.exclude + exclude,
+        criteria.borderline + borderline,
+        save_at=save_at,
+        inbox_at=inbox_at,
+        roles=roles,
+        others=criteria.others,
+        notes=criteria.notes,
+    )
+
+
+def _roles(raw: Any, origin: str) -> tuple[str, ...]:
+    if not isinstance(raw, list) or not all(isinstance(r, str) for r in raw):
+        raise ProfileError(f"{origin}: roles는 직군 id 목록이어야 한다")
+    known = catalog().known(raw)
+    if not known:
+        ids = ", ".join(catalog().ids)
+        raise ProfileError(f"{origin}: roles에 아는 직군이 하나 이상 필요하다 ({ids})")
+    return known
 
 
 def _topics(raw: Any, origin: str, key: str) -> tuple[Topic, ...]:

@@ -1,0 +1,15 @@
+{# 수집할 직군. 시작하기 3단계와 설정에서 같이 쓴다. 바꿀 때마다 위키 profile.yaml에 바로 저장한다 #}
+<form id="roles-pick" class="roles-pick" hx-post="/settings/roles" hx-trigger="change" hx-target="this" hx-swap="outerHTML" aria-label="수집할 직군">
+  <ul class="toggles role-list">
+    {% for role, on in r.roles %}
+    <li><label><input type="checkbox" name="roles" value="{{ role.id }}"{% if on %} checked{% endif %}{% if not r.ready %} disabled{% endif %}> <span class="role-name">{{ role.name }}</span> <small>{{ role.hint }}</small></label></li>
+    {% endfor %}
+  </ul>
+  <p class="tiny role-status" aria-live="polite">
+    {%- if r.error %}<span class="error-line" role="alert">{{ r.error }}</span>
+    {%- elif r.saved %}<span class="done-label">저장했어요</span> 다음 수집부터 이 기준으로 모아요.
+    {%- elif not r.ready %}GitHub를 연결하면 고를 수 있어요.
+    {%- elif r.legacy %}지금은 예전 수집 기준을 써요. 직군을 고르면 직군 기준으로 바뀌어요.
+    {%- else %}테스트 · CI/CD · 관측성 같은 개발 생산성 글은 늘 모아요.{% endif -%}
+  </p>
+</form>

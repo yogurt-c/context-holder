@@ -1,6 +1,7 @@
 """수집 대상 소스 설정(`sources.yaml`)을 읽고 검증한다."""
 
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib import resources
@@ -66,9 +67,19 @@ class Source:
     archive: Archive | None = None
     date_pattern: str = ""  # 원문 화면에서 게시일을 찾는 정규식 (연 · 월 · 일 그룹)
     weight: float = 1.0  # Today 순위의 회사 가중치
+    roles: tuple[str, ...] = ()  # 이 직군을 골랐을 때만 수집한다. 비어 있으면 늘 수집
+
+    def collects_for(self, roles: Sequence[str]) -> bool:
+        """roles: 고른 직군. 비어 있으면(직군을 고르지 않은 예전 위키) 모두 수집한다."""
+        return not self.roles or not roles or bool(set(self.roles) & set(roles))
 
     def excludes(self, title: str) -> bool:
         return any(re.search(pattern, title) for pattern in self.exclude_title)
+
+
+def active(sources: Iterable[Source], roles: Sequence[str]) -> tuple[Source, ...]:
+    """고른 직군으로 수집할 소스만 남긴다."""
+    return tuple(s for s in sources if s.collects_for(roles))
 
 
 def load_sources(path: Path) -> tuple[Source, ...]:
@@ -132,7 +143,15 @@ def _parse_one(item: Any, origin: str, index: int) -> Source:
         archive=_parse_archive(item.get("archive"), where),
         date_pattern=_regex(item.get("date_pattern", ""), where, "date_pattern"),
         weight=float(weight),
+        roles=_parse_roles(item.get("roles", []), where),
     )
+
+
+def _parse_roles(raw: Any, where: str) -> tuple[str, ...]:
+    if not isinstance(raw, list) or not all(isinstance(r, str) for r in raw):
+        raise SourceConfigError(f"{where}: roles는 직군 id 목록")
+    # 모르는 직군(다른 버전 앱이 쓴 것)도 그대로 둔다. 고를 수 없으니 그 소스는 수집하지 않는다
+    return tuple(raw)
 
 
 def _regex(pattern: Any, where: str, key: str) -> str:

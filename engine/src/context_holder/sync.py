@@ -72,7 +72,7 @@ def run_sync(
     pending_urls = {p.url for p in wiki.pending()}
     collected = collect(
         client,
-        sources.values(),
+        wiki.active_sources(),  # 보류 글 재시도는 고르지 않은 직군의 소스도 끝낸다
         since=now - timedelta(days=days),
         seen_urls=wiki.seen_urls() | pending_urls,
         etags=etags,

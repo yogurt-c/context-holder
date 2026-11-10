@@ -325,3 +325,23 @@ def test_completed_pending_article_gets_vectors(make_client, tmp_path: Path):
     )
 
     assert len(list((tmp_path / "vectors/fake").glob("*.f16"))) == 1
+
+
+def test_role_blog_is_collected_only_after_its_role_is_chosen(make_client, tmp_path: Path):
+    wiki = setup_wiki(tmp_path)
+    ml_feed = "https://ml.example.com/feed"
+    with (tmp_path / "config/sources.yaml").open("a", encoding="utf-8") as f:
+        f.write(f"  - {{id: ml, name: ML, region: overseas, feed: '{ml_feed}', roles: [ml]}}\n")
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return httpx.Response(200, text=rss([]))
+
+    run_sync(wiki, make_client(handler), ScriptedLlm([]), now=NOW, days=7)
+    assert requested == [FEED]
+
+    wiki.set_roles(["backend", "ml"])
+    requested.clear()
+    run_sync(wiki, make_client(handler), ScriptedLlm([]), now=NOW, days=7)
+    assert sorted(requested) == sorted([FEED, ml_feed])
