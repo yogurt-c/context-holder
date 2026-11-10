@@ -308,6 +308,8 @@ def test_settings_update_section(flow, tmp_path):  # noqa: F811
     assert "받지 않아요" in section and "auto_update" not in section
     assert "저장했어요" in c.post("/update/auto", data={}, headers=HTMX).text
     assert not updates.auto()
+    feed(updates, state="available", version="0.3.0")
+    assert 'id="update-toast"' not in c.get("/settings").text  # 설정 창에선 토스트를 숨긴다
 
 
 def test_restart_waits_for_sync(made, tmp_path, setup, monkeypatch):  # noqa: F811

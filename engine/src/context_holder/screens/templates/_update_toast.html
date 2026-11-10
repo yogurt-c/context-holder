@@ -1,6 +1,6 @@
 {# 우측 하단 업데이트 팝업. 앱 안에서만 그린다. 내려받는 동안은 1초마다, 평소에는 1분마다 다시 묻는다.
    이미 떠 있으면 shown=1로 물어 떠오르는 효과를 다시 틀지 않는다. 도는 아이콘은 시각에 맞춰 이어 돈다 #}
-{% if update %}{% set s = update.s %}
+{% if update and active != "settings" %}{% set s = update.s %}
 <div id="update-toast" hx-get="/update/toast{% if update.toast %}?shown=1{% endif %}" hx-trigger="{{ 'every 1s' if update.working else 'every 60s' }}, update-changed from:body" hx-swap="outerHTML">
   {% if update.toast %}
   <aside class="update-toast {{ s.state }}{% if shown %} shown{% endif %}" role="status" aria-live="polite" aria-label="앱 업데이트">
