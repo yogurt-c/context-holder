@@ -1,6 +1,6 @@
 import io
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -280,8 +280,11 @@ def test_today_shows_lead_with_decision_and_ranked_briefs(wiki, tmp_path):
     assert 'data-copy="decision-md"' in page and "## 사이드카 관리 방식 (NAVER D2)" in page
     assert f'"article_id": "{lead}"' in page
     assert "글 0" in page and "영상, 요약만" in page
-    assert "2건 더 보기" in page  # 리드 + 4건, 나머지 2건은 접는다
-    assert page.count('hx-target="#modal-body"') == 7  # 리드와 2~7위 제목은 상세 모달을 연다
+    # 리드 + 4건만 그린다. 나머지 2건은 "더 보기"로 부른다 (5위 글이 커서)
+    assert "글 3" in page and "글 4" not in page and "글 5" not in page
+    fifth = article_id("https://t/3")
+    assert f'hx-get="/today/more?date={TODAY.isoformat()}&amp;after={fifth}"' in page
+    assert page.count('hx-target="#modal-body"') == 5  # 리드와 2~5위 제목은 상세 모달을 연다
     assert f'<article class="lead" data-article="{lead}">' in page  # 리드는 아무 곳이나 눌러도 연다
     assert f'<h2><a href="#" hx-get="/article/{lead}"' in page  # 키보드로도 연다
     assert "요약 대기 1" in page
@@ -321,12 +324,53 @@ def test_today_navigates_between_collected_days(wiki, tmp_path):
 
     page = c.get(f"/today?date={day.isoformat()}").text
     assert f"{day.month}월 {day.day}일 브리프" in page and "그제 글" in page
-    assert f'href="/today?date={TODAY.isoformat()}"' in page  # 오늘로 돌아간다
+    # 이전 · 다음 날은 조회하지 않고 하루씩 옮긴다
+    assert f'href="/today?date={(day + timedelta(days=1)).isoformat()}"' in page
+    assert f'href="/today?date={(day - timedelta(days=1)).isoformat()}"' in page
     assert (
         "이날은 수집하지 않았어요."
         in c.get(f"/today?date={(day - timedelta(days=1)).isoformat()}").text
     )
-    assert "오늘의 브리프" in c.get("/today?date=nope").text
+    today_page = c.get("/today?date=nope").text
+    assert "오늘의 브리프" in today_page and 'aria-label="다음 날 보기"' not in today_page
+    assert "오늘로" in page  # 그저께: 오늘로 바로 간다
+    assert "오늘로" not in today_page
+    yesterday = (TODAY - timedelta(days=1)).isoformat()
+    assert "오늘로" not in c.get(f"/today?date={yesterday}").text  # 다음 날이 곧 오늘
+    future = (TODAY + timedelta(days=3)).isoformat()
+    assert "오늘의 브리프" in c.get(f"/today?date={future}").text  # 내일 이후는 오늘로
+
+
+def test_today_more_pages_by_cursor(wiki, tmp_path):
+    for n in range(17):  # 리드 + 4건, 더 보기 10건, 다시 2건
+        add(wiki, f"https://t/{n}", f"글 {n:02d}", 0.9 - n * 0.01)
+    c = client(wiki, tmp_path)
+    ids = [article_id(f"https://t/{n}") for n in range(17)]
+
+    first = c.get(f"/today/more?date={TODAY.isoformat()}&after={ids[4]}").text
+    assert '<ol hx-swap-oob="beforeend:#today-briefs">' in first
+    assert "글 05" in first and "글 14" in first and "글 04" not in first and "글 15" not in first
+    assert f"after={ids[14]}" in first and 'id="today-briefs-more"' in first
+
+    last = c.get(f"/today/more?date={TODAY.isoformat()}&after={ids[14]}").text
+    assert "글 15" in last and "글 16" in last
+    assert "today-briefs-more" not in last  # 끝: 버튼 자리를 비운다
+
+    gone = c.get(f"/today/more?date={TODAY.isoformat()}&after=nope").text
+    assert "<li>" not in gone and "today-briefs-more" not in gone
+    assert "글 05" in c.get(f"/today/more?after={ids[4]}").text  # 날짜가 없으면 오늘
+
+
+def test_saved_between_uses_local_days_whatever_the_offset(wiki, tmp_path):
+    aid = add(wiki, "https://t/a", "오늘 글")
+    add(wiki, "https://t/b", "그제 글", collected=NOW - timedelta(days=2))
+    index = context(wiki, tmp_path).index
+    local = NOW.astimezone(timezone(timedelta(hours=14))).isoformat()  # 다른 시간대로 적힌 줄
+    with index.db:
+        index.db.execute("UPDATE articles SET collected = ? WHERE id = ?", (local, aid))
+    assert [a.title for a in views.saved_between(index, TODAY, TODAY)] == ["오늘 글"]
+    two = TODAY - timedelta(days=2)
+    assert sorted(a.title for a in views.saved_between(index, two, TODAY)) == ["그제 글", "오늘 글"]
 
 
 def test_today_skips_lead_removed_by_another_device(wiki, tmp_path):

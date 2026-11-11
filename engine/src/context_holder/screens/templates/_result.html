@@ -1,0 +1,11 @@
+{# Search 결과 한 줄 (첫 쪽 · 더 보기가 함께 쓴다) #}
+{% from "_macros.html" import segments %}
+{% macro result_item(r) -%}
+<li>
+  <a href="#" hx-get="/article/{{ r.stored.id }}" hx-target="#modal-body">
+    <span class="meta"><span class="co-brand">{{ r.company }}</span>{% if r.stored.published %}<span>{{ r.stored.published.strftime("%Y.%m") }}</span>{% endif %}{% if r.stored.bucket.value == "inbox" %}<span class="badge plain">보류</span>{% endif %}{% if r.stored.decision %}<span class="badge decision">결정 사례</span>{% endif %}</span>
+    <span class="r-title">{{ segments(r.title) }}</span>
+    {% if r.snippet and r.snippet[0][0] %}<span class="r-snippet">{{ segments(r.snippet) }}</span>{% endif %}
+  </a>
+</li>
+{%- endmacro %}

@@ -20,12 +20,16 @@
 .topic .name { min-width: 0; }
 .topic:hover { background: var(--decision-tint); color: var(--ink); }
 .topic:focus-visible { outline: 2px solid var(--decision); outline-offset: 1px; }
-.topic b { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--ink-faint); }
 .topic.sel { background: var(--decision); color: var(--on-ink); font-weight: 600; }
-.topic.sel b { color: var(--on-decision-soft); }
 .topics-none { padding: var(--sp-2); }
+/* 분야 탭: 고른 분야의 주제만 목록에 보인다 */
+.area-tabs { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.area-tabs .chip { text-decoration: none; transition: background var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease); }
+.area-tabs .chip:not(.on):hover { color: var(--ink); border-color: var(--rule-strong); background: var(--decision-tint); }
+.area-tabs .chip:focus-visible { outline: 2px solid var(--decision); outline-offset: 1px; }
+.topics .more-row { margin-top: var(--sp-2); }
+.topics .more-btn { min-height: 28px; font-size: 12px; }
 .topics-foot { margin-top: var(--sp-4); padding: var(--sp-3) var(--sp-2) 0; border-top: 1px dashed var(--rule); font-size: 12px; color: var(--ink-faint); display: grid; gap: var(--sp-2); }
-.topics-foot a { color: var(--decision-ink); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---------- 비교 ---------- */
 .main { padding: var(--sp-6) var(--sp-7); overflow-y: auto; min-width: 0; }

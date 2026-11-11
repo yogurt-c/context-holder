@@ -24,7 +24,6 @@
 .check input[type="radio"]:checked::after { left: 3px; top: 3px; width: 6px; height: 6px; border: 0; border-radius: 50%; background: var(--on-ink); transform: none; }
 .check:has(input:checked) { color: var(--ink); font-weight: 500; }
 .check:hover { color: var(--ink); }
-.check b { margin-left: auto; font-weight: 400; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
 .seg { display: flex; border: 1px solid var(--rule); border-radius: var(--r-control); overflow: hidden; }
 .seg label { flex: 1; display: flex; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
@@ -72,3 +71,4 @@
 .ask-label { font-size: 12px; color: var(--ink-faint); }
 .ask-text { font-size: 13.5px; color: var(--ink); quotes: "“" "”"; }
 .ask-copy { min-width: 72px; justify-content: center; }
+.results .more-row { margin: var(--sp-3) var(--sp-5) var(--sp-5); max-width: calc(980px - 2 * var(--sp-5)); }

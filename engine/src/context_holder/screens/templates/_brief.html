@@ -1,0 +1,9 @@
+{# Today 목록 한 줄 (첫 화면 · 더 보기가 함께 쓴다) #}
+{% from "_macros.html" import badges %}
+{% macro brief_item(b, mark) -%}
+<li>
+  <h3><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
+  <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
+  <div class="side">{{ badges(b.article, mark) }}</div>
+</li>
+{%- endmacro %}

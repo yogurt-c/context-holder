@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Today · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/today.css">{% endblock %}
-{% from "_macros.html" import feedback, badges, decision_card, alert_banners %}
+{% from "_macros.html" import feedback, badges, decision_card, alert_banners, more_button %}
+{% from "_brief.html" import brief_item %}
 {% block content %}
     <div class="toolbar">
-      {% if view.prev_day %}<a class="btn sm ghost" href="/today?date={{ view.prev_day.isoformat() }}" aria-label="이전 날 보기">‹ {{ short_day(view.prev_day) }}</a>{% endif %}
+      <a class="btn sm ghost" href="/today?date={{ view.prev_day.isoformat() }}" aria-label="이전 날 보기">‹ {{ short_day(view.prev_day) }}</a>
       <span class="title">{{ long_day(view.day) }}</span>
       {% if view.next_day %}<a class="btn sm ghost" href="/today?date={{ view.next_day.isoformat() }}" aria-label="다음 날 보기">{{ short_day(view.next_day) }} ›</a>{% endif %}
+      {% if view.show_today %}<a class="btn sm ghost" href="/today" aria-label="오늘 브리프로 돌아가기">오늘로</a>{% endif %}
       <div class="spacer"></div>
       <button type="button" class="btn sm primary" data-add-open hx-get="/articles/add?new=1" hx-target="#add-body">+ 글 추가</button>
     </div>
@@ -38,31 +40,10 @@
             </div>
           </article>
 
-          {% set listed = view.briefs + (view.more or []) %}
-          {% set mark_briefs = listed | rejectattr("article.decision_topic") | list | length > 0 %}
-          <ol class="briefs">
-          {% for b in view.briefs %}
-            <li>
-              <h3><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
-              <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
-              <div class="side">{{ badges(b.article, mark_briefs) }}</div>
-            </li>
-          {% endfor %}
+          <ol class="briefs" id="today-briefs">
+          {% for b in view.briefs %}{{ brief_item(b, view.mark_decisions) }}{% endfor %}
           </ol>
-          {% if view.more %}
-          <details class="more">
-            <summary>{{ view.more | length }}건 더 보기</summary>
-            <ol class="briefs">
-            {% for b in view.more %}
-              <li>
-                <h3><a href="#" hx-get="/article/{{ b.article.id }}" hx-target="#modal-body">{{ b.article.title }}</a></h3>
-                <div class="meta-row brand-row"><span class="co-brand">{{ b.company }}</span>{% if b.article.summary_line %}<span>{{ b.article.summary_line }}</span>{% endif %}</div>
-                <div class="side">{{ badges(b.article, mark_briefs) }}</div>
-              </li>
-            {% endfor %}
-            </ol>
-          </details>
-          {% endif %}
+          {% if view.more_after %}{{ more_button("/today/more?date=" ~ view.day.isoformat() ~ "&after=" ~ (view.more_after | urlencode), "today-briefs") }}{% endif %}
         {% else %}
           <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">시작하기</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% elif view.status.state == "stopped" %}수집이 중간에 멈춰 아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
           {% if view.recent %}

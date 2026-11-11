@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -266,8 +266,9 @@ def test_search_highlights_filters_and_opens_detail(wiki, tmp_path):
 
     page = c.get("/search?q=사이드카").text
     assert "결과 3건" in page and "<mark>사이드카</mark>" in page
-    assert 'value="toss" checked' not in page and "Toss<b>1</b>" in page
-    assert "kubernetes<b>3</b>" in page
+    assert 'value="toss">Toss</label>' in page and "<b>" not in page  # 개수는 보이지 않는다
+    assert 'value="kubernetes">kubernetes</label>' in page
+    assert "search-results-more" not in page  # 한 쪽에 다 들어간다
     assert f'hx-get="/article/{a}"' in page and 'hx-target="#modal-body"' in page
     assert "번째 단락" not in page and "번째 줄" not in page  # 구현 문구는 보여 주지 않는다
     assert "초</span>" not in page
@@ -361,14 +362,35 @@ def test_snippet_follows_the_matched_field(wiki, matched, text, where):
 
 def test_period_filter_uses_collected_and_drops_undated(wiki, tmp_path):
     add(wiki, "https://t/a", "글")
-    stored = next(wiki.articles())
-    result = searchview.Result(None, replace(stored, published=None), "D2", [], [], "")  # type: ignore[arg-type]
+    _, index = make_client(wiki, tmp_path)
+    indexed = index.select()[0]
     month = searchview.Query(q="x", period="30d")
-    assert searchview._keeps(result, month, NOW)
-    naive = replace(stored, published=datetime(2026, 11, 1))
-    assert searchview._keeps(replace(result, stored=naive), month, NOW)
-    undated = replace(stored, published=None, collected=None)
-    assert not searchview._keeps(replace(result, stored=undated), month, NOW)
+    assert searchview._keeps(replace(indexed, published=None), month, NOW)
+    naive = replace(indexed, published="2026-11-01T00:00:00")
+    assert searchview._keeps(naive, month, NOW)
+    undated = replace(indexed, published=None, collected=None)
+    assert not searchview._keeps(undated, month, NOW)
+
+
+def test_search_pages_results_by_cursor(wiki, tmp_path):
+    for n in range(25):
+        add(wiki, f"https://t/{n}", f"사이드카 글 {n:02d}", source="toss" if n % 2 else "d2")
+    c, _ = make_client(wiki, tmp_path, FakeEmbedder())
+
+    page = c.get("/search?q=사이드카&period=1y").text
+    assert "결과 25건" in page and page.count('hx-target="#modal-body"') == 20
+    assert 'id="search-results-more"' in page and "/search/more?q=" in page
+    after = page.split("&amp;after=")[1].split('"')[0]
+
+    more = c.get(f"/search/more?q=사이드카&period=1y&after={after}").text
+    assert '<ol hx-swap-oob="beforeend:#search-results">' in more
+    assert more.count('hx-target="#modal-body"') == 5 and "search-results-more" not in more
+
+    toss = c.get(f"/search/more?q=사이드카&company=toss&after={after}").text
+    assert "search-results-more" not in toss  # 필터가 바뀌어 커서가 없으면 빈 쪽
+    assert searchview.Query(q="a b", tags=("x",)).more_url("id1") == (
+        "/search/more?q=a+b&tag=x&after=id1"
+    )
 
 
 # ---------- Sources ----------

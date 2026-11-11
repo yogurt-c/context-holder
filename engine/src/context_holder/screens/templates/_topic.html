@@ -1,0 +1,4 @@
+{# Decisions 주제 목록 한 줄 (첫 쪽 · 더 보기가 함께 쓴다) #}
+{% macro topic_link(t, view) -%}
+<a class="topic{% if t.on %} sel{% endif %}" href="{{ view.url(sel=t.name) }}" hx-get="{{ view.url(sel=t.name) }}" hx-target="#decisions-body" hx-push-url="true"{% if t.on %} aria-current="true"{% endif %}><span class="name">{{ t.name }}</span></a>
+{%- endmacro %}

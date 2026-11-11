@@ -148,7 +148,7 @@ def test_old_index_gets_screen_columns_without_recomputing_vectors(tmp_path: Pat
     Index(path).sync(wiki, embedder)
     # 화면용 컬럼이 없던 예전 인덱스로 되돌린다
     db = sqlite3.connect(path)
-    for column in ("collected", "relevance", "summary_line", "media"):
+    for column in ("collected", "relevance", "summary_line", "media", "tags", "has_decision"):
         db.execute(f"ALTER TABLE articles DROP COLUMN {column}")
     db.execute("DELETE FROM meta WHERE key = 'schema'")
     db.commit()
@@ -165,7 +165,44 @@ def test_old_index_gets_screen_columns_without_recomputing_vectors(tmp_path: Pat
     assert article.relevance == 0.9
     assert article.summary_line == "요약 한 줄"
     assert article.media is None
+    assert (article.tags, article.has_decision) == ((), False)
     assert Index(path)._backfill is False  # 다음에 열 때는 다시 채우지 않는다
+
+
+def test_v2_index_gets_filter_columns(tmp_path: Path):
+    import sqlite3
+
+    wiki = Wiki(tmp_path / "wiki")
+    aid = write(wiki, "https://t/a", "Kafka", ("요점",), topic="큐 선택", tags=("kafka", "큐"))
+    path = tmp_path / "index.db"
+    Index(path).sync(wiki)
+    db = sqlite3.connect(path)  # 검색 필터 컬럼이 없던 버전 2로 되돌린다
+    for column in ("tags", "has_decision"):
+        db.execute(f"ALTER TABLE articles DROP COLUMN {column}")
+    db.execute("UPDATE meta SET value = '2' WHERE key = 'schema'")
+    db.commit()
+    db.close()
+
+    index = Index(path)
+    assert index.sync(wiki) == (0, 0)
+    article = index.get(aid)
+    assert (article.tags, article.has_decision) == (("kafka", "큐"), True)
+
+
+def test_count_and_broken_tags(tmp_path: Path):
+    wiki = Wiki(tmp_path / "wiki")
+    aid = write(wiki, "https://t/a", "A", ("요점",))
+    write(wiki, "https://t/b", "B", ("요점",), bucket=Bucket.INBOX)
+    index = Index(tmp_path / "index.db")
+    index.sync(wiki)
+    assert index.count() == 2
+    assert index.count("WHERE bucket = ?", (Bucket.SAVE.value,)) == 1
+    with index.db:  # 손으로 고친 인덱스
+        index.db.execute("UPDATE articles SET tags = '{bad' WHERE id = ?", (aid,))
+    assert index.get(aid).tags == ()
+    with index.db:
+        index.db.execute("UPDATE articles SET tags = '\"x\"' WHERE id = ?", (aid,))
+    assert index.get(aid).tags == ()
 
 
 def test_vector_can_look_at_chosen_pieces_only(tmp_path: Path):

@@ -3,6 +3,7 @@
 키워드 검색은 FTS5로 한다. 필드 가중치: decision > title · tags > 핵심 내용 > 요약.
 """
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS articles (
     url TEXT, title TEXT, source TEXT, published TEXT,
     bucket TEXT, status TEXT, origin TEXT, decision_topic TEXT,
     path TEXT, signature TEXT,
-    collected TEXT, relevance REAL, summary_line TEXT, media TEXT
+    collected TEXT, relevance REAL, summary_line TEXT, media TEXT,
+    tags TEXT, has_decision INTEGER
 );
 CREATE TABLE IF NOT EXISTS chunks (article_id TEXT, label TEXT, vec BLOB);
 CREATE INDEX IF NOT EXISTS chunks_article ON chunks(article_id);
@@ -32,10 +34,19 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
     id UNINDEXED, title, decision, tags, key_points, summary, tokenize = 'unicode61'
 );
 """
-SCHEMA_VERSION = "2"  # 2: 화면용 컬럼(collected, relevance, summary_line, media)
-SCREEN_COLUMNS = ("collected TEXT", "relevance REAL", "summary_line TEXT", "media TEXT")
+# 2: 화면용 컬럼(collected, relevance, summary_line, media)
+# 3: 검색 필터용 컬럼(tags, has_decision). 화면이 마크다운을 읽지 않고 거른다
+SCHEMA_VERSION = "3"
+SCREEN_COLUMNS = (
+    "collected TEXT",
+    "relevance REAL",
+    "summary_line TEXT",
+    "media TEXT",
+    "tags TEXT",
+    "has_decision INTEGER",
+)
 COLUMNS = """id, url, title, source, published, bucket, status, origin, decision_topic, path,
-             collected, relevance, summary_line, media"""
+             collected, relevance, summary_line, media, tags, has_decision"""
 
 
 @dataclass(frozen=True)
@@ -54,6 +65,8 @@ class IndexedArticle:
     relevance: float | None = None
     summary_line: str | None = None
     media: str | None = None  # 영상 글이면 상태 (summary_only 등)
+    tags: tuple[str, ...] = ()
+    has_decision: bool = False
 
 
 @dataclass(frozen=True)
@@ -115,7 +128,7 @@ class Index:
                     if article.id not in done:
                         self.db.execute(
                             "UPDATE articles SET collected = ?, relevance = ?, summary_line = ?,"
-                            " media = ? WHERE id = ?",
+                            " media = ?, tags = ?, has_decision = ? WHERE id = ?",
                             (*_screen_fields(article), article.id),
                         )
                 self.db.execute(
@@ -181,7 +194,13 @@ class Index:
     def select(self, where: str = "", params: tuple = ()) -> list[IndexedArticle]:
         """화면용 조회. where는 코드에 고정한 조건만 넣고 값은 params로 넘긴다."""
         rows = self.db.execute(f"SELECT {COLUMNS} FROM articles {where}", params)
-        return [IndexedArticle(*r[:5], Bucket(r[5]), *r[6:]) for r in rows]
+        return [
+            IndexedArticle(*r[:5], Bucket(r[5]), *r[6:14], _tags(r[14]), bool(r[15])) for r in rows
+        ]
+
+    def count(self, where: str = "", params: tuple = ()) -> int:
+        """화면용 개수. where는 select와 같다."""
+        return self.db.execute(f"SELECT COUNT(*) FROM articles {where}", params).fetchone()[0]
 
     def move(self, article_id: str, stored: StoredArticle) -> None:
         """Inbox에서 저장으로 옮긴 글의 행만 고친다. 다시 색인하지 않아 벡터가 그대로 남는다."""
@@ -268,7 +287,7 @@ class Index:
         d = a.decision or {}
         decision_text = _decision_text(d)
         self.db.execute(
-            "INSERT INTO articles VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO articles VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 a.id,
                 a.url,
@@ -297,13 +316,25 @@ class Index:
         )
 
 
-def _screen_fields(a: StoredArticle) -> tuple[str | None, float | None, str | None, str | None]:
+def _screen_fields(
+    a: StoredArticle,
+) -> tuple[str | None, float | None, str | None, str | None, str, int]:
     return (
         a.collected.isoformat() if a.collected else None,
         a.relevance,
         a.summary[0] if a.summary else None,
         (a.media or {}).get("status") if a.media else None,
+        json.dumps(list(a.tags), ensure_ascii=False),
+        int(bool(a.decision)),
     )
+
+
+def _tags(raw: str | None) -> tuple[str, ...]:
+    try:
+        tags = json.loads(raw) if raw else []
+    except ValueError:  # 손으로 고친 인덱스. 다음 sync가 다시 채운다
+        return ()
+    return tuple(str(t) for t in tags) if isinstance(tags, list) else ()
 
 
 def normalize_topic(topic: str) -> str:

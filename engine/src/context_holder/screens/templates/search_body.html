@@ -1,4 +1,5 @@
-{% from "_macros.html" import segments %}
+{% from "_macros.html" import more_button %}
+{% from "_result.html" import result_item %}
 {% set query = view.query %}
 {% if not query.q %}
 <div class="search-empty">
@@ -16,7 +17,7 @@
 </div>
 {% else %}
 <div class="query-meta">
-  <span>결과 {{ view.results | length }}건</span>
+  <span>결과 {{ view.total }}건</span>
   {% for n in view.notes %}<span class="note-inline">{{ n }}</span>{% endfor %}
 </div>
 <div class="panes stack-narrow">
@@ -26,23 +27,18 @@
     <h3>기간</h3>
     {% for value, (label, _) in periods.items() %}<label class="check"><input type="radio" name="period" value="{{ value }}"{% if query.period == value %} checked{% endif %}>{{ label }}</label>{% endfor %}
     {% if view.companies %}<h3>회사</h3>
-    {% for f in view.companies %}<label class="check"><input type="checkbox" name="company" value="{{ f.value }}"{% if f.on %} checked{% endif %}>{{ f.label }}<b>{{ f.count }}</b></label>{% endfor %}{% endif %}
+    {% for f in view.companies %}<label class="check"><input type="checkbox" name="company" value="{{ f.value }}"{% if f.on %} checked{% endif %}>{{ f.label }}</label>{% endfor %}{% endif %}
     {% if view.tags %}<h3>태그</h3>
-    {% for f in view.tags %}<label class="check"><input type="checkbox" name="tag" value="{{ f.value }}"{% if f.on %} checked{% endif %}>{{ f.label }}<b>{{ f.count }}</b></label>{% endfor %}{% endif %}
+    {% for f in view.tags %}<label class="check"><input type="checkbox" name="tag" value="{{ f.value }}"{% if f.on %} checked{% endif %}>{{ f.label }}</label>{% endfor %}{% endif %}
   </fieldset>
 
   {% if view.results %}
-  <ol class="row-list results" aria-label="검색 결과">
-  {% for r in view.results %}
-    <li>
-      <a href="#" hx-get="/article/{{ r.stored.id }}" hx-target="#modal-body">
-        <span class="meta"><span class="co-brand">{{ r.company }}</span>{% if r.stored.published %}<span>{{ r.stored.published.strftime("%Y.%m") }}</span>{% endif %}{% if r.stored.bucket.value == "inbox" %}<span class="badge plain">보류</span>{% endif %}{% if r.stored.decision %}<span class="badge decision">결정 사례</span>{% endif %}</span>
-        <span class="r-title">{{ segments(r.title) }}</span>
-        {% if r.snippet and r.snippet[0][0] %}<span class="r-snippet">{{ segments(r.snippet) }}</span>{% endif %}
-      </a>
-    </li>
-  {% endfor %}
+  <div class="results">
+  <ol class="row-list" id="search-results" aria-label="검색 결과">
+  {% for r in view.results %}{{ result_item(r) }}{% endfor %}
   </ol>
+  {% if view.after %}{{ more_button(query.more_url(view.after), "search-results") }}{% endif %}
+  </div>
   {% else %}
   <div class="results empty"><p class="empty-note">맞는 글이 없어요. 다른 말로 찾거나 필터를 줄여 보세요.</p></div>
   {% endif %}

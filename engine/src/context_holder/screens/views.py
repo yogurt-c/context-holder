@@ -17,7 +17,8 @@ from context_holder.sources import SourceConfigError
 from context_holder.wiki import StoredArticle, Wiki
 
 HALF_LIFE_DAYS = 7
-BRIEF_SIZE = 5  # 리드 1 + 목록 4. 나머지는 접어 둔다
+BRIEF_SIZE = 5  # 리드 1 + 목록 4. 나머지는 "더 보기"로 MORE_SIZE건씩 붙인다
+MORE_SIZE = 10
 RECENT_DAYS = 7
 RECENT_SIZE = 3
 TOPICS_SIZE = 4
@@ -72,14 +73,24 @@ class Rail:
 
 
 @dataclass(frozen=True)
+class Page:
+    """커서 페이징 한 쪽. after는 다음 쪽을 부를 때 넘길 마지막 항목 id (없으면 끝)."""
+
+    items: list[Any]
+    after: str | None
+
+
+@dataclass(frozen=True)
 class TodayView:
     day: date
     is_today: bool
-    prev_day: date | None
-    next_day: date | None
+    prev_day: date  # 조회하지 않고 하루 전. 누르면 그날을 불러온다
+    next_day: date | None  # 오늘이면 없다
+    show_today: bool  # "오늘로": 그저께 이전을 볼 때만 (어제면 다음 날이 곧 오늘이다)
     lead: Lead | None
     briefs: list[Ranked]  # 2~5위
-    more: list[Ranked]  # 6위부터
+    more_after: str | None  # 6위부터 "더 보기"로 부를 커서 (5위 글 id)
+    mark_decisions: bool  # 결정 사례가 아닌 글이 섞여 있어 결정 사례에 배지를 단다
     recent: list[tuple[date, Ranked]]  # 그날 저장 글이 없을 때 최근 7일 상위
     pending: int
     status: RunStatus
@@ -213,32 +224,46 @@ def build_today(
 ) -> TodayView:
     now = clock()
     today = now.astimezone().date()
-    day = day or today
-    sources = configured_sources(wiki)
-    weights = {s.id: s.weight for s in sources}
-    names = {s.id: s.name for s in sources}
-    saved = [a for a in index.select("WHERE bucket = ?", (Bucket.SAVE.value,)) if a.collected]
-    by_day: dict[date, list[IndexedArticle]] = {}
-    for a in saved:
-        by_day.setdefault(local_day(a.collected), []).append(a)  # type: ignore[arg-type]
-    days = sorted(by_day)
-    moment = _end_of(day)
-    ranked = rank(by_day.get(day, []), weights, names, moment)
+    day = min(day or today, today)
+    ranked = _ranked_day(wiki, index, day)
     lead = _lead(wiki, ranked[0]) if ranked else None
-    recent = [] if ranked else _recent(by_day, day, weights, names, moment)
+    recent = [] if ranked else _recent(wiki, index, day)
     return TodayView(
         day=day,
         is_today=day == today,
-        prev_day=max((d for d in days if d < day), default=None),
-        next_day=min((d for d in [*days, today] if day < d <= today), default=None),
+        prev_day=day - timedelta(days=1),
+        next_day=day + timedelta(days=1) if day < today else None,
+        show_today=day < today - timedelta(days=1),
         lead=lead,
         briefs=ranked[1:BRIEF_SIZE],
-        more=ranked[BRIEF_SIZE:],
+        more_after=ranked[BRIEF_SIZE - 1].article.id if len(ranked) > BRIEF_SIZE else None,
+        mark_decisions=any(not r.article.decision_topic for r in ranked[1:]),
         recent=recent,
         pending=sum(1 for a in index.select("WHERE status = ?", ("pending",))),
         status=run_status(wiki, day, device, day == today),
         rail=_rail(index, mcp_log, now),
     )
+
+
+def today_more(wiki: Wiki, index: Index, day: date, after: str) -> tuple[Page, bool]:
+    """Today "더 보기": after 글 다음부터 MORE_SIZE건과 결정 사례 배지를 달지.
+
+    순위는 첫 화면과 같은 기준(그날 끝 시각)으로 다시 낸다.
+    """
+    ranked = _ranked_day(wiki, index, day)
+    page = after_cursor(ranked, after, MORE_SIZE, lambda r: r.article.id)
+    return page, any(not r.article.decision_topic for r in ranked[1:])
+
+
+def after_cursor(items: list[Any], after: str, size: int, key: Callable[[Any], str]) -> Page:
+    """정렬한 목록에서 after 다음부터 size개. after가 없어졌으면 (지워진 글) 빈 쪽을 준다."""
+    ids = [key(item) for item in items]
+    if after not in ids:
+        return Page([], None)
+    start = ids.index(after) + 1
+    chunk = items[start : start + size]
+    rest = start + size < len(items)
+    return Page(chunk, key(chunk[-1]) if rest and chunk else None)
 
 
 def sidebar(
@@ -289,18 +314,37 @@ def _lead(wiki: Wiki, top: Ranked) -> Lead | None:
     return Lead(top, stored, markdown)
 
 
-def _recent(
-    by_day: dict[date, list[IndexedArticle]],
-    day: date,
-    weights: dict[str, float],
-    names: dict[str, str],
-    moment: datetime,
-) -> list[tuple[date, Ranked]]:
-    window = [d for d in by_day if day - timedelta(days=RECENT_DAYS) <= d < day]
-    pool = [(d, a) for d in window for a in by_day[d]]
-    day_of = {a.id: d for d, a in pool}
-    ranked = rank((a for _, a in pool), weights, names, moment)[:RECENT_SIZE]
-    return [(day_of[r.article.id], r) for r in ranked]
+def _ranked_day(wiki: Wiki, index: Index, day: date) -> list[Ranked]:
+    weights, names = _source_weights(wiki)
+    return rank(saved_between(index, day, day), weights, names, _end_of(day))
+
+
+def _recent(wiki: Wiki, index: Index, day: date) -> list[tuple[date, Ranked]]:
+    weights, names = _source_weights(wiki)
+    first, last = day - timedelta(days=RECENT_DAYS), day - timedelta(days=1)
+    pool = saved_between(index, first, last)
+    ranked = rank(pool, weights, names, _end_of(day))[:RECENT_SIZE]
+    return [(local_day(r.article.collected), r) for r in ranked]  # type: ignore[misc]
+
+
+def saved_between(index: Index, first: date, last: date) -> list[IndexedArticle]:
+    """first ~ last (로컬 날짜, 둘 다 포함)에 수집해 저장한 글.
+
+    수집 시각은 UTC ISO 문자열이라 문자열 범위로 좁힌다. 시간대가 다르게 적힌 줄이 있어도
+    빠지지 않게 하루씩 넓혀 읽고, 로컬 날짜로 다시 거른다.
+    """
+    start = _start_of(first - timedelta(days=1)).astimezone(UTC).isoformat()
+    end = _end_of(last + timedelta(days=1)).astimezone(UTC).isoformat()
+    rows = index.select(
+        "WHERE bucket = ? AND collected >= ? AND collected < ?",
+        (Bucket.SAVE.value, start, end),
+    )
+    return [a for a in rows if first <= local_day(a.collected) <= last]  # type: ignore[operator]
+
+
+def _source_weights(wiki: Wiki) -> tuple[dict[str, float], dict[str, str]]:
+    sources = configured_sources(wiki)
+    return {s.id: s.weight for s in sources}, {s.id: s.name for s in sources}
 
 
 def _rail(index: Index, mcp_log: Path, now: datetime) -> Rail:
@@ -326,8 +370,12 @@ def configured_sources(wiki: Wiki) -> tuple:
         return ()
 
 
+def _start_of(day: date) -> datetime:
+    return datetime.combine(day, datetime.min.time()).astimezone()
+
+
 def _end_of(day: date) -> datetime:
-    return datetime.combine(day + timedelta(days=1), datetime.min.time()).astimezone()
+    return _start_of(day + timedelta(days=1))
 
 
 def _clock_time(value: str | None) -> str:

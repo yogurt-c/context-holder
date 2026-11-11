@@ -298,3 +298,27 @@ document.addEventListener("focusout", (event) => {
 document.addEventListener("submit", (event) => {
   event.target.querySelectorAll("[data-suggest]").forEach(closeSuggest);
 });
+
+// 커서 페이징 "더 보기" (Today · Search · Decisions): 불러오는 동안 문구를 바꾸고,
+// 붙은 첫 항목으로 포커스를 옮겨 이어 읽게 한다. 실패하면 다시 누를 수 있게 문구로 알린다.
+let moreLoad = null;
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const button = event.detail.elt.closest?.("[data-more]");
+  if (!button) return;
+  const list = document.getElementById(button.dataset.more);
+  moreLoad = { list, count: list ? list.children.length : 0 };
+  button.textContent = "불러오는 중…";
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  const button = event.detail.elt.closest?.("[data-more]");
+  if (!button || event.detail.successful) return;
+  moreLoad = null;
+  button.textContent = "불러오지 못했어요. 다시 누르기";
+});
+document.addEventListener("htmx:afterSettle", () => {
+  if (!moreLoad) return;
+  const { list, count } = moreLoad;
+  moreLoad = null;
+  const first = list?.children[count];
+  (first?.matches("a") ? first : first?.querySelector("a"))?.focus();
+});

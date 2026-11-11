@@ -1,0 +1,7 @@
+{# Decisions 주제 목록 "더 보기" 응답: 다음 쪽 주제는 목록 끝에, 다음 버튼은 버튼 자리에 #}
+{% from "_macros.html" import more_button %}
+{% from "_topic.html" import topic_link %}
+<div hx-swap-oob="beforeend:#topic-list">
+{% for t in page.items %}{{ topic_link(t, view) }}{% endfor %}
+</div>
+{% if page.after %}{{ more_button(view.more_url(page.after), "topic-list") }}{% endif %}

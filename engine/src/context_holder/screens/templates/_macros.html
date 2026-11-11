@@ -6,6 +6,13 @@
 </span>
 {%- endmacro %}
 
+{# 커서 페이징 "더 보기": 누르면 다음 쪽 항목이 list_id 목록 끝에 붙고 (OOB) 이 버튼 자리에 다음 버튼이 온다 #}
+{% macro more_button(url, list_id) -%}
+<div class="more-row" id="{{ list_id }}-more">
+  <button type="button" class="btn more-btn" hx-get="{{ url }}" hx-target="#{{ list_id }}-more" hx-swap="outerHTML" data-more="{{ list_id }}">더 보기</button>
+</div>
+{%- endmacro %}
+
 {# decision=False: 목록의 모든 글이 결정 사례라 배지가 구분해 주는 게 없을 때 #}
 {% macro badges(a, decision=True) -%}
 {% if a.origin == "manual" %}<span class="badge plain">직접 추가</span>{% endif %}

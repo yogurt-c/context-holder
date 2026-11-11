@@ -231,6 +231,9 @@ mark { background: linear-gradient(transparent 55%, var(--mark) 55%); color: inh
 
 /* ---------- 엔진 화면 (시안에 없는 것) ---------- */
 a.btn, a.chip { text-decoration: none; }
+/* 커서 페이징 "더 보기": 목록 바로 아래, 목록 폭을 다 쓰는 얕은 버튼 */
+.more-row { margin-top: var(--sp-3); }
+.more-btn { width: 100%; justify-content: center; color: var(--ink-soft); }
 .content { padding-bottom: 0; }              /* 앱에는 시안 표기 띠가 없다 */
 .scroll { overflow-y: auto; }                /* 긴 화면은 본문만 스크롤한다 */
 @media (max-width: 60rem) { .scroll { overflow: visible; } }

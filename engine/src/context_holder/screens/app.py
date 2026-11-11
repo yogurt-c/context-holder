@@ -199,6 +199,14 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         view = views.build_today(ctx.wiki, ctx.index, ctx.device, ctx.mcp_log, day, ctx.clock)
         return page(request, "today.html", "today", view=view, alerts=current_alerts())
 
+    @app.get("/today/more", response_class=HTMLResponse)
+    def today_more(request: Request, date: str = "", after: str = "") -> HTMLResponse:
+        day = _parse_day(date) or ctx.clock().astimezone().date()
+        page_, mark = views.today_more(ctx.wiki, ctx.index, day, after)
+        return templates.TemplateResponse(
+            request, "today_more.html", {"page": page_, "mark": mark, "day": day}
+        )
+
     @app.get("/articles/add", response_class=HTMLResponse)
     def add_form(request: Request, new: bool = False) -> HTMLResponse:
         if new:
@@ -242,6 +250,16 @@ def create_app(ctx: ScreenContext) -> FastAPI:
             return templates.TemplateResponse(request, "search_body.html", {"view": view})
         return page(request, "search.html", "search", view=view)
 
+    @app.get("/search/more", response_class=HTMLResponse)
+    def search_more(request: Request, after: str = "") -> HTMLResponse:
+        params = request.query_params
+        query = searchview.parse_query(params, {k: params.getlist(k) for k in ("company", "tag")})
+        with search_lock:
+            page_ = searchview.search_more(tools, ctx.wiki, query, names(), ctx.clock(), after)
+        return templates.TemplateResponse(
+            request, "search_more.html", {"page": page_, "query": query}
+        )
+
     @app.get("/suggest", response_class=HTMLResponse)
     def suggest(
         request: Request, q: str = "", to: str = Query("search", alias="for")
@@ -274,14 +292,23 @@ def create_app(ctx: ScreenContext) -> FastAPI:
 
     @app.get("/decisions", response_class=HTMLResponse)
     def decisions(
-        request: Request, sel: str | None = None, q: str = "", all: str = ""
+        request: Request, sel: str | None = None, q: str = "", area: str = ""
     ) -> HTMLResponse:
-        view = decisionsview.build_decisions(ctx.wiki, ctx.index, names(), sel, q, all == "1")
+        view = decisionsview.build_decisions(ctx.wiki, ctx.index, names(), sel, q, area)
         if request.headers.get("hx-request") == "true" and request.headers.get("hx-target"):
             return templates.TemplateResponse(
                 request, "decisions_body.html", {"view": view, "job": regroup}
             )
         return page(request, "decisions.html", "decisions", view=view, job=regroup)
+
+    @app.get("/decisions/more", response_class=HTMLResponse)
+    def decisions_more(
+        request: Request, area: str = "", q: str = "", sel: str = "", after: str = ""
+    ) -> HTMLResponse:
+        page_, view = decisionsview.decisions_more(ctx.wiki, ctx.index, area, q, sel, after)
+        return templates.TemplateResponse(
+            request, "decisions_more.html", {"page": page_, "view": view}
+        )
 
     @app.post("/decisions/regroup", response_class=HTMLResponse)
     def decisions_regroup(request: Request) -> HTMLResponse:

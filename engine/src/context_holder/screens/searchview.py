@@ -1,8 +1,9 @@
 """Search 화면 (plan 7장). 검색은 MCP와 같은 경로(키워드 + 의미, RRF)를 쓴다.
 
-필터(종류 · 기간 · 회사 · 태그)는 화면이 거른다.
+필터(종류 · 기간 · 회사 · 태그)는 화면이 인덱스 값만으로 거른다. 마크다운은 보이는 쪽만 읽는다.
+결과는 PAGE_SIZE건씩 커서("더 보기")로 붙인다. 커서는 그 쪽 마지막 글 id다.
 결과를 누르면 글 상세 모달을 연다 (articleview). 회사 · 태그 목록은 종류와 기간만 거른 결과에서
-개수와 함께 만든다. 질의 확장("함께 찾은 말")은 하지 않는다: 질의 확장은 Claude가 한다 (plan 8장).
+만든다. 질의 확장("함께 찾은 말")은 하지 않는다: 질의 확장은 Claude가 한다 (plan 8장).
 """
 
 import re
@@ -13,9 +14,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
-from context_holder.index import Index
+from context_holder.index import Index, IndexedArticle
 from context_holder.mcptools import NO_MODEL_NOTE, WikiTools
 from context_holder.screens.decisionsview import DecisionsView, browse_topics
+from context_holder.screens.views import Page, after_cursor
 from context_holder.search import SearchHit
 from context_holder.wiki import StoredArticle, Wiki
 
@@ -25,6 +27,7 @@ NO_MODEL_SCREEN = (
     "의미 검색 모델이 아직 없어 단어가 맞는 글만 찾았어요. 설정에서 내려받을 수 있어요."
 )
 TAG_FACETS = 8
+PAGE_SIZE = 20
 TOPIC_LINKS = 8
 MIN_TERM = 2
 
@@ -50,6 +53,11 @@ class Query:
         pairs += [("tag", t) for t in target.tags]
         return "/search" + (f"?{urlencode(pairs)}" if pairs else "")
 
+    def more_url(self, after: str) -> str:
+        """다음 쪽 결과 주소. 검색어 · 필터는 그대로 넘긴다."""
+        params = self.url().partition("?")[2]
+        return f"/search/more?{params}&{urlencode({'after': after})}"
+
     def toggle(self, name: str, value: str) -> str:
         """회사 · 태그 필터 하나를 켜거나 끈 주소."""
         current: tuple[str, ...] = getattr(self, name)
@@ -63,7 +71,6 @@ class Query:
 class Facet:
     value: str
     label: str
-    count: int
     on: bool
 
 
@@ -80,7 +87,9 @@ class Result:
 @dataclass(frozen=True)
 class SearchView:
     query: Query
-    results: list[Result] = field(default_factory=list)
+    results: list[Result] = field(default_factory=list)  # 첫 쪽
+    after: str | None = None  # 다음 쪽 커서
+    total: int = 0  # 필터까지 건 결과 수
     companies: list[Facet] = field(default_factory=list)
     tags: list[Facet] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -146,34 +155,56 @@ def build_search(
     now: datetime,
     connected: Callable[[], bool | None] = lambda: None,
 ) -> SearchView:
-    totals = {
-        "article_total": len(index.select()),
-    }
+    totals = {"article_total": index.count()}
     if not query.q:
         browse = _browse(wiki, index, query)
         return SearchView(
             query, browse=browse, ask=claude_prompts(browse), connected=connected(), **totals
         )
     started = time.perf_counter()
-    hits, notes = tools.all_hits([query.q])
-    notes = [NO_MODEL_SCREEN if n == NO_MODEL_NOTE else n for n in notes]
-    terms = _terms(query.q)
-    pool = [r for r in _results(wiki, hits, names, terms) if _keeps(r, query, now)]
-    results = [
-        r
-        for r in pool
-        if (not query.companies or r.stored.source_id in query.companies)
-        and (not query.tags or set(query.tags) & set(r.stored.tags))
-    ]
+    pool, results, notes = _hits(tools, query, now)
+    shown = results[:PAGE_SIZE]
     return SearchView(
         query,
-        results,
-        _company_facets(pool, query),
+        list(_results(wiki, shown, names, _terms(query.q))),
+        shown[-1].article.id if len(results) > PAGE_SIZE else None,
+        len(results),
+        _company_facets(pool, query, names),
         _tag_facets(pool, query),
         notes,
         time.perf_counter() - started,
         **totals,
     )
+
+
+def search_more(
+    tools: WikiTools,
+    wiki: Wiki,
+    query: Query,
+    names: dict[str, str],
+    now: datetime,
+    after: str,
+) -> Page:
+    """Search "더 보기": after 글 다음 PAGE_SIZE건. 검색을 다시 돌려 같은 순서에서 자른다."""
+    _, results, _ = _hits(tools, query, now)
+    page = after_cursor(results, after, PAGE_SIZE, lambda h: h.article.id)
+    return Page(list(_results(wiki, page.items, names, _terms(query.q))), page.after)
+
+
+def _hits(
+    tools: WikiTools, query: Query, now: datetime
+) -> tuple[list[SearchHit], list[SearchHit], list[str]]:
+    """(종류 · 기간만 거른 후보, 회사 · 태그까지 거른 결과, 알림)."""
+    hits, notes = tools.all_hits([query.q])
+    notes = [NO_MODEL_SCREEN if n == NO_MODEL_NOTE else n for n in notes]
+    pool = [h for h in hits if _keeps(h.article, query, now)]
+    results = [
+        h
+        for h in pool
+        if (not query.companies or h.article.source_id in query.companies)
+        and (not query.tags or set(query.tags) & set(h.article.tags))
+    ]
+    return pool, results, notes
 
 
 def highlight(text: str, terms: list[str]) -> Segments:
@@ -201,6 +232,7 @@ def _terms(q: str) -> list[str]:
 
 
 def _results(wiki: Wiki, hits: list[SearchHit], names: dict[str, str], terms: list[str]):
+    """보이는 쪽만 마크다운을 읽는다."""
     for hit in hits:
         stored = wiki.read(Path(hit.article.path))
         if stored is None:  # 다른 기기의 pull로 사라졌다
@@ -235,36 +267,37 @@ def _snippet(a: StoredArticle, matched: str, terms: list[str]) -> tuple[str, str
     return first, matched
 
 
-def _keeps(r: Result, query: Query, now: datetime) -> bool:
-    if query.kind == "decision" and not r.stored.decision:
+def _keeps(a: IndexedArticle, query: Query, now: datetime) -> bool:
+    if query.kind == "decision" and not a.has_decision:
         return False
     days = PERIODS[query.period][1]
     if days is None:
         return True
-    moment = r.stored.published or r.stored.collected
-    if moment is None:
+    when = a.published or a.collected
+    if when is None:
         return False
+    moment = datetime.fromisoformat(when)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=now.tzinfo)
     return moment >= now - timedelta(days=days)
 
 
-def _company_facets(pool: list[Result], query: Query) -> list[Facet]:
-    counts: dict[str, tuple[str, int]] = {}
-    for r in pool:
-        label, n = counts.get(r.stored.source_id, (r.company, 0))
-        counts[r.stored.source_id] = (label, n + 1)
-    ordered = sorted(counts.items(), key=lambda kv: (-kv[1][1], kv[1][0]))
-    ordered += [(c, (c, 0)) for c in query.companies if c not in counts]  # 고른 회사는 남긴다
-    return [Facet(sid, label, n, sid in query.companies) for sid, (label, n) in ordered]
-
-
-def _tag_facets(pool: list[Result], query: Query) -> list[Facet]:
+def _company_facets(pool: list[SearchHit], query: Query, names: dict[str, str]) -> list[Facet]:
+    """후보가 많은 회사부터. 고른 회사는 후보에 없어도 남긴다."""
     counts: dict[str, int] = {}
-    for r in pool:
-        for tag in r.stored.tags:
+    for h in pool:
+        counts[h.article.source_id] = counts.get(h.article.source_id, 0) + 1
+    ordered = sorted(counts, key=lambda sid: (-counts[sid], names.get(sid, sid)))
+    ordered += [c for c in query.companies if c not in counts]
+    return [Facet(sid, names.get(sid, sid), sid in query.companies) for sid in ordered]
+
+
+def _tag_facets(pool: list[SearchHit], query: Query) -> list[Facet]:
+    """후보에 많이 붙은 태그 몇 개. 고른 태그는 후보에 없어도 남긴다."""
+    counts: dict[str, int] = {}
+    for h in pool:
+        for tag in h.article.tags:
             counts[tag] = counts.get(tag, 0) + 1
-    top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:TAG_FACETS]
-    shown = {t for t, _ in top}
-    top += [(t, counts.get(t, 0)) for t in query.tags if t not in shown]  # 고른 태그는 남긴다
-    return [Facet(t, t, n, t in query.tags) for t, n in top]
+    top = sorted(counts, key=lambda t: (-counts[t], t))[:TAG_FACETS]
+    top += [t for t in query.tags if t not in top]
+    return [Facet(t, t, t in query.tags) for t in top]

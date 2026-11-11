@@ -1,4 +1,6 @@
-{# Decisions 본문: 왼쪽 주제 목록, 오른쪽 비교표 #}
+{# Decisions 본문: 왼쪽 분야 탭 · 주제 목록, 오른쪽 비교표 #}
+{% from "_macros.html" import more_button %}
+{% from "_topic.html" import topic_link %}
 {% if not view.group_total %}
 <div class="decisions-empty panel">
   <h2>주제를 아직 정리하지 않았어요</h2>
@@ -22,21 +24,20 @@
         {# 주제 목록을 다시 그려도 추천은 그대로 둔다 #}
         <div id="decisions-suggest" class="suggest" aria-live="polite" hx-preserve="true"></div>
       </div>
-      {% if view.show_all %}<input type="hidden" name="all" value="1">{% endif %}
     </form>
-    {% for area, items in view.areas %}
-    <h3>{{ area }}</h3>
-    {% for t in items %}
-    <a class="topic{% if t.on %} sel{% endif %}" href="{{ view.url(sel=t.name) }}" hx-get="{{ view.url(sel=t.name) }}" hx-target="#decisions-body" hx-push-url="true"{% if t.on %} aria-current="true"{% endif %}><span class="name">{{ t.name }}</span><b aria-label="사례 {{ t.count }}건">{{ t.count }}</b></a>
-    {% endfor %}
-    {% else %}
+    {% if view.areas %}
+    <div class="area-tabs" aria-label="분야">
+      {% for a in view.areas %}<a class="chip{% if a == view.area %} on{% endif %}" href="{{ view.url(area=a, sel='', q='') }}" hx-get="{{ view.url(area=a, sel='', q='') }}" hx-target="#decisions-body" hx-push-url="true"{% if a == view.area %} aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}
+    </div>
+    {% endif %}
+    {% if view.q %}<h3>찾은 주제: {{ view.q }}</h3>{% endif %}
+    <div id="topic-list" class="topic-list">
+    {% for t in view.topics %}{{ topic_link(t, view) }}{% else %}
     <p class="note topics-none">맞는 주제가 없어요.</p>
     {% endfor %}
-    <div class="topics-foot">
-      {% if view.hidden and not view.show_all %}<a href="{{ view.url(all='1') }}" hx-get="{{ view.url(all='1') }}" hx-target="#decisions-body" hx-push-url="true">사례가 1건인 주제 {{ view.hidden }}개 더 보기</a>
-      {% elif view.show_all and view.hidden and view.hidden < view.group_total %}<a href="{{ view.url(all='') }}" hx-get="{{ view.url(all='') }}" hx-target="#decisions-body" hx-push-url="true">비교할 수 있는 주제만 보기</a>{% endif %}
-      {% if view.unassigned %}<p>아직 분류하지 않은 사례 {{ view.unassigned }}건 · "주제 정리"로 묶어요</p>{% endif %}
     </div>
+    {% if view.after %}{{ more_button(view.more_url(view.after), "topic-list") }}{% endif %}
+    {% if view.unassigned %}<div class="topics-foot"><p>아직 분류하지 않은 사례 {{ view.unassigned }}건 · "주제 정리"로 묶어요</p></div>{% endif %}
   </nav>
 
   <section class="main" aria-labelledby="topic-title">
