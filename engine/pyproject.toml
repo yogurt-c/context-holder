@@ -1,6 +1,6 @@
 [project]
 name = "context-holder-engine"
-version = "1.2.0"
+version = "1.2.1"
 description = "빅테크 기술블로그를 수집해 위키로 정리하고 검색과 MCP로 제공하는 엔진"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
