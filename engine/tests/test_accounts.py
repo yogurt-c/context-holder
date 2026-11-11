@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from context_holder import auth, device
-from context_holder.feedback import Kind, load_feedback, record_feedback
+from context_holder.feedback import Kind, bookmarked, load_feedback, record_feedback
 from context_holder.github import GitHubError, account, find_or_create_wiki
 from context_holder.wiki import Wiki, article_id
 
@@ -288,6 +288,20 @@ def test_feedback_goes_to_this_device_file_and_merges_on_read(tmp_path):
         ("air", "not_relevant"),
     ]
     assert entries[0].article_id == article_id(url)
+
+
+def test_bookmark_state_follows_latest_record_across_devices(tmp_path):
+    wiki = Wiki(tmp_path)
+    a, b, c = "https://t/a", "https://t/b", "https://t/c"
+    at = lambda h: datetime(2026, 11, 6, h, tzinfo=UTC)  # noqa: E731
+    record_feedback(wiki, "air", Kind.BOOKMARK, a, at(1))
+    record_feedback(wiki, "air", Kind.BOOKMARK, b, at(2))
+    record_feedback(wiki, "studio", Kind.BOOKMARK, c, at(3))
+    record_feedback(wiki, "studio", Kind.UNBOOKMARK, b, at(4))  # 다른 기기에서 해제
+    record_feedback(wiki, "air", Kind.BOOKMARK, a, at(5))  # 다시 북마크하면 맨 앞으로
+
+    entries = load_feedback(wiki)
+    assert bookmarked(entries) == [article_id(a), article_id(c)]
 
 
 def test_no_feedback_yet(tmp_path):

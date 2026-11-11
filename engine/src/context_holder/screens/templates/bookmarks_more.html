@@ -1,0 +1,7 @@
+{# Bookmarks "더 보기" 응답: 다음 쪽 글은 목록 끝에, 다음 버튼은 버튼 자리에 #}
+{% from "_macros.html" import more_button %}
+{% from "_bookmark.html" import bookmark_item %}
+<ol hx-swap-oob="beforeend:#bookmark-list">
+{% for r in page.items %}{{ bookmark_item(r) }}{% endfor %}
+</ol>
+{% if page.after %}{{ more_button("/bookmarks/more?after=" ~ (page.after | urlencode), "bookmark-list") }}{% endif %}

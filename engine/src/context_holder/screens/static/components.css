@@ -42,7 +42,7 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .nav a.onboard { flex-wrap: wrap; padding-top: var(--sp-1); padding-bottom: var(--sp-2); margin-bottom: var(--sp-3); }
 .nav a.onboard .tail { color: var(--ink-soft); }
 .onboard-bar { flex-basis: 100%; height: 3px; margin: var(--sp-1) 0 0 calc(16px + var(--sp-2)); background: var(--paper-deep); border-radius: 2px; overflow: hidden; }
-.onboard-bar i { display: block; height: 100%; background: var(--ok); border-radius: 2px; }
+.onboard-bar i { display: block; height: 100%; background: var(--ink); border-radius: 2px; }
 
 .sync-card {
   margin-top: auto; background: var(--chrome-card); border: 1px solid var(--chrome-line); border-radius: 8px;
@@ -252,6 +252,20 @@ a.btn, a.chip { text-decoration: none; }
 .modal::backdrop { background: rgba(20, 18, 14, 0.45); }
 .modal-card { background: var(--surface); border-radius: var(--r-window); box-shadow: var(--shadow-panel); padding: var(--sp-5) var(--sp-6) var(--sp-6); max-height: calc(100vh - 64px); overflow-y: auto; }
 .article-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.article-head .head-tools { display: flex; align-items: center; gap: var(--sp-1); margin-left: auto; }
+/* 북마크 아이콘: 꺼지면 외곽선, 켜면 채운 책갈피. 방금 켰으면 한 번 톡 튄다 (transform만) */
+.icon-btn {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: var(--r-control); background: transparent; color: var(--ink-faint); cursor: pointer;
+  transition: color var(--dur-micro) var(--ease), background-color var(--dur-micro) var(--ease);
+}
+.icon-btn:hover { color: var(--ink); background: var(--paper-deep); }
+.icon-btn:active svg { transform: scale(0.9); }
+.icon-btn svg { transition: transform var(--dur-micro) var(--ease); }
+.bookmark-toggle[aria-pressed="true"] { color: var(--ink); }
+.bookmark-toggle[aria-pressed="true"] svg { fill: currentColor; }
+.bookmark-toggle.popped svg { animation: bookmark-pop 320ms var(--ease); }
+@keyframes bookmark-pop { 0% { transform: scale(0.7); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
 .article-detail h2 { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.32; letter-spacing: -0.03em; margin: var(--sp-2) 0 var(--sp-3); }
 .article-detail .summary, .article-detail .key-points { padding-left: var(--sp-5); font-size: var(--fs-read); color: var(--ink-body); margin-bottom: var(--sp-4); }
 .article-detail .summary li, .article-detail .key-points li { margin-bottom: var(--sp-1); }
@@ -284,7 +298,18 @@ a.btn, a.chip { text-decoration: none; }
 .article-detail .tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: 0 0 var(--sp-4); }
 .article-detail .tags span { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0 var(--sp-2); }
 .article-detail .actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.article-detail .actions .feedback { display: inline-flex; gap: var(--sp-2); margin-left: auto; }
+.article-detail .actions .danger-text { margin-left: auto; }
+/* 확인 팝업: 상세창 위에 작게 뜬다 */
+.confirm-modal { width: min(380px, calc(100vw - 48px)); }
+.confirm-card { padding: var(--sp-5); border: 1px solid var(--rule); }
+.confirm-card h3 { font-size: var(--fs-h3); font-weight: 600; color: var(--ink); }
+.confirm-card p { margin: var(--sp-2) 0 var(--sp-5); font-size: 13px; color: var(--ink-soft); }
+.confirm-card .confirm-error { margin-top: calc(-1 * var(--sp-3)); color: var(--error); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+.btn.ghost.danger-text { color: var(--ink-faint); }
+.btn.ghost.danger-text:hover { color: var(--error); background: var(--error-tint); }
+.btn.danger { background: var(--error); border-color: var(--error); color: #fff; }
+.btn.danger:hover { background: var(--error-deep); border-color: var(--error-deep); }
 .article-detail .related { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--rule-soft); font-size: 13px; }
 .article-detail .related h3 { font-size: var(--fs-micro); font-weight: 500; color: var(--ink-faint); margin-bottom: var(--sp-2); }
 .article-detail .related li { list-style: none; padding: var(--sp-1) 0; display: flex; gap: var(--sp-2); }

@@ -277,8 +277,9 @@ def test_today_shows_lead_with_decision_and_ranked_briefs(wiki, tmp_path):
     assert "결정 기록: 사이드카 관리 방식" in page and "신뢰도 높음" in page
     assert '<span class="opt chosen">SidecarSet</span>' in page
     assert "원문 근거 문장 1개, 모두 원문에서 확인했어요" in page
-    assert 'data-copy="decision-md"' in page and "## 사이드카 관리 방식 (NAVER D2)" in page
-    assert f'"article_id": "{lead}"' in page
+    # 리드에는 버튼을 두지 않는다. 원문 열기 · 결정 기록 복사 · 관련없음은 상세에서
+    assert 'data-copy="decision-md"' not in page and "원문 열기" not in page
+    assert "/feedback" not in page
     assert "글 0" in page and "영상, 요약만" in page
     # 리드 + 4건만 그린다. 나머지 2건은 "더 보기"로 부른다 (5위 글이 커서)
     assert "글 3" in page and "글 4" not in page and "글 5" not in page
@@ -292,7 +293,7 @@ def test_today_shows_lead_with_decision_and_ranked_briefs(wiki, tmp_path):
     assert "보류 글" in page  # Inbox 미리보기
     assert "같은 주제로 모인 사례가 생기면" in page
     assert "아직 기록이 없어요" in page
-    assert "결정 기록 복사" in page and "Claude에 문맥으로" not in page
+    assert "결정 기록 복사" not in page and "Claude에 문맥으로" not in page
 
 
 def test_today_without_saved_articles_shows_recent_week(wiki, tmp_path):
@@ -430,22 +431,26 @@ def test_home_placeholder_pages_and_unknown(wiki, tmp_path):
     assert c.get("/static/htmx.min.js").status_code == 200
 
 
-def test_bookmark_and_not_relevant_go_to_feedback(wiki, tmp_path):
+def test_bookmark_toggle_goes_to_feedback(wiki, tmp_path):
     aid = add(wiki, "https://t/a", "글")
     c = client(wiki, tmp_path)
     htmx = {"HX-Request": "true"}
 
-    done = c.post("/feedback", data={"article_id": aid, "kind": "bookmark"}, headers=htmx)
-    assert done.status_code == 200 and "북마크했어요" in done.text
-    c.post("/feedback", data={"article_id": aid, "kind": "not_relevant"}, headers=htmx)
+    on = c.post("/feedback", data={"article_id": aid, "kind": "bookmark"}, headers=htmx).text
+    # 아이콘 버튼 자기 자리만 바꾼다. 다시 누르면 해제한다
+    assert 'aria-pressed="true"' in on and '"kind": "unbookmark"' in on and "popped" in on
+    assert 'hx-swap="outerHTML"' in on and "북마크했어요" not in on
+    off = c.post("/feedback", data={"article_id": aid, "kind": "unbookmark"}, headers=htmx).text
+    assert 'aria-pressed="false"' in off and '"kind": "bookmark"' in off and "popped" not in off
     assert [(f.kind, f.url, f.device) for f in load_feedback(wiki)] == [
         ("bookmark", "https://t/a", "air"),
-        ("not_relevant", "https://t/a", "air"),
+        ("unbookmark", "https://t/a", "air"),
     ]
     for bad in (
         {"article_id": "nope", "kind": "bookmark"},
         {"article_id": aid, "kind": "x"},
         {"article_id": aid, "kind": "suggest_source"},
+        {"article_id": aid, "kind": "not_relevant"},  # 화면에서는 남기지 않는다
     ):
         assert c.post("/feedback", data=bad, headers=htmx).status_code == 400
 

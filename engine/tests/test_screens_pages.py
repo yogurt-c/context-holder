@@ -14,7 +14,7 @@ from context_holder.enrich import Enrichment
 from context_holder.feedback import Kind, load_feedback, record_feedback
 from context_holder.index import Index
 from context_holder.mcptools import NO_MODEL_NOTE
-from context_holder.screens import inboxview, searchview, sourcesview
+from context_holder.screens import bookmarksview, inboxview, searchview, sourcesview
 from context_holder.screens.app import COOKIE, create_app
 from context_holder.screens.runs import alerts, run_records
 from context_holder.wiki import Wiki, article_id
@@ -303,6 +303,97 @@ def test_article_modal_shows_everything(wiki, tmp_path):
     other = c.get(f"/article/{plain}").text
     assert "비슷한 결정" not in other and "결정 기록 복사" not in other
     assert c.get("/article/none").status_code == 404
+
+
+def test_article_modal_bookmark_icon(wiki, tmp_path):
+    a = add(wiki, "https://t/a", "사이드카 버전 관리")
+    c, _ = make_client(wiki, tmp_path)
+
+    modal = c.get(f"/article/{a}").text
+    assert 'class="icon-btn bookmark-toggle"' in modal and 'aria-pressed="false"' in modal
+    assert 'aria-label="북마크"' in modal and ">북마크<" not in modal  # 글자 버튼이 아니라 아이콘
+    assert "관련없음" not in modal and "위키에서 제거" in modal
+
+    c.post("/feedback", data={"article_id": a, "kind": "bookmark"}, headers=HTMX)
+    again = c.get(f"/article/{a}").text
+    assert 'aria-pressed="true"' in again and 'aria-label="북마크 해제"' in again
+    assert "popped" not in again  # 열 때는 튀지 않는다
+
+
+def test_remove_from_wiki_confirms_in_popup_then_deletes_without_feedback(wiki, tmp_path):
+    a = add(wiki, "https://t/a", "지울 글", topic="캐시")
+    keep = add(wiki, "https://t/b", "남길 글")
+    (wiki.root / "vectors/m").mkdir(parents=True)
+    (wiki.root / f"vectors/m/{a}.f16").write_bytes(b"x")
+    c, index = make_client(wiki, tmp_path)
+    path = wiki.root / index.get(a).path
+    c.post("/feedback", data={"article_id": a, "kind": "bookmark"}, headers=HTMX)
+
+    modal = c.get(f"/article/{a}").text  # 확인 팝업은 상세창에 함께 온다
+    assert 'data-confirm-open="remove-confirm"' in modal and 'id="remove-confirm"' in modal
+    assert "되돌릴 수 없어요" in modal and f'hx-post="/article/{a}/remove"' in modal
+    assert "data-confirm-close autofocus" in modal  # 열리면 취소에 초점
+    assert "data-remove-article" in modal and "data-confirm-error hidden" in modal
+    assert path.exists()
+
+    done = c.post(f"/article/{a}/remove", headers=HTMX)
+    assert done.status_code == 204  # 상세창 닫기와 새로 그리기는 app.js가 한다
+    assert not path.exists() and index.get(a) is None
+    assert not list((wiki.root / "vectors").glob(f"*/{a}.*"))
+    assert index.get(keep) is not None
+    assert [f.kind for f in load_feedback(wiki)] == ["bookmark"]  # 관련없음 등을 남기지 않는다
+    assert "지울 글" not in c.get("/bookmarks").text
+    assert c.get(f"/article/{a}").status_code == 404
+    assert c.post(f"/article/{a}/remove", headers=HTMX).status_code == 404
+    assert c.post(f"/article/{keep}/remove").status_code == 403  # HTMX 헤더 없는 쓰기
+
+
+def test_remove_keeps_everything_when_index_is_locked(wiki, tmp_path, monkeypatch):
+    import sqlite3
+
+    a = add(wiki, "https://t/a", "지울 글")
+    c, index = make_client(wiki, tmp_path)
+    path = wiki.root / index.get(a).path
+
+    def locked(_id):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(index, "remove", locked)
+    busy = c.post(f"/article/{a}/remove", headers=HTMX)
+    assert busy.status_code == 503 and "잠시 후 다시 시도해 주세요" in busy.text
+    assert path.exists()  # 인덱스가 실패하면 파일도 지우지 않는다
+
+
+def test_search_results_do_not_push_article_urls(wiki, tmp_path):
+    """폼의 hx-push-url을 결과 링크가 물려받으면 글을 열 때 주소가 /article/…로 바뀐다."""
+    add(wiki, "https://t/a", "사이드카 운영")
+    c, _ = make_client(wiki, tmp_path)
+    page = c.get("/search?q=사이드카").text
+    assert '<div id="search-body" class="search-body" hx-push-url="false">' in page
+
+
+def test_bookmarks_page_lists_latest_first_and_pages(wiki, tmp_path, monkeypatch):
+    monkeypatch.setattr(bookmarksview, "PAGE_SIZE", 2)
+    ids = [add(wiki, f"https://t/{i}", f"글 {i}", topic=None if i else "캐시") for i in range(4)]
+    c, _ = make_client(wiki, tmp_path)
+
+    empty = c.get("/bookmarks").text
+    assert "책갈피 아이콘으로 북마크하면" in empty
+    assert '<a href="/bookmarks" class="active" aria-current="page">' in empty
+
+    for aid in ids:
+        c.post("/feedback", data={"article_id": aid, "kind": "bookmark"}, headers=HTMX)
+    c.post("/feedback", data={"article_id": ids[2], "kind": "unbookmark"}, headers=HTMX)
+
+    page = c.get("/bookmarks").text
+    assert "글 3" in page and "글 1" in page and "글 2" not in page and "글 0" not in page
+    assert page.index("글 3") < page.index("글 1")  # 최근에 북마크한 글부터
+    assert f'hx-get="/article/{ids[3]}"' in page and 'hx-target="#modal-body"' in page
+    assert f'hx-get="/bookmarks/more?after={ids[1]}"' in page
+
+    more = c.get(f"/bookmarks/more?after={ids[1]}").text
+    assert 'hx-swap-oob="beforeend:#bookmark-list"' in more
+    assert "글 0" in more and "결정 사례" in more and "/bookmarks/more" not in more
 
 
 def test_search_without_model_says_keyword_only(wiki, tmp_path):

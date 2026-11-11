@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Bookmarks · Context Holder{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/search.css">{% endblock %}
+{% from "_macros.html" import more_button %}
+{% from "_bookmark.html" import bookmark_item %}
+{% block content %}
+    <div class="toolbar"><span class="title">Bookmarks</span></div>
+    <div class="scroll">
+    {% if view.items %}
+      <div class="results">
+        <ol class="row-list" id="bookmark-list" aria-label="북마크한 글">
+        {% for r in view.items %}{{ bookmark_item(r) }}{% endfor %}
+        </ol>
+        {% if view.after %}{{ more_button("/bookmarks/more?after=" ~ (view.after | urlencode), "bookmark-list") }}{% endif %}
+      </div>
+    {% else %}
+      <div class="page"><p class="empty-note">글 상세 상단의 책갈피 아이콘으로 북마크하면 여기에 모여요.</p></div>
+    {% endif %}
+    </div>
+{% endblock %}

@@ -644,7 +644,9 @@ def pull_command(
 
 @app.command("feedback")
 def feedback_command(
-    kind: Kind = typer.Argument(..., help="not_relevant(관련 없음) 또는 bookmark(북마크)."),
+    kind: Kind = typer.Argument(
+        ..., help="not_relevant(관련 없음), bookmark(북마크), unbookmark(북마크 해제)."
+    ),
     url: str = typer.Argument(..., help="글 원문 주소."),
     wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
 ) -> None:

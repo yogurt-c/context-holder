@@ -18,7 +18,7 @@ uv run ruff check . && uv run ruff format --check .
 | `ctx sync` | 요약 대기 글을 다시 처리하고, 새 글을 모아 분류 · 요약해 위키에 쓴다. 위키가 git 레포면 수집 잠금을 잡고 20건마다 push한다. `--events`로 진행률을 JSON 줄로 쓴다 |
 | `ctx serve` | 화면 서버를 `127.0.0.1`의 임의 포트로 띄우고 주소와 토큰을 JSON 한 줄로 쓴다. `--open`으로 브라우저를 연다. `--app`(앱이 띄울 때)이면 매일 수집 스케줄러를 켜고 메뉴 · 알림 이벤트를 쓴다 ([app](../app/README.md)) |
 | `ctx mcp` | 에이전트(Claude Code · Codex 등)용 MCP 서버 (stdio). tool 6개와 질의 로그 `~/.context-holder/mcp-queries.jsonl` |
-| `ctx feedback` | 관련 없음 · 북마크를 이 기기의 피드백 파일에 남긴다 |
+| `ctx feedback` | 관련 없음 · 북마크 · 북마크 해제를 이 기기의 피드백 파일에 남긴다 |
 | `ctx collect` | 소스에서 새 글만 모아 소스별 결과를 본다. `--out`으로 JSONL 저장 |
 | `ctx classify` | 모은 글의 관련도를 판정한다 |
 | `ctx eval-classify` | 평가셋으로 분류 정확도를 잰다 ([eval](eval/README.md)) |

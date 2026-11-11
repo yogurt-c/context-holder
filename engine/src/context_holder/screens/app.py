@@ -6,7 +6,9 @@
 - 쓰기 요청은 HTMX가 붙이는 HX-Request 헤더도 요구한다. 쿠키는 SameSite=Strict다.
 """
 
+import logging
 import secrets
+import sqlite3
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -31,6 +33,7 @@ from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     addarticle,
     articleview,
+    bookmarksview,
     decisionsview,
     inboxview,
     searchview,
@@ -54,7 +57,9 @@ CSP = (
 PAGES = {  # 앱 밖(브라우저)에서만 보이는 자리
     "settings": ("설정", "설정은 앱에서 열 수 있어요."),
 }
-FEEDBACK_DONE = {Kind.BOOKMARK: "북마크했어요", Kind.NOT_RELEVANT: "관련없음으로 남겼어요"}
+log = logging.getLogger(__name__)
+REMOVE_BUSY = "검색 색인을 맞추는 중이라 지금은 지울 수 없어요. 잠시 후 다시 시도해 주세요."
+FEEDBACK_KINDS = frozenset({Kind.BOOKMARK, Kind.UNBOOKMARK})  # 화면에서 남기는 피드백
 
 
 @dataclass
@@ -125,7 +130,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         )
 
     def pending_onboarding() -> onboarding.Onboarding | None:
-        """사이드바의 "시작하기 n/5". 다 끝났으면 None (탭을 뺀다)."""
+        """사이드바의 "Onboarding n/5". 다 끝났으면 None (탭을 뺀다)."""
         if ctx.flow is None or ctx.settings_path is None:
             return None
         return onboarding.pending(ctx.flow, ctx.wiki, ctx.settings_path)
@@ -288,6 +293,19 @@ def create_app(ctx: ScreenContext) -> FastAPI:
             return PlainTextResponse("없는 글", status_code=404)
         return templates.TemplateResponse(request, "_article.html", {"a": view})
 
+    @app.post("/article/{article_id}/remove")
+    def article_remove(article_id: str) -> Response:
+        """지운다. 성공하면 화면(app.js)이 상세창을 닫고 보던 화면을 새로 그린다."""
+        try:
+            with write_lock:
+                removed = articleview.remove_article(ctx.wiki, ctx.index, article_id)
+        except sqlite3.OperationalError:  # 앱을 켠 직후 검색 색인을 맞추는 중이면 잠겨 있다
+            log.warning("글 제거 실패: 인덱스가 잠겨 있다 (%s)", article_id, exc_info=True)
+            return PlainTextResponse(REMOVE_BUSY, status_code=503)
+        if not removed:
+            return PlainTextResponse("이미 지웠거나 없는 글이에요.", status_code=404)
+        return Response(status_code=204)
+
     regroup = decisionsview.RegroupJob(ctx.wiki, ctx.regroup_llm, agent)
 
     @app.get("/decisions", response_class=HTMLResponse)
@@ -309,6 +327,16 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return templates.TemplateResponse(
             request, "decisions_more.html", {"page": page_, "view": view}
         )
+
+    @app.get("/bookmarks", response_class=HTMLResponse)
+    def bookmarks(request: Request) -> HTMLResponse:
+        view = bookmarksview.build_bookmarks(ctx.wiki, ctx.index, names())
+        return page(request, "bookmarks.html", "bookmarks", view=view)
+
+    @app.get("/bookmarks/more", response_class=HTMLResponse)
+    def bookmarks_more(request: Request, after: str = "") -> HTMLResponse:
+        page_ = bookmarksview.bookmarks_more(ctx.wiki, ctx.index, names(), after)
+        return templates.TemplateResponse(request, "bookmarks_more.html", {"page": page_})
 
     @app.post("/decisions/regroup", response_class=HTMLResponse)
     def decisions_regroup(request: Request) -> HTMLResponse:
@@ -420,16 +448,21 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return page(request, "placeholder.html", name, title=title, note=note)
 
     @app.post("/feedback", response_class=HTMLResponse)
-    def feedback(article_id: str = Form(...), kind: str = Form(...)) -> Response:
+    def feedback(request: Request, article_id: str = Form(...), kind: str = Form(...)) -> Response:
+        """북마크 · 해제를 남기고, 바뀐 아이콘 버튼을 돌려준다 (그 버튼 자리만 바꾼다)."""
         article = ctx.index.get(article_id)
         try:
             chosen = Kind(kind)
         except ValueError:
             chosen = None
-        if article is None or chosen not in FEEDBACK_DONE:
+        if article is None or chosen not in FEEDBACK_KINDS:
             return PlainTextResponse("잘못된 요청", status_code=400)
         record_feedback(ctx.wiki, ctx.device, chosen, article.url, ctx.clock())
-        return HTMLResponse(f'<span class="done-label">{FEEDBACK_DONE[chosen]}</span>')
+        return templates.TemplateResponse(
+            request,
+            "_bookmark_toggle.html",
+            {"article_id": article.id, "on": chosen == Kind.BOOKMARK},
+        )
 
     return app
 

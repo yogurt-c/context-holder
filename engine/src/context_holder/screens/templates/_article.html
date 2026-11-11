@@ -1,10 +1,13 @@
-{% from "_macros.html" import feedback, decision_card %}
+{% from "_macros.html" import bookmark_toggle, remove_article, decision_card %}
 {# 글 상세 모달의 내용 (#modal-body에 들어간다) #}
 {% set s = a.stored %}
 <article class="article-detail" aria-labelledby="article-title">
   <header class="article-head">
     <div class="kicker"><span class="co-brand">{{ a.company }}</span>{% if s.published %}<span class="score">{{ s.published.strftime("%Y.%m.%d") }}</span>{% endif %}{% if s.decision %}<span class="badge decision">결정 사례</span>{% endif %}</div>
-    <button type="button" class="btn ghost sm modal-close" data-close aria-label="닫기">닫기</button>
+    <div class="head-tools">
+      {{ bookmark_toggle(s.id, a.bookmarked) }}
+      <button type="button" class="btn ghost sm modal-close" data-close aria-label="닫기">닫기</button>
+    </div>
   </header>
   <h2 id="article-title">{{ s.title }}</h2>
   {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>
@@ -18,7 +21,7 @@
   <div class="actions">
     <a class="btn primary" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">원문 열기</a>
     {% if s.decision %}<button type="button" class="btn decision" data-copy="modal-decision-md">결정 기록 복사</button>{% endif %}
-    {{ feedback(s) }}
+    {{ remove_article(s.id) }}
   </div>
   {% if a.related %}
   <section class="related">

@@ -52,7 +52,6 @@ class Ranked:
 class Lead:
     ranked: Ranked
     stored: StoredArticle
-    decision_markdown: str  # "Claude에 문맥으로 보내기"로 복사할 내용
 
 
 @dataclass(frozen=True)
@@ -310,8 +309,7 @@ def _lead(wiki: Wiki, top: Ranked) -> Lead | None:
     stored = wiki.read(Path(top.article.path))
     if stored is None:  # 다른 기기의 pull로 사라졌다. 인덱스가 다시 맞춰질 때까지 리드를 비운다
         return None
-    markdown = decision_markdown(stored, top.company) if stored.decision else ""
-    return Lead(top, stored, markdown)
+    return Lead(top, stored)
 
 
 def _ranked_day(wiki: Wiki, index: Index, day: date) -> list[Ranked]:

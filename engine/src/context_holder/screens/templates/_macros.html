@@ -1,9 +1,26 @@
 {# 여러 화면이 함께 쓰는 조각 #}
-{% macro feedback(article) -%}
-<span class="feedback">
-  <button type="button" class="btn" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "bookmark"}' hx-target="closest .feedback" hx-swap="innerHTML">북마크</button>
-  <button type="button" class="btn ghost" hx-post="/feedback" hx-vals='{"article_id": "{{ article.id }}", "kind": "not_relevant"}' hx-target="closest .feedback" hx-swap="innerHTML">관련없음</button>
-</span>
+{# 글 상세 상단의 북마크 아이콘. 누르면 켜고 끈 버튼으로 자기 자리를 바꾼다 (popped: 방금 켰다) #}
+{% macro bookmark_toggle(article_id, on, popped=False) -%}
+<button type="button" class="icon-btn bookmark-toggle{% if popped %} popped{% endif %}" aria-pressed="{{ 'true' if on else 'false' }}" aria-label="{{ '북마크 해제' if on else '북마크' }}" title="{{ '북마크 해제' if on else '북마크' }}"
+        hx-post="/feedback" hx-vals='{"article_id": "{{ article_id }}", "kind": "{{ 'unbookmark' if on else 'bookmark' }}"}' hx-swap="outerHTML">
+  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.75A.75.75 0 0 1 4.75 2h6.5a.75.75 0 0 1 .75.75V14l-4-2.9L4 14z" stroke-linejoin="round"/></svg>
+</button>
+{%- endmacro %}
+
+{# 위키에서 제거: 누르면 확인 팝업을 상세창 위에 띄운다 (app.js). 제거하면 보던 화면을 새로 그린다 #}
+{% macro remove_article(article_id) -%}
+<button type="button" class="btn ghost danger-text" data-confirm-open="remove-confirm">위키에서 제거</button>
+<dialog id="remove-confirm" class="modal confirm-modal" aria-labelledby="remove-confirm-title" aria-describedby="remove-confirm-body">
+  <div class="modal-card confirm-card">
+    <h3 id="remove-confirm-title">이 글을 위키에서 지울까요?</h3>
+    <p id="remove-confirm-body">글과 검색 기록을 지우고 다시 수집하지 않아요. 되돌릴 수 없어요.</p>
+    <p class="confirm-error" role="alert" data-confirm-error hidden></p>
+    <div class="confirm-actions">
+      <button type="button" class="btn ghost" data-confirm-close autofocus>취소</button>
+      <button type="button" class="btn danger" hx-post="/article/{{ article_id }}/remove" hx-swap="none" hx-disabled-elt="this" data-remove-article>제거</button>
+    </div>
+  </div>
+</dialog>
 {%- endmacro %}
 
 {# 커서 페이징 "더 보기": 누르면 다음 쪽 항목이 list_id 목록 끝에 붙고 (OOB) 이 버튼 자리에 다음 버튼이 온다 #}

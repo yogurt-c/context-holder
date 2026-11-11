@@ -18,7 +18,8 @@
         </div>
         <button type="submit" class="btn primary lg">검색</button>
       </div>
-      <div id="search-body" class="search-body">{% include "search_body.html" %}</div>
+      {# 폼의 주소 남기기를 결과 링크 · 더 보기가 물려받지 않게 (글 상세를 열어도 주소는 검색 그대로) #}
+      <div id="search-body" class="search-body" hx-push-url="false">{% include "search_body.html" %}</div>
     </form>
     {# 찾는 동안 결과 자리에 넣는 자리표시와, 찾지 못했을 때의 안내 (app.js) #}
     <template id="search-loading">

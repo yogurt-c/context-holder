@@ -289,7 +289,10 @@ class Wiki:
         return target
 
     def remove_article(self, path: Path, article_id: str) -> None:
-        """관련없음으로 고른 보류 글과 원문 단락 벡터를 지운다. 본 글 기록은 남긴다."""
+        """글 파일과 원문 단락 벡터를 지운다 (Inbox 관련없음 · 글 상세 위키에서 제거).
+
+        본 글 기록(state/seen)은 남겨서 다음 수집 때 다시 들이지 않는다.
+        """
         path.unlink(missing_ok=True)
         for vec in (self.root / "vectors").glob(f"*/{article_id}.*"):
             vec.unlink()

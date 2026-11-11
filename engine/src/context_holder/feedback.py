@@ -15,6 +15,7 @@ from context_holder.wiki import Wiki, article_id
 class Kind(Enum):
     NOT_RELEVANT = "not_relevant"
     BOOKMARK = "bookmark"
+    UNBOOKMARK = "unbookmark"  # 북마크 해제. 글마다 가장 나중 기록이 지금 상태다
     SAVE = "save"  # Inbox에서 보류 글을 저장으로 골랐다 (분류기의 저장 예시)
     SUGGEST_SOURCE = "suggest_source"  # MCP: 웹에서 찾은 좋은 글을 다음 수집 대상으로
 
@@ -49,3 +50,18 @@ def load_feedback(wiki: Wiki) -> list[Feedback]:
         if line.strip()
     ]
     return sorted(entries, key=lambda e: e.at)
+
+
+def bookmarked(entries: list[Feedback]) -> list[str]:
+    """지금 북마크된 글 id. 최근에 북마크한 글부터.
+
+    entries는 시간순이다 (load_feedback). 글마다 가장 나중 기록(북마크 · 해제)을 따르고,
+    다시 북마크한 글은 맨 앞으로 온다.
+    """
+    latest: dict[str, None] = {}  # 북마크한 순서대로 (dict는 넣은 순서를 지킨다)
+    for e in entries:
+        if e.kind in (Kind.BOOKMARK.value, Kind.UNBOOKMARK.value):
+            latest.pop(e.article_id, None)
+        if e.kind == Kind.BOOKMARK.value:
+            latest[e.article_id] = None
+    return list(reversed(latest))

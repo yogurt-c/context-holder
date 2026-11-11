@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Today · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/today.css">{% endblock %}
-{% from "_macros.html" import feedback, badges, decision_card, alert_banners, more_button %}
+{% from "_macros.html" import badges, decision_card, alert_banners, more_button %}
 {% from "_brief.html" import brief_item %}
 {% block content %}
     <div class="toolbar">
@@ -29,15 +29,7 @@
             <div class="kicker"><span class="co-brand">{{ r.company }}</span>{% if s.origin == "manual" %}<span class="badge plain">직접 추가</span>{% endif %}{% if s.tags %}<span>{{ s.tags[:2] | join(", ") }}</span>{% endif %}</div>
             <h2><a href="#" hx-get="/article/{{ r.article.id }}" hx-target="#modal-body">{{ s.title }}</a></h2>
             {% if s.summary %}<ul class="summary">{% for line in s.summary %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
-            {% if s.decision %}{% set d = s.decision %}
-            {{ decision_card(d) }}
-            <template id="decision-md">{{ view.lead.decision_markdown }}</template>
-            {% endif %}
-            <div class="actions">
-              <a class="btn primary" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">원문 열기</a>
-              {% if s.decision %}<button type="button" class="btn decision" data-copy="decision-md">결정 기록 복사</button>{% endif %}
-              {{ feedback(r.article) }}
-            </div>
+            {% if s.decision %}{{ decision_card(s.decision) }}{% endif %}
           </article>
 
           <ol class="briefs" id="today-briefs">
@@ -45,7 +37,7 @@
           </ol>
           {% if view.more_after %}{{ more_button("/today/more?date=" ~ view.day.isoformat() ~ "&after=" ~ (view.more_after | urlencode), "today-briefs") }}{% endif %}
         {% else %}
-          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">시작하기</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% elif view.status.state == "stopped" %}수집이 중간에 멈춰 아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
+          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">Onboarding</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% elif view.status.state == "stopped" %}수집이 중간에 멈춰 아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
           {% if view.recent %}
           <h3 class="panel-head">최근 7일 상위 글</h3>
           {% set mark_recent = view.recent | map(attribute="1") | rejectattr("article.decision_topic") | list | length > 0 %}

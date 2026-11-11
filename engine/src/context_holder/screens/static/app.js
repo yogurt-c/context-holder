@@ -60,6 +60,38 @@ document.addEventListener("click", (event) => {
   if (event.target === modal || event.target.closest("[data-close]")) modal.close();
 });
 
+// 확인 팝업 (위키에서 제거): 상세창 위에 띄운다. 취소 · 바깥 · Esc는 팝업만 닫는다.
+document.addEventListener("click", (event) => {
+  const open = event.target.closest("[data-confirm-open]");
+  if (open) {
+    document.getElementById(open.dataset.confirmOpen)?.showModal();
+    return;
+  }
+  const dialog = event.target.closest(".confirm-modal");
+  if (dialog && (event.target === dialog || event.target.closest("[data-confirm-close]"))) {
+    event.stopPropagation();
+    dialog.close();
+  }
+}, true);
+
+// 위키에서 제거: 지웠으면 팝업과 상세창을 닫고 보던 화면을 새로 그린다. 못 지웠으면 팝업에 이유를 보인다.
+document.addEventListener("htmx:afterRequest", (event) => {
+  const button = event.detail.elt;
+  if (!button.matches?.("[data-remove-article]")) return;
+  const dialog = button.closest(".confirm-modal");
+  if (event.detail.successful) {
+    dialog.close();
+    document.getElementById("article-modal")?.close();
+    // 글 주소에 있으면 (예전에 남은 주소) 새로 고칠 때 지운 글을 부르지 않게 첫 화면으로 간다
+    if (location.pathname.startsWith("/article/")) location.assign("/");
+    else location.reload();
+    return;
+  }
+  const error = dialog.querySelector("[data-confirm-error]");
+  error.textContent = event.detail.xhr?.responseText || "지우지 못했어요. 다시 시도해 주세요.";
+  error.hidden = false;
+});
+
 // 비교표: 옆으로 넘길 게 있으면 "7개 사례 중 1–2"와 앞뒤 버튼을 보이고, 오른쪽 끝을 흐리게 한다.
 const columnsOf = (table) => [...table.querySelectorAll('.ch[role="columnheader"]')].slice(1);
 const updateScroll = (table) => {

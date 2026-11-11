@@ -1,0 +1,11 @@
+{# Bookmarks 목록 한 줄 (첫 쪽 · 더 보기가 함께 쓴다) #}
+{% from "_macros.html" import badges %}
+{% macro bookmark_item(r) -%}
+<li>
+  <a href="#" hx-get="/article/{{ r.article.id }}" hx-target="#modal-body">
+    <span class="meta"><span class="co-brand">{{ r.company }}</span>{% if r.article.published %}<span>{{ r.article.published[:7] | replace("-", ".") }}</span>{% endif %}{{ badges(r.article) }}</span>
+    <span class="r-title">{{ r.article.title }}</span>
+    {% if r.article.summary_line %}<span class="r-snippet">{{ r.article.summary_line }}</span>{% endif %}
+  </a>
+</li>
+{%- endmacro %}

@@ -25,7 +25,7 @@
 ```
 Context Holder.app (Tauri 2)
  ├─ 메뉴바 아이콘: 상태 색 (완료 · 수집 중 · 오류) + 빠른 메뉴
- ├─ 메인 창: Today · Search · Decisions · Inbox · Sources
+ ├─ 메인 창: Today · Search · Decisions · Bookmarks · Inbox · Sources
  └─ sidecar: ctx 엔진 (Python) 실행 · 감시 · 재시작
         ├─ 스케줄러 + 수집 워커 (ctx sync)
         ├─ 인덱서
@@ -188,7 +188,7 @@ transcripts/{media_id}.txt        # 영상 대본 (M4)
 config/sources.yaml               # 소스 목록 · 수집 방식 · 회사 가중치 · 직군
 config/profile.yaml               # 고른 직군 · 더할 주제 · 경계값
 config/search.yaml                # 모든 기기가 쓰는 검색 모델 id
-feedback/{yyyy-mm}-{host}.jsonl   # 관련없음 · 북마크 · suggest_source (기기별 파일)
+feedback/{yyyy-mm}-{host}.jsonl   # 관련없음 · 북마크 · 북마크 해제 · suggest_source (기기별 파일)
 state/runs/{date}.json            # 그날 수집을 맡은 기기 · 상태 · 결과 (수집 잠금)
 state/seen/{yyyy-mm}.jsonl        # 본 글의 URL 해시 · 판정 · 점수 (중복 수집 방지)
 state/sources.json                # 소스별 마지막으로 본 글
@@ -231,7 +231,7 @@ LLM 호출은 한 인터페이스 뒤에 두고, 작업별로 백엔드를 설�
 
 ### 5.1 관련도 기준
 
-어떤 글을 남길지는 사용자가 고른 **직군**으로 정한다. 시작하기 3단계에서 고르고, 설정에서 바꾼다. 직군 프리셋은 앱의 `defaults/roles.yaml`에 있고, 위키의 `config/profile.yaml`에는 고른 직군 id만 적는다(`roles: [backend, frontend, ai, infra, data]`).
+어떤 글을 남길지는 사용자가 고른 **직군**으로 정한다. Onboarding 3단계에서 고르고, 설정에서 바꾼다. 직군 프리셋은 앱의 `defaults/roles.yaml`에 있고, 위키의 `config/profile.yaml`에는 고른 직군 id만 적는다(`roles: [backend, frontend, ai, infra, data]`).
 
 | 직군 (id) | 수집하는 글 | 직군에 맞는 보안 | 기본 |
 |---|---|---|---|
@@ -349,15 +349,16 @@ media:
 
 | 화면 | 내용 |
 |---|---|
-| **Today** | 오늘의 리드 이슈 1건(요약 + Decision Record 카드)과 2~5위 목록. 관련도 × 신선도 × 회사 가중치 순. 좌측에 수집 현황(확인한 소스, 신규, 저장, 보류, 제외, Claude 사용 건수) |
+| **Today** | 오늘의 리드 이슈 1건(요약 + Decision Record 카드)과 2~5위 목록. 버튼 없이 글을 누르면 글 상세 모달을 연다. 관련도 × 신선도 × 회사 가중치 순. 좌측에 수집 현황(확인한 소스, 신규, 저장, 보류, 제외, Claude 사용 건수) |
 | **Search** | 검색, 필터(결정 사례만, 기간, 회사, 태그), 결과에 하이라이트 스니펫. 결과를 누르면 글 상세 모달(요약, 핵심 내용, 결정 기록과 근거, 비슷한 결정)을 연다 |
 | **Decisions** | 넓은 주제별 결정 사례. 왼쪽은 분야별 주제 목록(사례 2건 이상), 오른쪽은 회사별 비교표(문제 · 결정과 고르지 않은 선택지 · 트레이드오프 · 결과 · 신뢰도 · 출처). 출처를 누르면 글 상세, "비교표 복사"는 마크다운 표. "주제 정리" 버튼(5.2) |
+| **Bookmarks** | 북마크한 글을 최근에 북마크한 순서로. 누르면 글 상세. 북마크를 해제해도 새로 고칠 때까지는 목록에 남는다 |
 | **Inbox** | 보류 글을 저장 또는 관련없음으로 분류. 이 클릭이 곧 ⑤의 피드백. 초기 수집에서 온 보류 글(`origin: init`)은 "초기 수집 보류 N건"으로 접어 두고 일괄 처리 버튼을 둔다 |
 | **Sources** | 소스별 최근 수집 성공 여부, 신규 글 수, 필터 통과율. Claude 검색 0건 질의와 `suggest_source` 글을 소스 추가 후보로 보여 준다 |
 | **설정** | 수집 시각(주말 포함 여부), 수집 완료 알림, 로그인 시 자동 실행, 화면 모드(시스템 · 라이트 · 다크), 앱 업데이트(지금 버전 · 확인 · 자동 확인), 연결 상태(GitHub · Claude · Claude Code MCP)와 다시 연결, 검색 모델 내려받기. 기기 로컬 `app-state.json`에 둔다. 검색 모델 바꾸기와 다시 인덱싱은 아직 `ctx reembed`로 한다 (6장) |
 
 주요 동작:
-- 원문 열기, 북마크, 관련없음(→ `feedback/`)
+- 글 상세 모달: 원문 열기, 결정 기록 복사, 위키에서 제거(한 번 더 묻고 글 파일 · 벡터 · 인덱스를 지운다. 피드백은 남기지 않고, 본 글 기록이 남아 다시 수집하지 않는다). 상단 바의 책갈피 아이콘으로 북마크를 켜고 끈다(`bookmark` · `unbookmark`를 `feedback/`에 이어 쓰고, 글마다 모든 기기의 가장 나중 기록이 지금 상태다)
 - **결정 기록 복사**: Decision Record를 Markdown으로 클립보드에 복사한다. MCP를 거치지 않고 아무 대화에나 문맥으로 붙여 넣을 때 쓴다.
 - 사이드바에 "Claude가 찾아본 것"(MCP 질의 로그)을 보여 준다. 0건 질의는 소스 추가 후보로 표시한다.
 
@@ -419,7 +420,7 @@ media:
 
 ## 9. 정리 (⑤)
 
-- **Feedback**: 화면의 관련없음, 북마크, Inbox 분류 → `feedback/` → 다음 수집 때 Classifier few-shot 예시와 deny 키워드에 반영.
+- **Feedback**: 화면의 북마크, Inbox 분류 → `feedback/` → 다음 수집 때 Classifier few-shot 예시와 deny 키워드에 반영.
 - **Pruner** (주 1회, `ctx sync`가 월요일에 함께 실행): 현재 profile과 feedback으로 기존 글을 재평가해 `archive/`로 이동한다. 삭제하지 않으며 git 이력으로 복구할 수 있다.
 
 ## 10. 소스별 메모
