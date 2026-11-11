@@ -37,7 +37,21 @@
           </ol>
           {% if view.more_after %}{{ more_button("/today/more?date=" ~ view.day.isoformat() ~ "&after=" ~ (view.more_after | urlencode), "today-briefs") }}{% endif %}
         {% else %}
-          <p class="empty-note">{% if view.status.state == "running" %}{{ view.status.label }}이에요. 끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">Onboarding</a>에서 남은 단계를 볼 수 있어요.{% endif %}{% elif view.status.state == "none" %}{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}{% elif view.status.state == "stopped" %}수집이 중간에 멈춰 아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.{% else %}새로 저장할 글이 없어요.{% if view.status.counts %} 신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.{% endif %}{% endif %}</p>
+          {# 그날 저장한 글이 없을 때: 굵은 한 줄과 작은 설명. 최근 7일 글이 없으면 왼쪽 칸 가운데에 #}
+          <div class="empty-center today-empty{% if not view.recent %} alone{% endif %}"><div class="empty-box">
+          {% if view.status.state == "running" %}
+            <p class="empty-title">{{ view.status.label }}이에요.</p>
+            <p class="empty-body">끝나면 여기에 글이 올라와요.{% if onboarding %} <a href="/setup">Onboarding</a>에서 남은 단계를 볼 수 있어요.{% endif %}</p>
+          {% elif view.status.state == "none" %}
+            <p class="empty-title">{% if view.is_today %}오늘은 아직 수집하지 않았어요.{% else %}이날은 수집하지 않았어요.{% endif %}</p>
+          {% elif view.status.state == "stopped" %}
+            <p class="empty-title">수집이 중간에 멈췄어요.</p>
+            <p class="empty-body">아직 분류하지 못한 글이 있을 수 있어요. 다시 수집하면 이어서 정리해요.</p>
+          {% else %}
+            <p class="empty-title">새로 저장할 글이 없어요.</p>
+            {% if view.status.counts %}<p class="empty-body">신규 {{ view.status.counts["신규"] }}건은 모두 보류나 제외로 분류했어요.</p>{% endif %}
+          {% endif %}
+          </div></div>
           {% if view.recent %}
           <h3 class="panel-head">최근 7일 상위 글</h3>
           {% set mark_recent = view.recent | map(attribute="1") | rejectattr("article.decision_topic") | list | length > 0 %}

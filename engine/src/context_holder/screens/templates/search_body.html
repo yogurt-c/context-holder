@@ -40,7 +40,10 @@
   {% if view.after %}{{ more_button(query.more_url(view.after), "search-results") }}{% endif %}
   </div>
   {% else %}
-  <div class="results empty"><p class="empty-note">맞는 글이 없어요. 다른 말로 찾거나 필터를 줄여 보세요.</p></div>
+  <div class="results empty-center"><div class="empty-box">
+    <p class="empty-title">맞는 글이 없어요</p>
+    <p class="empty-body">다른 말로 찾거나 필터를 줄여 보세요.</p>
+  </div></div>
   {% endif %}
 </div>
 {% endif %}

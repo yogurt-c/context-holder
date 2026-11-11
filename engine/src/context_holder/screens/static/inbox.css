@@ -43,8 +43,3 @@
 .decide .drop:hover { color: var(--error); border-color: var(--error-line); background: var(--error-tint); }
 .learn { margin-top: var(--sp-2); font-size: 12px; color: var(--ink-faint); max-width: 720px; }
 @media (max-width: 60rem) { .panes { grid-template-columns: minmax(0, 1fr); } .queue { border-right: 0; max-height: 50vh; } }
-.inbox-empty { max-width: 56ch; display: grid; gap: var(--sp-3); justify-items: start; }
-.inbox-empty h2 { font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: var(--track-head); color: var(--ink); }
-.inbox-empty p { font-size: var(--fs-read); color: var(--ink-body); line-height: 1.6; }
-.inbox-empty .note { font-size: 12.5px; color: var(--ink-faint); }
-.inbox-empty .btn { margin-top: var(--sp-2); }

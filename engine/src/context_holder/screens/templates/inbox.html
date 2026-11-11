@@ -15,12 +15,12 @@
     <div class="toolbar"><span class="title">Inbox</span><span class="sub">저장할지 판단이 필요한 글{% if view.total %} {{ view.total }}건{% endif %}</span></div>
     <div class="scroll inbox-scroll">
     {% if not view.total %}
-      <div class="page inbox-empty">
-        <h2>검토할 글이 없어요</h2>
-        <p>저장 기준에 조금 못 미친 글은 버리지 않고 수집 뒤에 여기로 모아요. 저장할지 지울지는 직접 정해요.</p>
-        {% if side.status and side.status.state != "none" %}<p class="note">마지막 수집: {{ side.status.label }}</p>{% endif %}
+      <div class="empty-center"><div class="empty-box">
+        <h2 class="empty-title">검토할 글이 없어요</h2>
+        <p class="empty-body">저장 기준에 조금 못 미친 글은 버리지 않고 수집 뒤에 여기로 모아요. 저장할지 지울지는 직접 정해요.</p>
+        {% if side.status and side.status.state != "none" %}<p class="empty-body note">마지막 수집: {{ side.status.label }}</p>{% endif %}
         <a class="btn" href="/today">Today 보기</a>
-      </div>
+      </div></div>
     {% else %}
     <div class="panes stack-narrow">
       <section class="queue" aria-label="보류 글 목록">

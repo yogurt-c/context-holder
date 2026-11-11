@@ -371,3 +371,12 @@ a.btn, a.chip { text-decoration: none; }
 .add-status-note.error .add-status-msg { white-space: normal; }  /* 실패 이유는 끝까지 읽혀야 한다 */
 .add-status-bar { margin-top: var(--sp-3); }
 body:has(#add-modal[open]) .add-status-note { display: none; }
+
+/* 빈 목록 안내 (모든 탭 공통): 사이드바를 뺀 본문 한가운데에 굵은 한 줄, 그 아래 작은 설명 · 버튼 */
+.empty-center { display: grid; place-items: center; min-height: 100%; padding: var(--sp-6); text-align: center; }
+.empty-center[hidden] { display: none; }
+.empty-box { display: grid; justify-items: center; gap: var(--sp-2); max-width: 30em; }
+.empty-title { font-size: var(--fs-h3); font-weight: 600; line-height: 1.5; color: var(--ink); }
+.empty-body { font-size: var(--fs-small); line-height: 1.6; color: var(--ink-soft); }
+.empty-body.note { font-size: var(--fs-micro); color: var(--ink-faint); }
+.empty-box .btn { margin-top: var(--sp-2); }
