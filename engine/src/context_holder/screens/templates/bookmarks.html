@@ -5,16 +5,16 @@
 {% from "_bookmark.html" import bookmark_item %}
 {% block content %}
     <div class="toolbar"><span class="title">Bookmarks</span></div>
+    {# 상세창에서 북마크를 끄면 그 줄만 숨기고, 다시 켜면 그 자리에 보인다. 다 숨으면 빈 안내를 보인다 (app.js) #}
     <div class="scroll">
-    {% if view.items %}
-      <div class="results">
+      <div class="results" id="bookmark-results"{% if not view.items %} hidden{% endif %}>
         <ol class="row-list" id="bookmark-list" aria-label="북마크한 글">
         {% for r in view.items %}{{ bookmark_item(r) }}{% endfor %}
         </ol>
         {% if view.after %}{{ more_button("/bookmarks/more?after=" ~ (view.after | urlencode), "bookmark-list") }}{% endif %}
       </div>
-    {% else %}
-      <div class="page"><p class="empty-note">글 상세 상단의 책갈피 아이콘으로 북마크하면 여기에 모여요.</p></div>
-    {% endif %}
+      <div class="empty-center" id="bookmarks-empty"{% if view.items %} hidden{% endif %}>
+        <p class="empty-title">글 상세 상단의 책갈피 아이콘으로 북마크하면 여기에 모여요.</p>
+      </div>
     </div>
 {% endblock %}

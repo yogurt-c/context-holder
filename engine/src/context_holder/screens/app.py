@@ -6,6 +6,7 @@
 - 쓰기 요청은 HTMX가 붙이는 HX-Request 헤더도 요구한다. 쿠키는 SameSite=Strict다.
 """
 
+import json
 import logging
 import secrets
 import sqlite3
@@ -334,8 +335,10 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return page(request, "bookmarks.html", "bookmarks", view=view)
 
     @app.get("/bookmarks/more", response_class=HTMLResponse)
-    def bookmarks_more(request: Request, after: str = "") -> HTMLResponse:
+    def bookmarks_more(request: Request, after: str = "") -> Response:
         page_ = bookmarksview.bookmarks_more(ctx.wiki, ctx.index, names(), after)
+        if page_ is None:
+            return PlainTextResponse("잘못된 커서", status_code=400)
         return templates.TemplateResponse(request, "bookmarks_more.html", {"page": page_})
 
     @app.post("/decisions/regroup", response_class=HTMLResponse)
@@ -458,11 +461,15 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if article is None or chosen not in FEEDBACK_KINDS:
             return PlainTextResponse("잘못된 요청", status_code=400)
         record_feedback(ctx.wiki, ctx.device, chosen, article.url, ctx.clock())
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             request,
             "_bookmark_toggle.html",
             {"article_id": article.id, "on": chosen == Kind.BOOKMARK},
         )
+        # 열려 있는 Bookmarks 목록에서 그 줄만 숨기거나 다시 보인다 (app.js)
+        changed = {"id": article.id, "on": chosen == Kind.BOOKMARK}
+        response.headers["HX-Trigger"] = json.dumps({"bookmark-changed": changed})
+        return response
 
     return app
 

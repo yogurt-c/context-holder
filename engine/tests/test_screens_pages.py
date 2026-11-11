@@ -1,6 +1,8 @@
 """Search · Inbox · Sources 화면과 상태 알림."""
 
+import base64
 import json
+import re
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -319,6 +321,10 @@ def test_article_modal_bookmark_icon(wiki, tmp_path):
     assert 'aria-pressed="true"' in again and 'aria-label="북마크 해제"' in again
     assert "popped" not in again  # 열 때는 튀지 않는다
 
+    off = c.post("/feedback", data={"article_id": a, "kind": "unbookmark"}, headers=HTMX)
+    # 열린 Bookmarks 목록에서 그 줄만 숨긴다 (app.js)
+    assert json.loads(off.headers["hx-trigger"]) == {"bookmark-changed": {"id": a, "on": False}}
+
 
 def test_remove_from_wiki_confirms_in_popup_then_deletes_without_feedback(wiki, tmp_path):
     a = add(wiki, "https://t/a", "지울 글", topic="캐시")
@@ -372,28 +378,80 @@ def test_search_results_do_not_push_article_urls(wiki, tmp_path):
     assert '<div id="search-body" class="search-body" hx-push-url="false">' in page
 
 
+def mark(wiki: Wiki, url: str, minute: int, kind: Kind = Kind.BOOKMARK) -> None:
+    record_feedback(wiki, "air", kind, url, NOW + timedelta(minutes=minute))
+
+
+def more_cursor(html: str) -> str | None:
+    found = re.search(r'hx-get="/bookmarks/more\?after=([^"]+)"', html)
+    return found.group(1) if found else None
+
+
+def titles(html: str) -> list[str]:
+    return re.findall(r'<span class="r-title">([^<]+)</span>', html)
+
+
 def test_bookmarks_page_lists_latest_first_and_pages(wiki, tmp_path, monkeypatch):
     monkeypatch.setattr(bookmarksview, "PAGE_SIZE", 2)
-    ids = [add(wiki, f"https://t/{i}", f"글 {i}", topic=None if i else "캐시") for i in range(4)]
+    for i in range(4):
+        add(wiki, f"https://t/{i}", f"글 {i}", topic=None if i else "캐시")
     c, _ = make_client(wiki, tmp_path)
 
     empty = c.get("/bookmarks").text
-    assert "책갈피 아이콘으로 북마크하면" in empty
+    assert "책갈피 아이콘으로 북마크하면" in empty and 'id="bookmark-results" hidden' in empty
     assert '<a href="/bookmarks" class="active" aria-current="page">' in empty
 
-    for aid in ids:
-        c.post("/feedback", data={"article_id": aid, "kind": "bookmark"}, headers=HTMX)
-    c.post("/feedback", data={"article_id": ids[2], "kind": "unbookmark"}, headers=HTMX)
+    for i in range(4):
+        mark(wiki, f"https://t/{i}", i)
+    mark(wiki, "https://t/2", 9, Kind.UNBOOKMARK)
 
     page = c.get("/bookmarks").text
-    assert "글 3" in page and "글 1" in page and "글 2" not in page and "글 0" not in page
-    assert page.index("글 3") < page.index("글 1")  # 최근에 북마크한 글부터
-    assert f'hx-get="/article/{ids[3]}"' in page and 'hx-target="#modal-body"' in page
-    assert f'hx-get="/bookmarks/more?after={ids[1]}"' in page
+    assert titles(page) == ["글 3", "글 1"]  # 최근에 북마크한 글부터, 해제한 글은 빠진다
+    assert 'id="bookmarks-empty" hidden' in page
+    assert f'<li data-article="{article_id("https://t/3")}">' in page  # 화면이 그 줄만 숨긴다
+    cursor = more_cursor(page)
+    assert cursor and cursor != article_id("https://t/1")  # 글 id가 아니라 값 커서
 
-    more = c.get(f"/bookmarks/more?after={ids[1]}").text
+    more = c.get(f"/bookmarks/more?after={cursor}").text
     assert 'hx-swap-oob="beforeend:#bookmark-list"' in more
-    assert "글 0" in more and "결정 사례" in more and "/bookmarks/more" not in more
+    assert titles(more) == ["글 0"] and "결정 사례" in more and more_cursor(more) is None
+    assert c.get("/bookmarks/more?after=nope!").status_code == 400
+    naive = base64.urlsafe_b64encode(b"2026-11-09T00:00:00|x").decode()  # 시간대 없는 값
+    assert c.get(f"/bookmarks/more?after={naive}").status_code == 400
+
+
+def test_bookmark_cursor_survives_unbookmark_and_rebookmark(wiki, tmp_path, monkeypatch):
+    """커서 글을 해제하거나 다시 켜도 다음 쪽이 빠지거나 겹치지 않는다."""
+    monkeypatch.setattr(bookmarksview, "PAGE_SIZE", 2)
+    for i in range(5):
+        add(wiki, f"https://t/{i}", f"글 {i}")
+        mark(wiki, f"https://t/{i}", i)
+    c, _ = make_client(wiki, tmp_path)
+    page = c.get("/bookmarks").text
+    assert titles(page) == ["글 4", "글 3"]
+    cursor = more_cursor(page)
+
+    mark(wiki, "https://t/3", 10, Kind.UNBOOKMARK)  # 커서 글을 해제
+    assert titles(c.get(f"/bookmarks/more?after={cursor}").text) == ["글 2", "글 1"]
+    mark(wiki, "https://t/3", 11)  # 다시 켜면 맨 앞으로 가지만 다음 쪽에는 다시 나오지 않는다
+    assert titles(c.get(f"/bookmarks/more?after={cursor}").text) == ["글 2", "글 1"]
+
+
+def test_bookmarks_with_same_time_neither_skip_nor_repeat(wiki, tmp_path, monkeypatch):
+    """배치처럼 시각이 모두 같아도 (시각, 글 id)로 순서가 하나로 정해진다."""
+    monkeypatch.setattr(bookmarksview, "PAGE_SIZE", 2)
+    for i in range(5):
+        add(wiki, f"https://t/{i}", f"글 {i}")
+        mark(wiki, f"https://t/{i}", 0)
+    c, _ = make_client(wiki, tmp_path)
+    seen, html = [], c.get("/bookmarks").text
+    while True:
+        seen += titles(html)
+        cursor = more_cursor(html)
+        if cursor is None:
+            break
+        html = c.get(f"/bookmarks/more?after={cursor}").text
+    assert sorted(seen) == [f"글 {i}" for i in range(5)] and len(seen) == 5
 
 
 def test_search_without_model_says_keyword_only(wiki, tmp_path):

@@ -6,7 +6,7 @@
 
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from context_holder.wiki import Wiki, article_id
@@ -52,16 +52,38 @@ def load_feedback(wiki: Wiki) -> list[Feedback]:
     return sorted(entries, key=lambda e: e.at)
 
 
-def bookmarked(entries: list[Feedback]) -> list[str]:
-    """지금 북마크된 글 id. 최근에 북마크한 글부터.
+@dataclass(frozen=True)
+class Bookmark:
+    article_id: str
+    at: datetime  # 마지막으로 북마크한 시각
 
-    entries는 시간순이다 (load_feedback). 글마다 가장 나중 기록(북마크 · 해제)을 따르고,
-    다시 북마크한 글은 맨 앞으로 온다.
+    @property
+    def key(self) -> tuple[datetime, str]:
+        """정렬 · 커서 값. 시각이 같아도 글 id로 순서가 하나로 정해진다."""
+        return (self.at, self.article_id)
+
+
+def bookmarks(entries: list[Feedback]) -> list[Bookmark]:
+    """지금 북마크된 글. (북마크 시각, 글 id)가 큰 것부터 (최근에 북마크한 글부터).
+
+    모든 기기의 기록을 시간순으로 보고 글마다 가장 나중 기록(북마크 · 해제)을 따른다.
+    다시 북마크한 글은 그 시각으로 맨 앞에 온다.
     """
-    latest: dict[str, None] = {}  # 북마크한 순서대로 (dict는 넣은 순서를 지킨다)
+    latest: dict[str, datetime | None] = {}
     for e in entries:
-        if e.kind in (Kind.BOOKMARK.value, Kind.UNBOOKMARK.value):
-            latest.pop(e.article_id, None)
         if e.kind == Kind.BOOKMARK.value:
+            latest[e.article_id] = _aware(datetime.fromisoformat(e.at))
+        elif e.kind == Kind.UNBOOKMARK.value:
             latest[e.article_id] = None
-    return list(reversed(latest))
+    found = [Bookmark(aid, at) for aid, at in latest.items() if at is not None]
+    return sorted(found, key=lambda b: b.key, reverse=True)
+
+
+def bookmarked(entries: list[Feedback]) -> list[str]:
+    """지금 북마크된 글 id. 최근에 북마크한 글부터."""
+    return [b.article_id for b in bookmarks(entries)]
+
+
+def _aware(at: datetime) -> datetime:
+    """시간대가 없는 기록은 UTC로 본다 (시간대가 섞이면 비교할 수 없다)."""
+    return at if at.tzinfo else at.replace(tzinfo=UTC)

@@ -92,6 +92,18 @@ document.addEventListener("htmx:afterRequest", (event) => {
   error.hidden = false;
 });
 
+// 북마크를 켜고 끄면 (글 상세) 열려 있는 Bookmarks 목록에서 그 줄만 숨기거나 다시 보인다.
+// 다시 불러오지 않아서 펼쳐 둔 쪽과 스크롤이 그대로다. "더 보기"는 값 커서라 숨긴 줄과 상관없이 이어진다.
+document.addEventListener("bookmark-changed", (event) => {
+  const list = document.getElementById("bookmark-list");
+  const row = list?.querySelector(`li[data-article="${CSS.escape(event.detail.id)}"]`);
+  if (!row) return;
+  row.hidden = !event.detail.on;
+  const left = list.querySelector("li:not([hidden])") || document.getElementById("bookmark-list-more");
+  document.getElementById("bookmark-results").hidden = !left;
+  document.getElementById("bookmarks-empty").hidden = Boolean(left);
+});
+
 // 비교표: 옆으로 넘길 게 있으면 "7개 사례 중 1–2"와 앞뒤 버튼을 보이고, 오른쪽 끝을 흐리게 한다.
 const columnsOf = (table) => [...table.querySelectorAll('.ch[role="columnheader"]')].slice(1);
 const updateScroll = (table) => {
