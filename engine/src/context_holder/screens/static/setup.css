@@ -1,26 +1,54 @@
 /* 첫 실행 설정 · 설정 화면. docs/ui/onboarding.html 시안의 스타일 */
-.setup-page { max-width: 760px; margin: 0 auto; padding: var(--sp-6) var(--sp-5); }
-.setup-intro { margin-bottom: var(--sp-4); font-size: 14px; line-height: 1.6; color: var(--ink-soft); }
-.setup-intro p:first-child { font-family: var(--display); font-size: var(--fs-h3); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-bottom: var(--sp-1); }
-.prereq { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); list-style: none; font-size: 12.5px; color: var(--ink-soft); margin-bottom: var(--sp-5); }
-.prereq li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
-.prereq li.muted::before { content: ""; }
-.setup-panel { display: flex; flex-direction: column; gap: var(--sp-3); }
-.setup-step { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--rule-soft); border-radius: var(--r-control); background: transparent; }
-.setup-step.cur { background: var(--surface); border-color: var(--rule); box-shadow: var(--shadow-control); }
-.setup-step .ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
-.setup-step .ic.done { background: var(--ok); color: var(--on-ink); }
-.setup-step .ic.run { border: 2px solid var(--busy-tint); border-top-color: var(--busy); animation: spin 1s linear infinite; }
-.setup-step .ic.todo { border: 1.5px solid var(--rule-strong); color: var(--ink-faint); }
-.setup-step h2 { font-family: var(--display); font-size: var(--fs-h3); font-weight: 600; letter-spacing: -0.02em; }
-.setup-step h2 small { font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--ink-faint); margin-left: var(--sp-1); }
-.setup-step.optional { border-style: dashed; }
-.setup-step .lede a { color: var(--ink); text-decoration-color: var(--rule-strong); }
-.setup-step .lede a:hover { text-decoration-color: currentColor; }
-.setup-step .bar { margin-bottom: var(--sp-2); }
-.setup-done { font-size: 13px; font-weight: 600; color: var(--ok); text-align: center; padding: var(--sp-3) 0; }
-.setup-step .lede { font-size: 13.5px; color: var(--ink-soft); margin: var(--sp-1) 0 var(--sp-3); }
-.setup-step .btn { margin-top: var(--sp-1); }
+/* ---------- Onboarding: 왼쪽 단계 이름, 오른쪽 고른 단계의 할 일 (흑백, 마친 단계는 체크 선만) ---------- */
+.ob { max-width: 920px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) 48px; }
+.ob-head h1 { font-family: var(--display); font-size: var(--fs-h1); font-weight: 600; letter-spacing: -0.035em; line-height: 1.2; }
+.ob-head p { margin-top: var(--sp-1); font-size: var(--fs-small); color: var(--ink-soft); }
+.ob-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--sp-6); margin-top: var(--sp-6); align-items: start; }
+.ob-steps ol { list-style: none; position: relative; }
+.ob-steps ol::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 1px; background: var(--rule); }
+.ob-steps a { position: relative; display: flex; align-items: center; gap: var(--sp-3); padding: 9px var(--sp-2) 9px 0; color: var(--ink-soft); text-decoration: none; font-size: var(--fs-small); border-radius: var(--r-control); transition: color var(--dur-micro) var(--ease); }
+.ob-steps a:hover .t { color: var(--ink); }
+.ob-steps .n { flex: none; width: 27px; height: 27px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--paper); border: 1px solid var(--rule-strong); color: var(--ink-faint); font-variant-numeric: tabular-nums; transition: border-color var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease); }
+.ob-steps .done .n { border-color: transparent; color: var(--ink); }
+.ob-steps .run .n { border-color: transparent; }
+.ob-steps .on { color: var(--ink); font-weight: 600; }
+.ob-steps .on .n { border: 1.5px solid var(--ink); color: var(--ink); box-shadow: 0 0 0 4px var(--chrome-selected); }
+.ob-steps .done.on .n { border-color: var(--rule-strong); }
+.ob-detail { padding: var(--sp-5) var(--sp-6) var(--sp-6); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-card); }
+.ob-detail .eyebrow { font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.ob-detail h2 { margin-top: var(--sp-1); font-family: var(--display); font-size: var(--fs-h2); font-weight: 600; letter-spacing: -0.03em; }
+.ob-detail .lede, .ob-detail .ok-line { margin-top: var(--sp-1); font-size: var(--fs-small); color: var(--ink-soft); }
+.ob-detail .ok-line { color: var(--ink); }
+.ob-detail .seg + .ok-line, .ob-detail .seg + .wait { margin-top: var(--sp-3); }
+.ob-detail .ok-line a, .ob-detail .lede a { color: inherit; text-decoration-color: var(--rule-strong); }
+.ob-detail .go { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-5); }
+.ob-detail .go .wait { margin: 0; }
+.ob-detail .device-code { margin-top: var(--sp-4); }
+.ob-detail .bar { margin-top: var(--sp-3); }
+.ob-detail .toggles { margin-top: var(--sp-4); }
+/* 단계 안의 선택 항목 (에이전트 연결 → 위키 검색) */
+.ob-extra { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--rule-soft); }
+.ob-extra h3 { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+.ob-extra h3 small { margin-left: var(--sp-1); font-size: 12px; font-weight: 500; color: var(--ink-faint); }
+.ob-extra .go { margin-top: var(--sp-3); }
+.ob-detail .next { margin-top: var(--sp-6); padding-top: var(--sp-4); border-top: 1px solid var(--rule-soft); font-size: 12px; color: var(--ink-faint); }
+.ob-detail .next a { color: var(--ink-soft); font-weight: 500; text-decoration: none; }
+.ob-detail .next a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+/* 에이전트 고르기: 둘 중 하나 (라디오를 감춘 전환 버튼) */
+.ob-detail .seg { display: inline-flex; margin-top: var(--sp-5); padding: 3px; gap: 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-deep); }
+.ob-detail .seg input { position: absolute; opacity: 0; pointer-events: none; }
+.ob-detail .seg span { display: block; padding: 5px 16px; font-size: 13px; border-radius: 6px; color: var(--ink-soft); cursor: pointer; transition: background-color var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease); }
+.ob-detail .seg label:hover span { color: var(--ink); }
+.ob-detail .seg input:checked + span { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-card); }
+.ob-detail .seg input:focus-visible + span { outline: 2px solid var(--decision); outline-offset: 1px; }
+.ob-detail .seg input:disabled + span { cursor: not-allowed; opacity: 0.6; }
+.setup-done { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--ink); text-align: center; }
+@media (max-width: 760px) {
+  .ob-grid { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
+  .ob-steps { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+  .ob-steps ol { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+  .ob-steps ol::before { display: none; }
+}
 .device-code { display: block; font-family: var(--mono); font-size: 32px; font-weight: 700; letter-spacing: 6px; text-align: center; padding: var(--sp-3) 0; background: var(--paper); border: 1px dashed var(--rule-strong); border-radius: var(--r-control); }
 .command { display: block; font-family: var(--mono); font-size: 12px; padding: var(--sp-2) var(--sp-3); background: var(--paper-deep); border-radius: var(--r-control); overflow-wrap: anywhere; margin-bottom: var(--sp-2); }
 .wait { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--busy-ink); margin: var(--sp-3) 0; }
@@ -61,7 +89,7 @@
 .warn { color: var(--busy-ink); font-weight: 600; }
 .toggles .label { flex: 1; }
 
-/* ---------- 수집할 직군 (시작하기 3단계 · 설정) ---------- */
+/* ---------- 수집할 직군 (Onboarding 3단계 · 설정) ---------- */
 .step-sub { font-size: 13px; font-weight: 600; color: var(--ink); margin: var(--sp-3) 0 var(--sp-2); }
 .step-sub small { font-weight: 500; color: var(--ink-faint); margin-left: var(--sp-2); }
 .role-list li { min-height: 38px; }

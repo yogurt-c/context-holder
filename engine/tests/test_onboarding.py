@@ -1,4 +1,4 @@
-"""시작하기 탭: 필수 단계 진행률, 사이드바 표시, 다 끝나면 탭을 뺀다."""
+"""Onboarding 탭: 필수 단계 진행률, 사이드바 표시, 다 끝나면 탭을 뺀다."""
 
 import json
 from datetime import UTC, datetime
@@ -83,14 +83,24 @@ def test_setup_page_walks_the_required_steps(flow, tmp_path):  # noqa: F811
     c = screen(flow, tmp_path)
     page = c.get("/setup").text
     assert "매일 모아 내 위키에 정리해요" in page and "0/5 단계 마침" in page
-    for title in ("수집 시작", "첫 수집", "주제 정리", "Claude Code에서 위키 검색"):
-        assert title in page
-    assert "약 570MB" in page and "첫 수집이 끝나면 할 수 있어요" in page
+    for title in (
+        "GitHub 연결",
+        "에이전트 연결",
+        "수집 설정",
+        "첫 수집",
+        "주제 정리",
+    ):
+        assert title in page  # 왼쪽 목록
+    assert 'href="/setup?step=mcp"' not in page  # 위키 검색은 에이전트 연결 안에 있다
+    assert 'id="ob-title">GitHub 연결' in page  # 지금 할 단계를 연다
+    assert "약 570MB" in c.get("/setup?step=first_sync").text
+    assert "첫 수집이 끝나면 할 수 있어요" in c.get("/setup?step=topics").text
 
     appsettings.update(flow.settings_path, setup_done=True, daily_at="07:40")
     add(screen_wiki(tmp_path), "https://d2.naver.com/a", "첫 글")
-    page = c.get("/setup").text
-    assert "매일 07:40에 수집해요" in page and 'name="hour"' not in page
+    start = c.get("/setup?step=start").text
+    assert "매일 07:40에 수집해요" in start and 'name="hour"' not in start
+    page = c.get("/setup").text  # 남은 주제 정리로 넘어가 있다
     assert 'href="/decisions">Decisions에서 주제 정리' in page
     assert "다 마쳤어요" not in page
 
@@ -143,3 +153,17 @@ def test_announces_model_download_only_when_missing(tmp_path, monkeypatch, capsy
     (tmp_path / "home" / "models" / f"models--x--{model}").mkdir(parents=True)
     cli._announce_model(wiki, events=True)
     assert capsys.readouterr().out == ""
+
+
+def test_left_steps_pick_the_detail_and_keep_it_while_polling(flow, tmp_path):  # noqa: F811
+    c = screen(flow, tmp_path)
+    picked = c.get("/setup/panel", headers={"X-Setup-Step": "first_sync"}).text
+    assert 'id="ob-title">첫 수집' in picked and 'id="ob-title">GitHub' not in picked
+    # 다시 그려도(2초 폴링 · 버튼) 고른 단계를 보내 그 단계에 머문다
+    assert """hx-headers='{"X-Setup-Step": "first_sync"}'""" in picked.split(">")[0]
+    # 지금 할 단계로 가는 링크는 빈 값을 보내 다시 따라가기로 돌아간다
+    assert """hx-headers='{"X-Setup-Step": ""}'>""" in picked.split('href="/setup?step=github"')[1]
+
+    follow = c.get("/setup/panel").text
+    assert 'id="ob-title">GitHub 연결' in follow and 'X-Setup-Step": "github' not in follow
+    assert 'id="ob-title">GitHub 연결' in c.get("/setup?step=nope").text  # 모르는 값

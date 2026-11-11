@@ -24,13 +24,23 @@ INSTALL_PREVIEW = {
 MINUTES = [f"{m:02d}" for m in range(0, 60, 10)]
 
 
+# Onboarding 왼쪽 목록의 순서. 위키 검색 연결(선택)은 에이전트 연결 안에 있다
+STEP_KEYS = ("github", "agent", "start", "first_sync", "topics")
+STEP_HEADER = "X-Setup-Step"  # 사용자가 고른 단계. 없으면 지금 할 단계를 따라간다
+
+
 def setup_view(
     flow: SetupFlow,
     journey: Onboarding,
     sync: dict[str, Any] | None = None,
     mcp_error: str = "",
+    step: str | None = None,
 ) -> dict[str, Any]:
-    """journey: 시작하기 단계별 완료. sync: 사이드바와 같은 수집 진행 (앱이 띄웠을 때만)."""
+    """journey: Onboarding 단계별 완료. sync: 사이드바와 같은 수집 진행 (앱이 띄웠을 때만).
+
+    step: 왼쪽에서 고른 단계. 없거나 모르는 값이면 지금 할 단계를 보이고,
+    그 단계가 끝나면 다음 단계로 넘어간다.
+    """
     flow.claude_settled()
     flow.codex_settled()
     settings = appsettings.load(flow.settings_path)
@@ -38,7 +48,7 @@ def setup_view(
     status = flow.agent_status()
     # 다시 로그인하는 동안은 이전 토큰이 있어도 코드 입력 단계를 보인다
     github_done = flow.ready() and flow.github.state not in ("waiting", "connecting")
-    return {
+    view = {
         "github": flow.github,
         "github_done": github_done,
         "token_source": flow.token_source(),
@@ -57,12 +67,63 @@ def setup_view(
         "busy": flow.busy() or bool(sync and sync["running"]),
         "journey": journey,
         "current": next((step.key for step in journey.steps if not step.done), None),
+        "chosen": step if step in STEP_KEYS else None,
         "sync": sync,
         "can_finish": github_done and status.logged_in and not status.outdated,
         "hours": HOURS,
         "minutes": MINUTES,
         "roles": roles_view(flow),
     }
+    view["selected"] = view["chosen"] or follow_step(view)
+    view["steps"] = nav_steps(view)
+    return view
+
+
+def follow_step(s: dict[str, Any]) -> str:
+    """고른 단계가 없을 때 보일 단계: 진행 중이거나 실패한 연결이 먼저, 그다음 지금 할 단계.
+
+    설정에서 GitHub · 에이전트를 다시 연결하면 앞 단계를 마친 기기여도 그 단계를 보인다.
+    """
+    if s["github"].state in ("waiting", "connecting", "error"):
+        return "github"
+    if s["job"].state in ("installing", "logging_in", "error"):
+        return "agent"
+    return s["current"] or "topics"
+
+
+def nav_steps(s: dict[str, Any]) -> list[dict[str, Any]]:
+    """Onboarding 왼쪽 목록: 단계 이름과 상태(done · run · todo)."""
+    journey, sync, settings = s["journey"], s["sync"], s["settings"]
+    agent_done = s["status"].logged_in and not s["status"].outdated
+    running = {
+        "github": s["github"].state in ("waiting", "connecting"),
+        "agent": s["job"].state in ("installing", "logging_in"),
+        "first_sync": settings.setup_done and bool(sync and sync["running"]),
+    }
+    done = {
+        "github": s["github_done"],
+        "agent": agent_done,
+        "start": settings.setup_done,
+        "first_sync": journey.is_done("first_sync"),
+        "topics": journey.is_done("topics"),
+    }
+    titles = {
+        "github": "GitHub 연결",
+        "agent": "에이전트 연결",
+        "start": "수집 설정",
+        "first_sync": "첫 수집",
+        "topics": "주제 정리",
+    }
+    return [
+        {
+            "key": key,
+            "title": titles[key],
+            "number": n,
+            "state": "done" if done[key] else ("run" if running.get(key) else "todo"),
+            "on": key == s["selected"],
+        }
+        for n, key in enumerate(STEP_KEYS, 1)
+    ]
 
 
 def roles_view(flow: SetupFlow, error: str = "", saved: bool = False) -> dict[str, Any]:
@@ -81,7 +142,7 @@ def roles_view(flow: SetupFlow, error: str = "", saved: bool = False) -> dict[st
 
 
 def ensure_roles(flow: SetupFlow) -> None:
-    """시작하기를 마칠 때 직군이 없으면(새 위키 · 예전 profile) 화면에 보인 기본 직군을 적는다."""
+    """Onboarding을 마칠 때 직군이 없으면(새 위키 · 예전 profile) 화면에 보인 기본 직군을 적는다."""
     wiki = Wiki(flow.wiki_root)
     if flow.has_wiki() and not wiki.roles():
         wiki.set_roles(load_default_profile().roles)
@@ -203,15 +264,19 @@ def add_routes(
     journey: Callable[[], Onboarding],
     sync: Callable[[], dict[str, Any] | None],
 ) -> None:
-    def view(mcp_error: str = "") -> dict[str, Any]:
-        return setup_view(flow, journey(), sync(), mcp_error)
+    def view(mcp_error: str = "", step: str | None = None) -> dict[str, Any]:
+        return setup_view(flow, journey(), sync(), mcp_error, step)
 
     def setup_panel(request: Request, mcp_error: str = "") -> HTMLResponse:
-        return templates.TemplateResponse(request, "_setup_panel.html", {"s": view(mcp_error)})
+        """고른 단계는 패널이 붙여 보내는 헤더로 받는다 (다시 그려도 그 단계에 머문다)."""
+        step = request.headers.get(STEP_HEADER) or request.query_params.get("step")
+        return templates.TemplateResponse(
+            request, "_setup_panel.html", {"s": view(mcp_error, step)}
+        )
 
     @app.get("/setup", response_class=HTMLResponse)
-    def setup(request: Request) -> HTMLResponse:
-        return page(request, "setup.html", "setup", s=view())
+    def setup(request: Request, step: str | None = None) -> HTMLResponse:
+        return page(request, "setup.html", "setup", s=view(step=step))
 
     @app.get("/setup/panel", response_class=HTMLResponse)
     def setup_poll(request: Request) -> HTMLResponse:

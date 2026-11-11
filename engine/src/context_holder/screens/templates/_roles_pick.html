@@ -1,4 +1,4 @@
-{# 수집할 직군. 시작하기 3단계와 설정에서 같이 쓴다. 바꿀 때마다 위키 profile.yaml에 바로 저장한다 #}
+{# 수집할 직군. Onboarding 3단계와 설정에서 같이 쓴다. 바꿀 때마다 위키 profile.yaml에 바로 저장한다 #}
 <form id="roles-pick" class="roles-pick" hx-post="/settings/roles" hx-trigger="change" hx-target="this" hx-swap="outerHTML" aria-label="수집할 직군">
   <ul class="toggles role-list">
     {% for role, on in r.roles %}

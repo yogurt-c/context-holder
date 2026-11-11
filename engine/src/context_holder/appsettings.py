@@ -24,7 +24,7 @@ class Settings:
     autostart: bool = True  # 로그인할 때 자동 실행
     theme: str = "system"  # system | light | dark
     setup_done: bool = False  # 첫 실행 설정을 마쳤다
-    onboarding_done: bool = False  # 시작하기 단계를 모두 마쳤다 (사이드바에서 탭을 뺀다)
+    onboarding_done: bool = False  # Onboarding 단계를 모두 마쳤다 (사이드바에서 탭을 뺀다)
     auto_update: bool = True  # 새 버전을 자동으로 확인한다
     skipped_update: str = ""  # "이 버전 건너뛰기"를 누른 버전 (그 버전 팝업을 다시 띄우지 않는다)
     agent: str = "claude"  # 요약 · 분류 · 주제 정리에 쓸 에이전트 (llm.AGENTS)

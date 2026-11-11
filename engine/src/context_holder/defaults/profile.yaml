@@ -3,7 +3,7 @@ thresholds:
   save: 0.6   # 이 이상이면 위키에 저장 (M0 평가셋으로 보정)
   inbox: 0.3  # 이 이상이면 Inbox에 보류, 미만이면 버림
 
-# 수집할 직군. 앱의 시작하기 · 설정에서 고른다. 직군별 기준은 앱의 defaults/roles.yaml.
+# 수집할 직군. 앱의 Onboarding · 설정에서 고른다. 직군별 기준은 앱의 defaults/roles.yaml.
 # backend · frontend · ai · ml · infra · data · security
 roles: [backend, frontend, ai, infra, data]
 

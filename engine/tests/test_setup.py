@@ -325,10 +325,12 @@ def test_home_goes_to_setup_until_done(flow, tmp_path):
     c = screen(flow, tmp_path)
     assert c.get("/").headers["location"] == "/setup"
     assert c.get("/start").headers["location"] == "/setup"
-    page = c.get("/setup").text
+    page = c.get("/setup").text  # 지금 할 단계(GitHub)를 연다
     assert "GitHub로 로그인" in page and 'class="in-app"' in page
-    assert "Claude Code 설치" in page or "Claude 로그인" in page
-    assert "Claude Code에서 위키 검색" in page and "claude mcp add" not in page
+    assert 'aria-current="step"' in page and "Claude Code에서 위키 검색" not in page
+    agent = c.get("/setup?step=agent").text  # 위키 검색 연결(선택)은 에이전트 연결 안에 있다
+    assert "Claude Code 설치" in agent or "Claude 로그인" in agent
+    assert "Claude Code에서 위키 검색" in agent and "claude mcp add" not in agent
     flow.finish(True, "09:30", True)
     assert c.get("/").headers["location"] == "/today"
 
@@ -351,7 +353,7 @@ def test_setup_buttons(flow, tmp_path, monkeypatch):
         or flow.claude_job.state == "logging_in"
     )
     flow.run = FakeRun({"mcp add": (1, "boom"), "auth status": (0, LOGGED_IN)})
-    failed = c.post("/setup/mcp", headers=HTMX)
+    failed = c.post("/setup/mcp", headers={**HTMX, "X-Setup-Step": "agent"})  # 보던 단계에 머문다
     assert failed.headers["HX-Trigger"] == "mcp-failed"
     assert "연결하지 못했어요: boom" in failed.text
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
@@ -536,7 +538,7 @@ def test_translocated_app_asks_to_move_first(flow, tmp_path, monkeypatch):
     monkeypatch.setattr(claudesetup, "translocated", lambda: True)
     flow.run = FakeRun({"auth status": (0, LOGGED_IN)})
     c = screen(flow, tmp_path)
-    assert "응용 프로그램 폴더로 옮긴 뒤" in c.get("/setup").text
+    assert "응용 프로그램 폴더로 옮긴 뒤" in c.get("/setup?step=agent").text
     panel = c.get("/settings/connections").text
     assert "옮긴 뒤 연결하세요" in panel and 'hx-post="/settings/mcp"' not in panel
 
@@ -656,24 +658,25 @@ def test_chosen_agent_decides_what_setup_needs(flow, monkeypatch):
 def test_setup_follows_the_chosen_agent(flow, tmp_path):
     c = screen(flow, tmp_path)
     flow.run = FakeRun({"auth status": (0, LOGGED_IN), "login status": (127, "")})
-    page = c.get("/setup").text
-    assert "Claude 연결" in page and 'name="agent" value="claude" checked' in page
+    page = c.get("/setup?step=agent").text
+    assert "에이전트 연결" in page and 'name="agent" value="claude" checked' in page
     assert "Claude Code에서 위키 검색" in page
 
     assert c.post("/setup/agent", data={"agent": "gemini"}, headers=HTMX).status_code == 400
-    panel = c.post("/setup/agent", data={"agent": "codex"}, headers=HTMX).text
+    agent_step = {**HTMX, "X-Setup-Step": "agent"}
+    panel = c.post("/setup/agent", data={"agent": "codex"}, headers=agent_step).text
     assert appsettings.load(flow.settings_path).agent == "codex"
-    assert "Codex 연결" in panel and "Codex에서 위키 검색" in panel
+    assert 'name="agent" value="codex" checked' in panel and "Codex에서 위키 검색" in panel
     assert "curl -fsSL https://chatgpt.com/codex/install.sh | sh" in panel
     assert 'hx-post="/setup/codex/install"' in panel and "ChatGPT Plus" in panel
-    assert "GitHub와 Codex를 연결하면" in panel
+    assert "GitHub와 Codex를 연결하면" in c.get("/setup?step=start").text
 
     flow.background = lambda work: None
     assert "Codex CLI 설치 중" in c.post("/setup/codex/install", headers=HTMX).text
     flow.codex_job = setupflow.ClaudeJob()
     flow.run = FakeRun({"login status": (1, "")})
     flow._codex_status = None
-    assert 'hx-post="/setup/codex/login"' in c.get("/setup/panel").text
+    assert 'hx-post="/setup/codex/login"' in c.get("/setup/panel", headers=agent_step).text
     waiting = c.post("/setup/codex/login", headers=HTMX).text
     assert "브라우저에서 Codex 로그인을 승인하세요" in waiting and "every 2s" in waiting
     assert "disabled" in waiting.split('name="agent" value="claude"')[1].split(">")[0]
@@ -681,10 +684,13 @@ def test_setup_follows_the_chosen_agent(flow, tmp_path):
     flow.codex_job = setupflow.ClaudeJob()
     flow.run = FakeRun({"login status": (0, "Logged in"), "mcp add": (0, "")})
     flow._codex_status = None
-    c.post("/setup/mcp", headers=HTMX)
+    mcp_step = agent_step
+    c.post("/setup/mcp", headers=mcp_step)
     assert ["codex", "mcp", "add", "context-holder", "--", "/a/ctx", "mcp"] in flow.run.calls
     register_codex(flow, "/a/ctx")
-    assert "Codex가 기술 결정 전에 이 위키를 찾아봐요" in c.get("/setup/panel").text
+    assert (
+        "Codex가 기술 결정 전에 이 위키를 찾아봐요" in c.get("/setup/panel", headers=mcp_step).text
+    )
 
 
 def test_settings_codex_mcp_row(flow, tmp_path):
@@ -956,7 +962,7 @@ def test_outdated_codex_asks_for_an_update(flow, tmp_path):
     )
     flow.choose_agent("codex")
     flow._codex_status = None
-    setup = c.get("/setup/panel").text
+    setup = c.get("/setup/panel?step=agent").text
     assert "Codex CLI 업데이트" in setup and "0.22.0은 너무 오래돼" in setup
 
 
@@ -1074,7 +1080,7 @@ def connect_wiki_dir(flow) -> Wiki:
 def test_roles_can_be_chosen_only_after_github(flow, tmp_path):
     c = screen(flow, tmp_path)
 
-    panel = c.get("/setup").text
+    panel = c.get("/setup?step=start").text
     assert "어떤 글을 모을까요?" in panel and "GitHub를 연결하면 고를 수 있어요" in panel
     assert 'value="backend" checked disabled' in panel and 'value="ml" disabled' in panel
     assert c.post("/settings/roles", data={"roles": ["ml"]}, headers=HTMX).status_code == 400
@@ -1083,7 +1089,7 @@ def test_roles_can_be_chosen_only_after_github(flow, tmp_path):
 def test_roles_are_saved_to_the_wiki_on_each_change(flow, tmp_path):
     wiki = connect_wiki_dir(flow)
     c = screen(flow, tmp_path)
-    assert 'value="ai" checked>' in c.get("/setup").text  # 기본 직군
+    assert 'value="ai" checked>' in c.get("/setup?step=start").text  # 기본 직군
 
     saved = c.post("/settings/roles", data={"roles": ["backend", "security"]}, headers=HTMX)
 
