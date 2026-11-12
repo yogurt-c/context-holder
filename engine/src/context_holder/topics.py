@@ -3,28 +3,27 @@
 - 위키 `decisions/topics.yaml`: 넓은 주제 → 분야, 한 줄 질문, 원래 주제들. 글 파일은 고치지 않는다.
 - 정리(regroup)는 사용자가 버튼으로 시킨다. Claude에 주제와 문제 한 줄만 보낸다 (원문 없음).
   처음에는 모든 사례를, 그 뒤에는 아직 분류하지 않은 사례만 기존 주제 목록과 함께 보낸다.
-- 매일 수집(attach)은 Claude를 부르지 않는다. 검색 모델로 가장 비슷한 분류된 사례를 찾아
-  충분히 비슷하면 그 주제에 붙이고, 아니면 분류하지 않은 채로 둔다.
+- 수집 · 글 추가(assign)는 Claude를 따로 부르지 않는다. 글을 요약하는 같은 호출에서
+  기존 넓은 주제 중 하나를 고르게 하고(enrich), 고른 것만 붙인다. 맞는 주제가 없으면
+  분류하지 않은 채로 두었다가 다음 정리 때 묶는다.
+- 정리할 때 위키에서 사라진 원래 주제는 지도에서 뺀다.
 - 파일은 다음 수집이 커밋 · push한다.
   같은 기기의 두 프로세스(화면 · 수집)가 동시에 고치지 않게 잠근다.
 """
 
 import fcntl
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-import numpy as np
 import yaml
 
 from context_holder.classify import StructuredLlm
-from context_holder.embed import Embedder
 from context_holder.index import normalize_topic
 from context_holder.wiki import Wiki
 
 TOPICS_FILE = "decisions/topics.yaml"
-ATTACH_MIN = 0.62  # 실제 사례 169건에서 가장 가까운 사례 유사도의 중앙값이 0.6 안팎이었다
 BATCH = 200  # Claude 한 번에 보낼 사례 수
 PROBLEM_CHARS = 120
 NAME_CHARS = 40
@@ -92,6 +91,14 @@ class TopicMap:
                     fresh.append(t)
             out.append(replace(g, topics=(*g.topics, *fresh)))
         return TopicMap(tuple(g for g in out if g.topics))
+
+    def keep(self, present: set[str]) -> "TopicMap":
+        """present(정규화한 원래 주제)에 있는 것만 남긴 새 지도. 빈 주제는 뺀다."""
+        groups = (
+            replace(g, topics=tuple(t for t in g.topics if normalize_topic(t) in present))
+            for g in self.groups
+        )
+        return TopicMap(tuple(g for g in groups if g.topics))
 
 
 @dataclass(frozen=True)
@@ -172,35 +179,38 @@ def unassigned(wiki: Wiki, topics: TopicMap) -> list[Case]:
     return [c for c in cases(wiki) if topics.group_of(c.topic) is None]
 
 
-# ---------- 매일: 검색 모델로 붙이기 (토큰 없음) ----------
+# ---------- 수집 · 글 추가: 요약하며 고른 주제 붙이기 (추가 호출 없음) ----------
 
 
-def attach(wiki: Wiki, embedder: Embedder | None) -> int:
-    """분류하지 않은 사례를 가장 비슷한 분류된 사례의 주제에 붙인다. 붙인 수."""
-    if embedder is None:
+def choices(wiki: Wiki) -> dict[str, str]:
+    """요약할 때 고를 넓은 주제 (이름 → 질문). 아직 정리하지 않았으면 비어 있다."""
+    with locked(wiki):
+        return {g.name: g.question for g in load(wiki).groups}
+
+
+def assign(wiki: Wiki, chosen: Mapping[str, str]) -> int:
+    """chosen(원래 주제 → 넓은 주제)을 지도에 더한다. 더한 수.
+
+    이미 분류된 원래 주제와 지도에 없는 넓은 주제는 건너뛴다.
+    """
+    if not chosen:
         return 0
     with locked(wiki):
         topics = load(wiki)
-        if not topics.groups:  # 아직 한 번도 정리하지 않았다
-            return 0
-        all_cases = cases(wiki)
-        known = [c for c in all_cases if topics.group_of(c.topic)]
-        loose = [c for c in all_cases if not topics.group_of(c.topic)]
-        if not known or not loose:
-            return 0
-        known_v = embedder.passages([_text(c) for c in known])
-        loose_v = embedder.passages([_text(c) for c in loose])
-        similarity = loose_v @ known_v.T
         additions: dict[str, list[str]] = {}
-        for i, case in enumerate(loose):
-            j = int(np.argmax(similarity[i]))
-            if similarity[i, j] >= ATTACH_MIN:
-                group = topics.group_of(known[j].topic)
-                additions.setdefault(group or "", []).append(case.topic)
-        if not additions:
-            return 0
-        save(wiki, topics.add(additions))
-        return sum(map(len, additions.values()))
+        for topic, name in chosen.items():
+            group = topics.group(name)
+            if group is not None:
+                additions.setdefault(group.name, []).append(topic)
+        updated = topics.add(additions)
+        added = _count(updated) - _count(topics)
+        if added:
+            save(wiki, updated)
+        return added
+
+
+def _count(topics: TopicMap) -> int:
+    return sum(len(g.topics) for g in topics.groups)
 
 
 # ---------- 버튼: Claude로 정리 ----------
@@ -210,8 +220,12 @@ def regroup(
     wiki: Wiki, llm: StructuredLlm, progress: Callable[[int, int], None] = lambda done, total: None
 ) -> RegroupResult:
     """분류하지 않은 사례를 Claude로 넓은 주제에 나눈다. 처음이면 모든 사례가 대상이다."""
-    with locked(wiki):
-        topics = load(wiki)
+    present = {normalize_topic(c.topic) for c in cases(wiki)}
+    with locked(wiki):  # 위키에서 사라진 원래 주제를 먼저 뺀다
+        loaded = load(wiki)
+        topics = loaded.keep(present)
+        if topics != loaded:
+            save(wiki, topics)
     todo = unassigned(wiki, topics)
     cost = 0.0
     batches = [todo[i : i + BATCH] for i in range(0, len(todo), BATCH)]
@@ -225,10 +239,6 @@ def regroup(
         progress(n, len(batches))
     left = len(unassigned(wiki, topics))
     return RegroupResult(len(topics.groups), len(todo) - left, left, cost)
-
-
-def _text(case: Case) -> str:
-    return f"{case.topic}: {case.problem}"
 
 
 def _prompt(batch: Sequence[Case], topics: TopicMap) -> str:

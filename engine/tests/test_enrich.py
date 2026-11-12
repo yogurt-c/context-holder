@@ -3,8 +3,9 @@ from datetime import UTC, datetime
 import pytest
 
 from context_holder.collect import Article
-from context_holder.enrich import Confidence, detect_media, enrich
+from context_holder.enrich import NO_GROUP, Confidence, detect_media, enrich
 from context_holder.llm import ErrorKind, LlmError, LlmResult
+from context_holder.pipeline import Budget
 
 BODY = """## 배경
 
@@ -177,3 +178,41 @@ def test_unknown_confidence_defaults_to_medium_and_missing_tags_are_empty():
 
     assert result.decision.confidence is Confidence.MEDIUM
     assert result.tags == ()
+
+
+GROUPS = {"트랜잭션·이벤트 정합성": "DB 변경과 이벤트 발행을 어떻게 함께 보장할까", "캐시 전략": ""}
+
+
+def test_enrich_without_groups_does_not_ask_for_group():
+    llm = FakeLlm(reply())
+    result = enrich(llm, article())
+    _, system, schema = llm.calls[0]
+    record = schema["properties"]["decision"]["anyOf"][1]
+    assert "group" not in record["properties"] and "넓은 주제" not in system
+    assert result.decision.group == ""
+
+
+def test_enrich_with_groups_asks_for_one_in_the_same_call():
+    llm = FakeLlm(reply(group="트랜잭션·이벤트 정합성"))
+    result = enrich(llm, article(), GROUPS)
+    _, system, schema = llm.calls[0]
+    record = schema["properties"]["decision"]["anyOf"][1]
+    assert record["properties"]["group"]["enum"] == [*GROUPS, NO_GROUP]
+    assert "group" in record["required"]
+    assert "- 트랜잭션·이벤트 정합성: DB 변경과 이벤트 발행을 어떻게 함께 보장할까" in system
+    assert "- 캐시 전략\n" not in system and system.endswith("- 캐시 전략")
+    assert len(llm.calls) == 1
+    assert result.decision.group == "트랜잭션·이벤트 정합성"
+
+
+@pytest.mark.parametrize("group", [NO_GROUP, "목록에 없는 주제", None])
+def test_enrich_ignores_none_or_unknown_group(group):
+    result = enrich(FakeLlm(reply(group=group)), article(), GROUPS)
+    assert result.decision.group == ""
+
+
+def test_budget_collects_chosen_groups():
+    budget = Budget(GROUPS)
+    budget.try_enrich(FakeLlm(reply(group="트랜잭션·이벤트 정합성")), article())
+    budget.try_enrich(FakeLlm(reply(topic="캐시 키", group=NO_GROUP)), article())
+    assert budget.chosen == {"이벤트 발행 일관성": "트랜잭션·이벤트 정합성"}

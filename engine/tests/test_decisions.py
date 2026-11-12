@@ -174,7 +174,8 @@ def test_regroup_job_runs_once_and_reports(tmp_path):
     assert job.start(busy=False) and job.state == "running"
     assert not job.start(busy=False)  # 이미 돌고 있다
     ran[0]()
-    assert job.state == "done" and "사례 1건을 주제 4개로" in job.message
+    # 위키에 없는 주제만 있던 "이상한 분야"는 빠지고 새 주제가 더해진다
+    assert job.state == "done" and "사례 1건을 주제 3개로" in job.message
 
 
 def test_regroup_job_explains_claude_problems(tmp_path):

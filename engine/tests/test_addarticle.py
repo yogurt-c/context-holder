@@ -260,3 +260,44 @@ def test_running_and_failed_show_toast(job, monkeypatch):
 def test_invalid_url_stays_in_modal(job):
     job.start("bad", busy=False)
     assert job.state == "error" and job.in_modal
+
+
+def test_added_decision_joins_the_chosen_topic(job, monkeypatch):
+    from context_holder import topics
+    from context_holder.enrich import Confidence, DecisionRecord
+    from context_holder.topics import Group, TopicMap
+
+    store = job.ctx.wiki
+    group = Group("캐시 전략", "백엔드", "캐시를 어떻게?", ("캐시 무효화",))
+    topics.save(store, TopicMap((group,)))
+    seen = []
+    record = DecisionRecord(
+        "캐시 예열", "문제", ("a", "b"), "a", (), "", (), (), Confidence.HIGH, "캐시 전략"
+    )
+
+    def fake_enrich(llm, article, groups):
+        seen.append(groups)
+        return Enrichment(("요약",), ("핵심",), ("test",), record, None, 0)
+
+    monkeypatch.setattr(addarticle, "enrich", fake_enrich)
+    job.start("https://new.example/cache", busy=False)
+    assert job.state == "done"
+    assert seen == [{"캐시 전략": "캐시를 어떻게?"}]
+    assert topics.load(store).group_of("캐시 예열") == "캐시 전략"
+
+
+def test_topic_failures_do_not_stop_adding(job, monkeypatch, caplog):
+    from context_holder.enrich import Confidence, DecisionRecord
+
+    def broken(*args):
+        raise OSError("디스크")
+
+    monkeypatch.setattr(addarticle.topics, "choices", broken)
+    monkeypatch.setattr(addarticle.topics, "assign", broken)
+    assert addarticle._topic_choices(job.ctx.wiki) == {}
+    record = DecisionRecord(
+        "주제", "문제", ("a", "b"), "a", (), "", (), (), Confidence.HIGH, "묶음"
+    )
+    addarticle._assign_topic(job.ctx.wiki, Enrichment(("요약",), ("핵심",), (), record, None, 0))
+    assert "결정 주제 목록을 읽지 못했다" in caplog.text
+    assert "결정 주제를 붙이지 못했다" in caplog.text

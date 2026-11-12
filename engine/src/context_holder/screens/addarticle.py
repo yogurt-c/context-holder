@@ -11,9 +11,10 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from context_holder import topics
 from context_holder.classify import Bucket, Decision
 from context_holder.collect import fetch_article
-from context_holder.enrich import enrich
+from context_holder.enrich import Enrichment, enrich
 from context_holder.extract import canonical_url
 from context_holder.feed import FetchError
 from context_holder.feedback import Kind, record_feedback
@@ -149,7 +150,7 @@ class AddArticleJob:
                 with httpx.Client() as client:
                     article = fetch_article(client, source_for(ctx.wiki, self.url), self.url)
                 self.message = "요약하는 중…"
-                summary = enrich(ctx.regroup_llm(), article)
+                summary = enrich(ctx.regroup_llm(), article, _topic_choices(ctx.wiki))
                 self.message = "위키에 저장하는 중…"
                 with self.write_lock:
                     existing = self._existing()
@@ -164,6 +165,7 @@ class AddArticleJob:
                         # 자동 수집에서는 재수집을 막되, 수동 추가는 이 기록을 읽지 않는다.
                         ctx.wiki.record_seen([decision], ctx.clock())
                         record_feedback(ctx.wiki, ctx.device, Kind.SAVE, self.url, ctx.clock())
+                        _assign_topic(ctx.wiki, summary)
                         self.message = "위키에 추가했어요."
                         self.changed = True
             with self.search_lock:
@@ -189,3 +191,23 @@ class AddArticleJob:
         except Exception:
             log.exception("글 추가 실패")
             self.state, self.message = "error", "글을 추가하지 못했어요. 다시 시도해 주세요."
+
+
+def _topic_choices(wiki: Wiki) -> dict[str, str]:
+    """요약하며 고를 넓은 주제. 읽지 못하면 고르지 않고 추가한다."""
+    try:
+        return topics.choices(wiki)
+    except Exception as e:
+        log.warning("결정 주제 목록을 읽지 못했다: %s", e)
+        return {}
+
+
+def _assign_topic(wiki: Wiki, summary: Enrichment) -> None:
+    """요약하며 고른 넓은 주제에 붙인다. 실패해도 글 추가는 끝낸다 (다음 주제 정리 때 묶인다)."""
+    d = summary.decision
+    if not (d and d.topic and d.group):
+        return
+    try:
+        topics.assign(wiki, {d.topic: d.group})
+    except Exception as e:
+        log.warning("결정 주제를 붙이지 못했다: %s", e)

@@ -1,4 +1,4 @@
-"""결정 주제 정리: 지도 파일, Claude로 정리(버튼), 검색 모델로 붙이기(매일)."""
+"""결정 주제 정리: 지도 파일, Claude로 정리(버튼), 요약하며 고른 주제 붙이기(수집)."""
 
 import pytest
 import yaml
@@ -6,7 +6,6 @@ import yaml
 from context_holder import topics
 from context_holder.topics import Group, TopicMap
 from context_holder.wiki import Wiki
-from tests.conftest import FakeEmbedder
 from tests.test_classify import FakeLlm
 from tests.test_index import write
 
@@ -136,42 +135,63 @@ def test_regroup_batches_large_backlog(wiki, monkeypatch):
     assert result.assigned == 3 and len(topics.load(wiki).group("묶음").topics) == 3
 
 
-# ---------- 매일: 검색 모델로 붙이기 ----------
-
-
-def test_attach_joins_close_cases_and_leaves_far_ones(wiki):
-    cases(wiki, "캐시 무효화 전략", "캐시 무효화 방식", "모노레포 도구 선택")
-    topics.save(wiki, TopicMap((Group("캐시 전략", "백엔드", "", ("캐시 무효화 전략",)),)))
-    assert topics.attach(wiki, FakeEmbedder()) == 1
+def test_regroup_drops_topics_gone_from_wiki(wiki):
+    cases(wiki, "캐시 무효화")
+    topics.save(
+        wiki,
+        TopicMap(
+            (
+                Group("캐시 전략", "백엔드", "", ("캐시 무효화", "지워진 글 주제")),
+                Group("빈 주제", "백엔드", "", ("사라진 주제",)),
+            )
+        ),
+    )
+    llm = FakeLlm([])
+    result = topics.regroup(wiki, llm)
     saved = topics.load(wiki)
-    assert saved.group_of("캐시 무효화 방식") == "캐시 전략"
-    assert saved.group_of("모노레포 도구 선택") is None
-    assert [c.topic for c in topics.unassigned(wiki, saved)] == ["모노레포 도구 선택"]
-    assert topics.attach(wiki, FakeEmbedder()) == 0  # 붙일 만큼 가까운 사례가 없다
+    assert llm.prompts == []  # 분류할 사례가 없으면 Claude를 부르지 않는다
+    assert [g.name for g in saved.groups] == ["캐시 전략"]
+    assert saved.group("캐시 전략").topics == ("캐시 무효화",)
+    assert result.groups == 1 and result.left == 0
 
 
-def test_attach_does_nothing_before_first_regroup_or_without_model(wiki):
-    cases(wiki, "캐시 무효화", "캐시 예열")
-    assert topics.attach(wiki, None) == 0
-    assert topics.attach(wiki, FakeEmbedder()) == 0
-    assert not (wiki.root / topics.TOPICS_FILE).exists()
-    topics.save(wiki, TopicMap((Group("캐시 전략", "백엔드", "", ("캐시 무효화", "캐시 예열")),)))
-    assert topics.attach(wiki, FakeEmbedder()) == 0  # 붙일 사례가 없다
+# ---------- 수집 · 글 추가: 요약하며 고른 주제 붙이기 ----------
 
 
-def test_sync_attaches_topics_and_survives_failure(wiki, monkeypatch, caplog):
+def test_choices_lists_groups_with_questions(wiki):
+    assert topics.choices(wiki) == {}  # 아직 한 번도 정리하지 않았다
+    topics.save(wiki, TopicMap((Group("캐시 전략", "백엔드", "캐시를 어떻게?", ("캐시 무효화",)),)))
+    assert topics.choices(wiki) == {"캐시 전략": "캐시를 어떻게?"}
+
+
+def test_assign_adds_chosen_and_skips_known_or_unknown(wiki):
+    topics.save(wiki, TopicMap((Group("캐시 전략", "백엔드", "", ("캐시 무효화",)),)))
+    added = topics.assign(
+        wiki,
+        {"캐시 예열": "캐시 전략", "캐시 무효화": "캐시 전략", "모노레포 도구": "없는 주제"},
+    )
+    saved = topics.load(wiki)
+    assert added == 1
+    assert saved.group("캐시 전략").topics == ("캐시 무효화", "캐시 예열")
+    assert saved.group_of("모노레포 도구") is None
+    assert topics.assign(wiki, {}) == 0
+    assert topics.assign(wiki, {"캐시 예열": "캐시 전략"}) == 0  # 이미 붙었다
+
+
+def test_sync_assigns_topics_and_survives_failure(wiki, monkeypatch, caplog):
     from context_holder import sync
 
     caplog.set_level("INFO", logger="context_holder.sync")
-    monkeypatch.setattr(sync, "attach", lambda w, e: 2)
-    sync._attach_topics(wiki, FakeEmbedder())
+    monkeypatch.setattr(sync, "assign", lambda w, c: 2)
+    sync._assign_topics(wiki, {"가": "나"})
     assert "2건을 기존 주제에 붙였다" in caplog.text
 
-    def broken(w, e):
+    def broken(*args):
         raise OSError("디스크")
 
-    monkeypatch.setattr(sync, "attach", broken)
-    sync._attach_topics(wiki, FakeEmbedder())  # 수집은 멈추지 않는다
+    monkeypatch.setattr(sync, "assign", broken)
+    sync._assign_topics(wiki, {"가": "나"})  # 수집은 멈추지 않는다
     assert "결정 주제를 붙이지 못했다: 디스크" in caplog.text
-    monkeypatch.setattr(sync, "attach", lambda w, e: 0)
-    sync._attach_topics(wiki, None)
+    monkeypatch.setattr(sync, "choices", broken)
+    assert sync._topic_choices(wiki) == {}  # 목록을 못 읽으면 고르지 않고 수집한다
+    assert "결정 주제 목록을 읽지 못했다: 디스크" in caplog.text
