@@ -1,6 +1,6 @@
 [package]
 name = "context-holder"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 description = "빅테크 기술 결정 사례 위키 (메뉴바 앱)"
 
