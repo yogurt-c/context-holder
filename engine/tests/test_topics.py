@@ -1,4 +1,4 @@
-"""결정 주제 정리: 지도 파일, Claude로 정리(버튼), 요약하며 고른 주제 붙이기(수집)."""
+"""결정 주제 정리: 지도 파일, Claude로 정리(수집 끝), 요약하며 고른 주제 붙이기, 손으로 고치기."""
 
 import pytest
 import yaml
@@ -195,3 +195,100 @@ def test_sync_assigns_topics_and_survives_failure(wiki, monkeypatch, caplog):
     monkeypatch.setattr(sync, "choices", broken)
     assert sync._topic_choices(wiki) == {}  # 목록을 못 읽으면 고르지 않고 수집한다
     assert "결정 주제 목록을 읽지 못했다: 디스크" in caplog.text
+
+
+# ---------- 수집 끝: 남은 사례 묶기 ----------
+
+
+def test_settle_groups_leftovers_and_costs(wiki):
+    cases(wiki, "캐시 무효화")
+    llm = FakeLlm([answer(("캐시 전략", "백엔드", [1]))])
+    assert topics.settle(wiki, llm) == 0.01
+    assert topics.load(wiki).group_of("캐시 무효화") == "캐시 전략"
+    assert topics.settle(wiki, FakeLlm([])) == 0.0 and llm.prompts  # 남은 게 없으면 부르지 않는다
+
+
+def test_settle_never_raises(wiki, caplog):
+    from context_holder.llm import ErrorKind, LlmError
+
+    cases(wiki, "캐시 무효화")
+    assert topics.settle(wiki, FakeLlm([LlmError(ErrorKind.LIMIT, "한도")])) == 0.0
+    assert "결정 주제를 정리하지 못했다" in caplog.text
+    assert topics.load(wiki).group_of("캐시 무효화") is None  # 다음 수집 때 다시
+
+
+# ---------- 화면: 옮기기 · 고치기 ----------
+
+
+def two_groups(wiki):
+    topics.save(
+        wiki,
+        TopicMap(
+            (
+                Group("캐시 전략", "백엔드", "캐시를 어떻게?", ("캐시 무효화", "캐시 예열")),
+                Group("모노레포 운영", "개발 생산성", "", ("모노레포 도구",)),
+            )
+        ),
+    )
+
+
+def test_move_to_existing_topic(wiki):
+    two_groups(wiki)
+    assert topics.move(wiki, "캐시 예열", "모노레포 운영") == "모노레포 운영"
+    saved = topics.load(wiki)
+    assert saved.group("캐시 전략").topics == ("캐시 무효화",)
+    assert saved.group("모노레포 운영").topics == ("모노레포 도구", "캐시 예열")
+    assert topics.move(wiki, "캐시 예열", "모노레포 운영") == "모노레포 운영"  # 그대로
+
+
+def test_move_to_new_topic_and_drop_empty(wiki):
+    two_groups(wiki)
+    moved = topics.move(wiki, "모노레포 도구", " 빌드  도구 ", "개발 생산성", " 무엇으로 빌드할까 ")
+    saved = topics.load(wiki)
+    assert moved == "빌드 도구" and saved.group("모노레포 운영") is None
+    assert saved.group("빌드 도구") == Group(
+        "빌드 도구", "개발 생산성", "무엇으로 빌드할까", ("모노레포 도구",)
+    )
+
+
+@pytest.mark.parametrize(
+    ("topic", "to", "area", "message"),
+    [
+        ("캐시 예열", "", None, "옮길 주제를 골라"),
+        ("없는 사례", "캐시 전략", None, "이미 옮겼거나 없는 사례"),
+        ("캐시 예열", "없는 주제", None, "없는 주제예요"),
+        ("캐시 예열", "모노레포 운영", "백엔드", "이미 있는 주제"),
+        ("캐시 예열", "새 주제", "우주", "분야를 골라"),
+    ],
+)
+def test_move_rejects_bad_requests(wiki, topic, to, area, message):
+    two_groups(wiki)
+    with pytest.raises(ValueError, match=message):
+        topics.move(wiki, topic, to, area)
+
+
+def test_edit_changes_name_area_question(wiki):
+    two_groups(wiki)
+    assert topics.edit(wiki, "캐시 전략", " 캐시 설계 ", "인프라", "어디에 둘까") == "캐시 설계"
+    saved = topics.load(wiki)
+    assert saved.group("캐시 전략") is None
+    assert saved.group("캐시 설계") == Group(
+        "캐시 설계", "인프라", "어디에 둘까", ("캐시 무효화", "캐시 예열")
+    )
+    assert [g.name for g in saved.groups] == ["캐시 설계", "모노레포 운영"]  # 자리는 그대로
+    assert topics.edit(wiki, "캐시 설계", "캐시 설계", "백엔드", "") == "캐시 설계"
+
+
+@pytest.mark.parametrize(
+    ("name", "new", "area", "message"),
+    [
+        ("캐시 전략", " ", "백엔드", "이름을 적어"),
+        ("캐시 전략", "새 이름", "우주", "분야를 골라"),
+        ("없는 주제", "새 이름", "백엔드", "없는 주제"),
+        ("캐시 전략", "모노레포 운영", "백엔드", "이미 있는 주제"),
+    ],
+)
+def test_edit_rejects_bad_requests(wiki, name, new, area, message):
+    two_groups(wiki)
+    with pytest.raises(ValueError, match=message):
+        topics.edit(wiki, name, new, area, "")

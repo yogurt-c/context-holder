@@ -301,3 +301,26 @@ def test_topic_failures_do_not_stop_adding(job, monkeypatch, caplog):
     addarticle._assign_topic(job.ctx.wiki, Enrichment(("요약",), ("핵심",), (), record, None, 0))
     assert "결정 주제 목록을 읽지 못했다" in caplog.text
     assert "결정 주제를 붙이지 못했다" in caplog.text
+
+
+def test_added_decision_without_a_topic_is_grouped_right_away(job, monkeypatch):
+    from context_holder.enrich import Confidence, DecisionRecord
+
+    record = DecisionRecord("새 결정", "문제", ("a", "b"), "a", (), "", (), (), Confidence.HIGH, "")
+    monkeypatch.setattr(
+        addarticle,
+        "enrich",
+        lambda llm, article, groups: Enrichment(("요약",), ("핵심",), (), record, None, 0),
+    )
+    settled = []
+    monkeypatch.setattr(addarticle.topics, "settle", lambda w, llm: settled.append(w) or 0.0)
+    job.start("https://new.example/loose", busy=False)
+    assert job.state == "done" and job.message == "위키에 추가했어요."
+    assert settled == [job.ctx.wiki]
+
+
+def test_added_article_without_a_decision_does_not_group(job, monkeypatch):
+    settled = []
+    monkeypatch.setattr(addarticle.topics, "settle", lambda w, llm: settled.append(w) or 0.0)
+    job.start("https://new.example/plain", busy=False)
+    assert job.state == "done" and settled == []

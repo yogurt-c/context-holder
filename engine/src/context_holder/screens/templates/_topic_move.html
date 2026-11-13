@@ -1,0 +1,73 @@
+{# 사례 옮기기 창: 지금 주제의 사례 하나를 기존 주제로 옮기거나 새 주제를 만들어 넣는다 #}
+<form class="topic-move" hx-post="/decisions/move" hx-target="#move-body" data-topic-form>
+  <header class="article-head">
+    <div>
+      <h2 id="move-title">사례 옮기기</h2>
+      <p class="move-from">{{ m.group.name }}</p>
+    </div>
+    <button type="button" class="btn ghost sm" data-move-close>닫기</button>
+  </header>
+  <input type="hidden" name="sel" value="{{ m.group.name }}">
+
+  <fieldset class="move-step">
+    <legend><span class="step-no">1</span>옮길 사례</legend>
+    <div class="move-cases">
+    {% for c in m.cases %}
+      <label class="move-case">
+        <input type="radio" name="topic" value="{{ c.topic }}"{% if m.cases | length == 1 %} checked{% endif %}>
+        <span class="case-co">{{ c.company }}<span class="date">{{ c.date }}</span></span>
+        <span class="case-title">{{ c.title }}</span>
+        <span class="case-topic">{{ c.topic }}</span>
+      </label>
+    {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="move-step">
+    <legend><span class="step-no">2</span>어디로</legend>
+    <div class="move-dest">
+      <label class="move-mode"><input type="radio" name="mode" value="existing"{% if m.targets %} checked{% else %} disabled{% endif %}><span>기존 주제</span></label>
+      <div class="move-pane" data-mode="existing">
+        {% if m.targets %}
+        <input type="hidden" name="to" value="" data-picked-value>
+        <div class="picked" data-picked hidden>
+          <span class="picked-name" data-picked-name></span><span class="picked-meta" data-picked-meta></span>
+          <button type="button" class="btn ghost sm" data-pick-clear>바꾸기</button>
+        </div>
+        {# Search처럼 입력할 때만 아래에 맞는 주제가 뜬다 #}
+        <div class="suggest-anchor topic-picker" data-picker>
+          <label class="search-field topic-find">
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+            <span class="sr-only">기존 주제 찾기</span>
+            <input type="search" data-topic-find placeholder="옮길 주제를 찾아 보세요 (이름 · 질문 · 분야)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="move-targets">
+          </label>
+          <div id="move-targets" class="suggest move-suggest" hidden>
+            <p class="suggest-head">맞는 주제</p>
+            <ul class="suggest-list" role="listbox" aria-label="옮길 주제">
+              {% for t in m.targets %}
+              <li data-find="{{ t.name }} {{ t.question }} {{ t.area }}"><button type="button" class="suggest-item" role="option" data-pick="{{ t.name }}" data-meta="{{ t.area }} · {{ t.cases }}건"><span class="suggest-text"><b>{{ t.name }}</b><span class="t-meta">{{ t.area }} · {{ t.cases }}건</span></span>{% if t.question %}<span class="suggest-topic">{{ t.question }}</span>{% endif %}</button></li>
+              {% endfor %}
+            </ul>
+            <p class="move-none" data-find-none hidden>맞는 주제가 없어요. <button type="button" class="link-btn" data-new-from-find>새 주제로 만들기</button></p>
+          </div>
+        </div>
+        {% else %}<p class="note">다른 주제가 없어요. 새 주제를 만들어 주세요.</p>{% endif %}
+      </div>
+      <label class="move-mode"><input type="radio" name="mode" value="new"{% if not m.targets %} checked{% endif %}><span>새 주제</span></label>
+      <div class="move-pane edit-grid" data-mode="new">
+        <label for="move-name">이름</label>
+        <input id="move-name" name="name" maxlength="40" autocomplete="off" placeholder="예: 웹뷰 · 네이티브 연동">
+        <label for="move-area">분야</label>
+        <select id="move-area" name="area">{% for a in m.areas %}<option{% if a == m.group.area %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+        <label for="move-question">질문</label>
+        <input id="move-question" name="question" maxlength="120" autocomplete="off" placeholder="이 주제가 답하려는 질문 한 줄">
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="actions">
+    <p class="form-error" data-form-error role="alert" hidden></p>
+    <button type="button" class="btn ghost" data-move-close>취소</button>
+    <button type="submit" class="btn primary">옮기기</button>
+  </div>
+</form>

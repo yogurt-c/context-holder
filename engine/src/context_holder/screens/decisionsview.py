@@ -4,34 +4,22 @@
 (문제 · 결정 · 트레이드오프 · 결과 · 신뢰도 · 출처).
 주제 목록은 사례가 많은 순으로 TOPIC_PAGE개씩 커서("더 보기")로 붙인다. 커서는 마지막 주제 이름이다.
 주제 찾기(q)는 분야를 가리지 않고 모든 주제에서 찾는다.
-주제 정리(topics.regroup)는 버튼으로 시키고 화면 서버의 백그라운드에서 돈다 (RegroupJob).
+주제 묶기는 수집이 끝날 때 한다 (topics.settle). 이 화면에서는 사례를 다른 주제로 옮기고
+(사례 옮기기 창), 주제의 이름 · 분야 · 질문을 고친다 (비교표 머리).
 """
 
-import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
 from context_holder import topics as topicmod
-from context_holder.classify import StructuredLlm
 from context_holder.index import Index, IndexedArticle, normalize_topic
-from context_holder.llm import AGENT_TOOLS, AGENTS, ErrorKind, LlmError
+from context_holder.llm import ErrorKind
 from context_holder.screens.views import Page, after_cursor
 from context_holder.wiki import Wiki
 
-AREA_ORDER = (
-    "백엔드",
-    "인프라",
-    "데이터",
-    "프론트엔드",
-    "모바일",
-    "AI 엔지니어링",
-    "보안",
-    "개발 생산성",
-    "조직 · 프로세스",
-)
+AREA_ORDER = topicmod.AREAS
 OTHER_AREA = "기타"
 MIN_SHOWN = 2  # Search 첫 화면에는 사례가 2건 이상인 주제만 건다 (비교할 수 있는 것)
 TOPIC_PAGE = 10
@@ -53,6 +41,7 @@ class TopicItem:
 @dataclass(frozen=True)
 class Column:
     id: str
+    topic: str  # 원래 주제 (사례 옮기기에 쓴다)
     company: str
     date: str  # 2026.09
     title: str
@@ -77,6 +66,7 @@ class DecisionsView:
     case_total: int = 0  # 결정 사례 수
     unassigned: int = 0  # 아직 분류하지 않은 원래 주제 수
     markdown: str = ""  # "비교표 복사"로 복사할 내용
+    area_choices: tuple[str, ...] = AREA_ORDER  # 주제 편집에서 고르는 분야
 
     def url(self, **change: Any) -> str:
         values = {"area": self.area, "sel": self.selected.name if self.selected else ""}
@@ -219,6 +209,7 @@ def _columns(wiki: Wiki, cases: list[IndexedArticle], names: dict[str, str]) -> 
         columns.append(
             Column(
                 id=a.id,
+                topic=a.decision_topic or "",
                 company=names.get(a.source_id, a.source_id),
                 date=(a.published or "")[:7].replace("-", "."),
                 title=stored.title,
@@ -257,47 +248,66 @@ def _markdown(group: topicmod.Group, columns: list[Column]) -> str:
     return "\n".join(lines)
 
 
-# ---------- 주제 정리 (버튼) ----------
+# ---------- 주제 고치기 ----------
 
 
-@dataclass
-class RegroupJob:
-    """주제 정리를 백그라운드에서 한 번에 하나만 돌린다."""
+@dataclass(frozen=True)
+class EditNote:
+    """주제를 고친 뒤 머리에 잠깐 보이는 알림. undo는 되돌릴 때 보낼 값 (되돌린 뒤면 None)."""
 
-    wiki: Wiki
-    llm: Callable[[], StructuredLlm]
-    agent: Callable[[], str] = lambda: "claude"  # 설정에서 고른 에이전트 (오류 문구에 쓴다)
-    background: Callable[[Callable[[], None]], None] = field(
-        default=lambda work: threading.Thread(target=work, daemon=True).start()
+    message: str
+    undo: dict[str, str] | None
+
+
+def edit_note(before: topicmod.Group, after: topicmod.Group, undone: bool) -> EditNote | None:
+    changed = [
+        label
+        for label, old, new in (
+            ("이름", before.name, after.name),
+            ("분야", before.area, after.area),
+            ("질문", before.question, after.question),
+        )
+        if old != new
+    ]
+    if not changed:
+        return None
+    if undone:
+        return EditNote("되돌렸어요", None)
+    objects = {"이름": "이름을", "분야": "분야를", "질문": "질문을"}
+    what = "주제를" if len(changed) > 1 else objects[changed[0]]
+    undo = {"sel": after.name, "name": before.name, "area": before.area}
+    return EditNote(f"{what} 바꿨어요", {**undo, "question": before.question, "undo": "true"})
+
+
+# ---------- 사례 옮기기 창 ----------
+
+
+@dataclass(frozen=True)
+class TopicChoice:
+    """옮길 곳으로 고를 수 있는 다른 주제. 창 안에서 이름 · 질문 · 분야로 찾는다."""
+
+    name: str
+    area: str
+    question: str
+    cases: int
+
+
+@dataclass(frozen=True)
+class MoveView:
+    group: topicmod.Group
+    cases: list[Column]
+    targets: list[TopicChoice]  # 사례가 많은 순
+    areas: tuple[str, ...] = AREA_ORDER
+
+
+def build_move(wiki: Wiki, index: Index, names: dict[str, str], sel: str) -> MoveView | None:
+    catalog = _catalog(wiki, index)
+    group = catalog.topics.group(sel)
+    if group is None or group.name not in catalog.members:
+        return None
+    others = (g for gs in catalog.by_area.values() for g in gs if g.name != group.name)
+    choices = (
+        TopicChoice(g.name, _area_of(g), g.question, len(catalog.members[g.name])) for g in others
     )
-    state: str = "idle"  # idle | running | done | error
-    message: str = ""
-    done: int = 0
-    total: int = 0
-
-    def start(self, busy: bool) -> bool:
-        if self.state == "running":
-            return False
-        if busy:
-            self.state, self.message = "error", "수집이 끝난 뒤에 정리할 수 있어요."
-            return False
-        self.state, self.message, self.done, self.total = "running", "", 0, 0
-        self.background(self._run)
-        return True
-
-    def _run(self) -> None:
-        def progress(done: int, total: int) -> None:
-            self.done, self.total = done, total
-
-        try:
-            result = topicmod.regroup(self.wiki, self.llm(), progress)
-        except LlmError as e:
-            self.state = "error"
-            agent = self.agent()
-            self.message = LLM_ERRORS.get(e.kind, LLM_ERROR_DEFAULT).format(
-                name=AGENTS[agent], tool=AGENT_TOOLS[agent]
-            )
-            return
-        self.state = "done"
-        left = f" {result.left}건은 다음에 다시 정리해요." if result.left else ""
-        self.message = f"사례 {result.assigned}건을 주제 {result.groups}개로 정리했어요.{left}"
+    targets = sorted(choices, key=lambda t: (-t.cases, t.name))
+    return MoveView(group, _columns(wiki, catalog.members[group.name], names), targets)

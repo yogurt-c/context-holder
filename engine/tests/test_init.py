@@ -358,3 +358,16 @@ def test_init_writes_paragraph_vectors(make_client, tmp_path: Path):
     )
 
     assert len(list((tmp_path / "vectors/fake").glob("*.f16"))) == 1
+
+
+def test_finished_init_groups_decision_cases_once(make_client, tmp_path: Path, monkeypatch):
+    from context_holder import init
+
+    wiki = setup_wiki(tmp_path)
+    settled = []
+    monkeypatch.setattr(init, "settle", lambda w, llm: settled.append(w) or 0.5)
+    llm = ScriptedLlm([0.9])
+    result = run_init(wiki, make_routes(make_client, [1]), llm, now=NOW)
+    assert result.finished and settled == [wiki] and result.cost_usd >= 0.5
+    run_init(wiki, make_routes(make_client, [1]), llm, now=NOW)
+    assert settled == [wiki]  # 끝난 첫 수집은 다시 돌지 않는다

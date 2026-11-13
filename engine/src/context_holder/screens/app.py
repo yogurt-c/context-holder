@@ -26,6 +26,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from context_holder import appsettings, onboarding
+from context_holder import topics as topicmod
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
@@ -81,7 +82,7 @@ class ScreenContext:
     download_model: Callable[[], None] = field(default=lambda: None)
     on_settings: Callable[[Any], None] = field(default=lambda settings: None)
     updates: Any = None  # updates.Updates: 앱이 띄웠을 때만
-    regroup_llm: Callable[[], Any] = field(default=lambda: ClaudeCli())  # 주제 정리 (버튼)
+    regroup_llm: Callable[[], Any] = field(default=lambda: ClaudeCli())  # 글 추가 · 주제 묶기
 
 
 def new_token() -> str:
@@ -235,7 +236,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
 
     @app.post("/articles/add", response_class=HTMLResponse)
     def add_article(request: Request, url: str = Form("")) -> HTMLResponse:
-        addition.start(url, busy=busy() or regroup.state == "running")
+        addition.start(url, busy=busy())
         response = add_form(request)
         if not addition.in_modal:  # 입력 창을 닫고 우측 하단에서 진행을 보인다
             response.headers["HX-Trigger"] = "add-started"
@@ -307,18 +308,14 @@ def create_app(ctx: ScreenContext) -> FastAPI:
             return PlainTextResponse("이미 지웠거나 없는 글이에요.", status_code=404)
         return Response(status_code=204)
 
-    regroup = decisionsview.RegroupJob(ctx.wiki, ctx.regroup_llm, agent)
-
     @app.get("/decisions", response_class=HTMLResponse)
     def decisions(
         request: Request, sel: str | None = None, q: str = "", area: str = ""
     ) -> HTMLResponse:
         view = decisionsview.build_decisions(ctx.wiki, ctx.index, names(), sel, q, area)
         if request.headers.get("hx-request") == "true" and request.headers.get("hx-target"):
-            return templates.TemplateResponse(
-                request, "decisions_body.html", {"view": view, "job": regroup}
-            )
-        return page(request, "decisions.html", "decisions", view=view, job=regroup)
+            return templates.TemplateResponse(request, "decisions_body.html", {"view": view})
+        return page(request, "decisions.html", "decisions", view=view)
 
     @app.get("/decisions/more", response_class=HTMLResponse)
     def decisions_more(
@@ -341,18 +338,81 @@ def create_app(ctx: ScreenContext) -> FastAPI:
             return PlainTextResponse("잘못된 커서", status_code=400)
         return templates.TemplateResponse(request, "bookmarks_more.html", {"page": page_})
 
-    @app.post("/decisions/regroup", response_class=HTMLResponse)
-    def decisions_regroup(request: Request) -> HTMLResponse:
-        regroup.start(busy=busy())
-        return templates.TemplateResponse(request, "_regroup.html", {"job": regroup})
-
-    @app.get("/decisions/regroup", response_class=HTMLResponse)
-    def decisions_regroup_poll(request: Request) -> HTMLResponse:
-        response = templates.TemplateResponse(request, "_regroup.html", {"job": regroup})
-        if regroup.state == "done":
-            regroup.state = "idle"  # 한 번 알렸다
-            response.headers["HX-Refresh"] = "true"  # 새 주제로 화면을 다시 그린다
+    def decisions_body(
+        request: Request, sel: str, saved: decisionsview.EditNote | None = None
+    ) -> HTMLResponse:
+        """주제를 고친 뒤 Decisions 본문을 다시 그린다. 주소도 그 주제로 바꾼다."""
+        view = decisionsview.build_decisions(ctx.wiki, ctx.index, names(), sel)
+        response = templates.TemplateResponse(
+            request, "decisions_body.html", {"view": view, "saved": saved}
+        )
+        response.headers["HX-Push-Url"] = view.url()
         return response
+
+    @app.get("/decisions/move", response_class=HTMLResponse)
+    def decisions_move_form(request: Request, sel: str = "") -> Response:
+        """사례 옮기기 창의 내용."""
+        view = decisionsview.build_move(ctx.wiki, ctx.index, names(), sel)
+        if view is None:
+            return PlainTextResponse("없는 주제", status_code=404)
+        return templates.TemplateResponse(request, "_topic_move.html", {"m": view})
+
+    @app.post("/decisions/move", response_class=HTMLResponse)
+    def decisions_move(
+        request: Request,
+        sel: str = Form(""),
+        topic: str = Form(""),
+        mode: str = Form("existing"),
+        to: str = Form(""),
+        name: str = Form(""),
+        area: str = Form(""),
+        question: str = Form(""),
+    ) -> Response:
+        """사례를 옮기고 창을 닫는다. 보던 주제에 사례가 남았으면 그대로, 없으면 옮긴 주제를 연다.
+
+        못 옮기면 이유를 글로 준다 (app.js가 창에 보인다).
+        """
+        if not topic:
+            return PlainTextResponse("옮길 사례를 골라 주세요.", status_code=422)
+        try:
+            if mode == "new":
+                moved = topicmod.move(ctx.wiki, topic, name, area, question)
+            else:
+                moved = topicmod.move(ctx.wiki, topic, to)
+        except ValueError as e:
+            return PlainTextResponse(str(e), status_code=422)
+        stay = topicmod.load(ctx.wiki).group(sel) is not None
+        response = decisions_body(request, sel if stay else moved)
+        response.headers.update(
+            {
+                "HX-Retarget": "#decisions-body",
+                "HX-Reswap": "innerHTML",
+                "HX-Trigger": "topic-moved",
+            }
+        )
+        return response
+
+    @app.post("/decisions/edit", response_class=HTMLResponse)
+    def decisions_edit(
+        request: Request,
+        sel: str = Form(""),
+        name: str = Form(""),
+        area: str = Form(""),
+        question: str = Form(""),
+        undo: bool = Form(False),
+    ) -> Response:
+        """주제의 이름 · 분야 · 질문을 고친다. 못 고치면 이유를 글로 준다 (app.js가 폼에 보인다).
+
+        고쳤으면 머리에 무엇을 바꿨는지와 되돌리기를 보인다. 되돌린 뒤에는 되돌리기를 두지 않는다.
+        """
+        before = topicmod.load(ctx.wiki).group(sel)
+        try:
+            renamed = topicmod.edit(ctx.wiki, sel, name, area, question)
+        except ValueError as e:
+            return PlainTextResponse(str(e), status_code=422)
+        after = topicmod.load(ctx.wiki).group(renamed)
+        note = decisionsview.edit_note(before, after, undo) if before and after else None
+        return decisions_body(request, renamed, note)
 
     @app.get("/inbox", response_class=HTMLResponse)
     def inbox(request: Request, sel: str | None = None, confirm: str | None = None) -> Response:

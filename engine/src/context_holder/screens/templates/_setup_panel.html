@@ -131,10 +131,9 @@
     {% if j.is_done("topics") %}
       <p class="ok-line"><a href="/decisions">Decisions</a>에서 회사별 결정을 주제마다 비교할 수 있어요.</p>
     {% elif j.is_done("first_sync") %}
-      <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. {{ s.agent_name }}를 한 번 불러요.</p>
-      <div class="go"><a class="btn primary" href="/decisions">Decisions에서 주제 정리</a></div>
+      <p class="lede">모은 결정 사례를 넓은 주제로 묶지 못했어요. 다음 수집이 끝나면 {{ s.agent_name }}로 다시 묶어요.</p>
     {% else %}
-      <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. 첫 수집이 끝나면 할 수 있어요.</p>
+      <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. 첫 수집이 끝날 때 자동으로 해요.</p>
     {% endif %}
 
   {% endif %}

@@ -17,7 +17,7 @@ from context_holder.collect import SourceReport, collect, fetch_article
 from context_holder.embed import Embedder
 from context_holder.feed import FetchError
 from context_holder.pipeline import Budget
-from context_holder.topics import assign, choices
+from context_holder.topics import assign, choices, settle
 from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
@@ -104,6 +104,8 @@ def run_sync(
         decisions, when=now, hashes={a.url: a.content_hash for a in collected.articles}
     )
     _assign_topics(wiki, state.chosen)
+    if not state.stopped:  # 요약하며 고르지 못한 사례를 묶는다 (처음이면 모든 사례)
+        state.cost += settle(wiki, llm)
 
     counts = {b: sum(d.bucket is b for d in decisions) for b in Bucket}
     return SyncReport(
@@ -134,7 +136,7 @@ def _topic_choices(wiki: Wiki) -> dict[str, str]:
 def _assign_topics(wiki: Wiki, chosen: Mapping[str, str]) -> None:
     """요약하며 고른 넓은 주제에 새 결정 사례를 붙인다 (Claude 추가 호출 없음).
 
-    실패해도 수집은 끝까지 간다. 붙이지 못한 사례는 Decisions의 "주제 정리"로 묶을 수 있다.
+    실패해도 수집은 끝까지 간다. 붙이지 못한 사례는 이어지는 정리(settle)가 묶는다.
     """
     try:
         assigned = assign(wiki, chosen)

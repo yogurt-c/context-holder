@@ -93,7 +93,7 @@ class AddArticleJob:
             if busy:
                 self.state, self.message = (
                     "error",
-                    "수집이나 주제 정리가 끝난 뒤 다시 시도해 주세요.",
+                    "수집이 끝난 뒤 다시 시도해 주세요.",
                 )
                 return
             self.url = url
@@ -145,6 +145,7 @@ class AddArticleJob:
                 existing = self._existing()
                 if existing:
                     self._keep_existing(existing)
+            loose = False  # 결정 사례인데 넓은 주제에 붙지 않았다
             if not existing:
                 ctx.wiki.ensure_config()
                 with httpx.Client() as client:
@@ -165,9 +166,13 @@ class AddArticleJob:
                         # 자동 수집에서는 재수집을 막되, 수동 추가는 이 기록을 읽지 않는다.
                         ctx.wiki.record_seen([decision], ctx.clock())
                         record_feedback(ctx.wiki, ctx.device, Kind.SAVE, self.url, ctx.clock())
-                        _assign_topic(ctx.wiki, summary)
+                        loose = not _assign_topic(ctx.wiki, summary)
                         self.message = "위키에 추가했어요."
                         self.changed = True
+                if self.changed and loose:  # 요약하며 주제를 고르지 못했으면 바로 묶는다
+                    self.message = "결정 주제에 묶는 중…"
+                    topics.settle(ctx.wiki, ctx.regroup_llm())
+                    self.message = "위키에 추가했어요."
             with self.search_lock:
                 try:
                     embedder = ctx.embedder()
@@ -202,12 +207,20 @@ def _topic_choices(wiki: Wiki) -> dict[str, str]:
         return {}
 
 
-def _assign_topic(wiki: Wiki, summary: Enrichment) -> None:
-    """요약하며 고른 넓은 주제에 붙인다. 실패해도 글 추가는 끝낸다 (다음 주제 정리 때 묶인다)."""
+def _assign_topic(wiki: Wiki, summary: Enrichment) -> bool:
+    """요약하며 고른 넓은 주제에 붙인다. 결정 사례가 아니거나 붙었으면 참.
+
+    실패해도 글 추가는 끝낸다 (이어지는 정리가 묶는다).
+    """
     d = summary.decision
-    if not (d and d.topic and d.group):
-        return
+    if not (d and d.topic):
+        return True
+    if d.group:
+        try:
+            topics.assign(wiki, {d.topic: d.group})
+        except Exception as e:
+            log.warning("결정 주제를 붙이지 못했다: %s", e)
     try:
-        topics.assign(wiki, {d.topic: d.group})
-    except Exception as e:
-        log.warning("결정 주제를 붙이지 못했다: %s", e)
+        return topics.load(wiki).group_of(d.topic) is not None
+    except Exception:
+        return False

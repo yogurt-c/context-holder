@@ -27,6 +27,7 @@ from context_holder.extract import canonical_url
 from context_holder.feed import FeedEntry, FetchError, fetch_feed
 from context_holder.pipeline import Budget
 from context_holder.sources import Source
+from context_holder.topics import settle
 from context_holder.vectorize import try_write_vectors
 from context_holder.wiki import Wiki
 
@@ -146,6 +147,7 @@ def run_init(
     )
     if finished:
         state["finished"] = now.isoformat()
+        budget.cost += settle(wiki, llm)  # 모은 결정 사례를 넓은 주제로 처음 묶는다
     save_state(wiki, state)
     return InitResult(
         finished,

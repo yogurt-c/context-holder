@@ -1,18 +1,34 @@
 // context-holder 화면 동작. 인라인 스크립트를 쓰지 않는다 (CSP: script-src 'self').
 // data-copy: 지정한 <template>의 글을 클립보드에 복사한다 ("결정 기록 복사").
+// 아이콘 버튼(data-copy-icon)은 글자 대신 잠깐 체크 표시와 툴팁으로 알린다.
+const COPY_FEEDBACK_MS = 2400;
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
   if (!button) return;
   const source = document.getElementById(button.dataset.copy);
   if (!source) return;
-  const label = button.textContent;
+  let copied = true;
   try {
     await navigator.clipboard.writeText(source.content.textContent.trim());
-    button.textContent = "복사했어요";
   } catch {
-    button.textContent = "복사하지 못했어요";
+    copied = false;
   }
-  setTimeout(() => { button.textContent = label; }, 2400);
+  const done = copied ? "복사했어요" : "복사하지 못했어요";
+  if (button.hasAttribute("data-copy-icon")) {
+    const label = button.getAttribute("aria-label");
+    button.classList.toggle("is-copied", copied);
+    button.title = done;
+    button.setAttribute("aria-label", done);
+    setTimeout(() => {
+      button.classList.remove("is-copied");
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    }, COPY_FEEDBACK_MS);
+    return;
+  }
+  const label = button.textContent;
+  button.textContent = done;
+  setTimeout(() => { button.textContent = label; }, COPY_FEEDBACK_MS);
 });
 
 // 설정 화면의 화면 모드: 저장을 기다리지 않고 바로 바꾼다 (시스템이면 속성을 지운다).
@@ -238,6 +254,7 @@ document.addEventListener("htmx:afterRequest", (event) => {
   if (!isDecisionsRequest(event) || event.detail.successful) return;
   const body = document.getElementById("decisions-body");
   body.querySelector(".topics")?.removeAttribute("aria-busy");
+  if (event.detail.elt.closest?.("[data-topic-form]")) return;  // 주제 편집: 폼에 이유를 보인다
   body.querySelector(".main")?.replaceChildren(document.getElementById("decisions-failed").content.cloneNode(true));
 });
 document.addEventListener("click", (event) => {
@@ -365,4 +382,134 @@ document.addEventListener("htmx:afterSettle", () => {
   moreLoad = null;
   const first = list?.children[count];
   (first?.matches("a") ? first : first?.querySelector("a"))?.focus();
+});
+
+// Decisions 머리의 이름 · 질문: 글 길이만큼 칸을 늘린다. 줄바꿈 대신 칸을 벗어나 저장한다 (폼의 change).
+const autosize = (field) => {
+  field.style.height = "auto";
+  field.style.height = `${field.scrollHeight}px`;
+};
+// 분야 선택칸은 고른 분야 글 길이만큼만 넓힌다 (기본은 가장 긴 선택지 너비라 화살표가 멀어진다).
+const SELECT_ARROW_PX = 30;
+const measure = document.createElement("canvas").getContext("2d");
+const fitSelect = (select) => {
+  const style = getComputedStyle(select);
+  measure.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  const text = select.options[select.selectedIndex]?.text || "";
+  select.style.width = `${Math.ceil(measure.measureText(text).width) + SELECT_ARROW_PX}px`;
+};
+const autosizeAll = (root) => {
+  root.querySelectorAll?.("[data-autosize]").forEach(autosize);
+  root.querySelectorAll?.("[data-fit]").forEach(fitSelect);
+};
+document.addEventListener("change", (event) => {
+  if (event.target.matches?.("[data-fit]")) fitSelect(event.target);
+});
+autosizeAll(document);
+document.addEventListener("htmx:afterSettle", (event) => autosizeAll(event.target));  // 자리를 잡은 뒤에 잰다
+document.addEventListener("input", (event) => {
+  if (event.target.matches?.("[data-autosize]")) autosize(event.target);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.isComposing || !event.target.matches?.("[data-autosize]")) return;
+  event.preventDefault();  // 한 줄 글이다: 입력을 마치면 칸을 벗어나 저장한다
+  event.target.blur();
+});
+window.addEventListener("resize", () => autosizeAll(document));
+
+// 주제 편집 · 사례 옮기기에서 못 고치면 서버가 준 이유를 폼 아래에 보인다.
+document.addEventListener("htmx:afterRequest", (event) => {
+  const form = event.detail.elt.closest?.("[data-topic-form]");
+  if (!form || event.detail.successful) return;
+  const error = form.querySelector("[data-form-error]");
+  const reason = event.detail.xhr?.status === 422 && event.detail.xhr.responseText;
+  error.textContent = reason || "저장하지 못했어요. 앱 연결을 확인하고 다시 시도해 주세요.";
+  error.hidden = false;
+});
+
+// 사례 옮기기 창: 누르는 즉시 열고, 내용이 오면 바꿔 끼운다. 옮기면 서버가 비교표를 다시 그리고 창을 닫게 한다.
+const moveModal = () => document.getElementById("move-modal");
+const fillMove = (templateId) => {
+  document.getElementById("move-body").replaceChildren(document.getElementById(templateId).content.cloneNode(true));
+};
+const isMoveOpen = (event) => event.detail.target?.id === "move-body" && !event.detail.elt.closest?.("form");
+document.addEventListener("htmx:beforeRequest", (event) => {
+  if (!isMoveOpen(event)) return;
+  fillMove("move-loading");
+  if (!moveModal().open) moveModal().showModal();
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (isMoveOpen(event) && !event.detail.successful) fillMove("move-failed");
+});
+document.addEventListener("click", (event) => {
+  const modal = moveModal();
+  if (!modal?.open) return;
+  if (event.target === modal || event.target.closest("[data-move-close]")) modal.close();
+});
+document.addEventListener("topic-moved", () => moveModal()?.close());
+// 새 주제 칸을 누르면 "새 주제"를, 기존 주제 목록을 누르면 "기존 주제"를 고른다.
+document.addEventListener("focusin", (event) => {
+  const pane = event.target.closest?.(".topic-move .move-pane");
+  if (!pane) return;
+  const radio = pane.closest("form").querySelector(`input[name="mode"][value="${pane.dataset.mode}"]`);
+  if (radio && !radio.disabled) radio.checked = true;
+});
+
+// 사례 옮기기 · 기존 주제 찾기: 입력할 때만 아래에 맞는 주제가 뜬다 (이름 · 질문 · 분야, 띄어쓰기 · 가운뎃점 무시).
+const findKey = (text) => text.toLowerCase().replace(/[\s·・]/g, "");
+const showPicks = (box, open) => {
+  const list = document.getElementById(box.getAttribute("aria-controls"));
+  list.hidden = !open;
+  box.setAttribute("aria-expanded", String(open));
+};
+document.addEventListener("input", (event) => {
+  const box = event.target.closest?.("[data-topic-find]");
+  if (!box) return;
+  const key = findKey(box.value);
+  const list = document.getElementById(box.getAttribute("aria-controls"));
+  let shown = 0;
+  list.querySelectorAll("li[data-find]").forEach((item) => {
+    item.hidden = !findKey(item.dataset.find).includes(key);
+    shown += item.hidden ? 0 : 1;
+  });
+  list.querySelector(".suggest-head").hidden = shown === 0;
+  list.querySelector("[data-find-none]").hidden = shown > 0;
+  showPicks(box, Boolean(key));
+});
+document.addEventListener("focusin", (event) => {
+  const box = event.target.closest?.("[data-topic-find]");
+  if (box && findKey(box.value)) showPicks(box, true);
+});
+const setPicked = (pane, button) => {
+  pane.querySelector("[data-picked-value]").value = button ? button.dataset.pick : "";
+  pane.querySelector("[data-picked]").hidden = !button;
+  pane.querySelector("[data-picker]").hidden = Boolean(button);
+  if (button) {
+    pane.querySelector("[data-picked-name]").textContent = button.dataset.pick;
+    pane.querySelector("[data-picked-meta]").textContent = button.dataset.meta;
+  }
+};
+document.addEventListener("click", (event) => {
+  document.querySelectorAll("[data-picker]").forEach((picker) => {  // 바깥을 누르면 닫는다
+    if (!picker.contains(event.target)) showPicks(picker.querySelector("[data-topic-find]"), false);
+  });
+  const pick = event.target.closest("[data-pick]");
+  const clear = event.target.closest("[data-pick-clear]");
+  if (!pick && !clear) return;
+  const pane = event.target.closest(".move-pane");
+  pane.closest("form").querySelector('input[name="mode"][value="existing"]').checked = true;
+  setPicked(pane, pick);
+  if (pick) showPicks(pane.querySelector("[data-topic-find]"), false);
+  else pane.querySelector("[data-topic-find]").focus();
+});
+// 찾는 주제가 없으면 찾던 말을 새 주제 이름으로 넣고 "새 주제"로 넘어간다.
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-new-from-find]")) return;
+  const form = event.target.closest("form");
+  const box = form.querySelector("[data-topic-find]");
+  const name = form.querySelector("#move-name");
+  form.querySelector('input[name="mode"][value="new"]').checked = true;
+  name.value = box.value.trim();
+  showPicks(box, false);
+  name.focus();
 });

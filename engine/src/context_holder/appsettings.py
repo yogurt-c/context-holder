@@ -27,7 +27,7 @@ class Settings:
     onboarding_done: bool = False  # Onboarding 단계를 모두 마쳤다 (사이드바에서 탭을 뺀다)
     auto_update: bool = True  # 새 버전을 자동으로 확인한다
     skipped_update: str = ""  # "이 버전 건너뛰기"를 누른 버전 (그 버전 팝업을 다시 띄우지 않는다)
-    agent: str = "claude"  # 요약 · 분류 · 주제 정리에 쓸 에이전트 (llm.AGENTS)
+    agent: str = "claude"  # 요약 · 분류 · 주제 묶기에 쓸 에이전트 (llm.AGENTS)
     claude_account: str = "system"  # system 또는 이 앱에서 추가한 계정 id (agentaccounts)
     codex_account: str = "system"
 

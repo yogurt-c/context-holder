@@ -1,17 +1,21 @@
 """결정 주제 정리 (plan 5.2 · 7장). 구체적인 결정 주제를 넓은 주제로 묶어 회사끼리 비교한다.
 
 - 위키 `decisions/topics.yaml`: 넓은 주제 → 분야, 한 줄 질문, 원래 주제들. 글 파일은 고치지 않는다.
-- 정리(regroup)는 사용자가 버튼으로 시킨다. Claude에 주제와 문제 한 줄만 보낸다 (원문 없음).
-  처음에는 모든 사례를, 그 뒤에는 아직 분류하지 않은 사례만 기존 주제 목록과 함께 보낸다.
-- 수집 · 글 추가(assign)는 Claude를 따로 부르지 않는다. 글을 요약하는 같은 호출에서
-  기존 넓은 주제 중 하나를 고르게 하고(enrich), 고른 것만 붙인다. 맞는 주제가 없으면
-  분류하지 않은 채로 두었다가 다음 정리 때 묶는다.
+- 수집 · 글 추가(assign)는 글을 요약하는 같은 호출에서 기존 넓은 주제 중 하나를 고르게 하고
+  (enrich), 고른 것만 붙인다.
+- 그래도 남은 사례는 첫 수집 · 매일 수집 · 글 추가가 끝날 때 정리(regroup)로 묶는다.
+  Claude에 주제와 문제 한 줄만 보낸다 (원문 없음). 처음에는 모든 사례를, 그 뒤에는
+  아직 분류하지 않은 사례만 기존 주제 목록과 함께 보낸다. 맞는 주제가 없으면 새로 만든다.
+  남은 사례가 없으면 Claude를 부르지 않는다.
 - 정리할 때 위키에서 사라진 원래 주제는 지도에서 뺀다.
+- Decisions 화면에서 사례를 다른 주제로 옮기고(move), 주제의 이름 · 분야 · 질문을 고친다(edit).
+  분류된 사례는 정리가 다시 옮기지 않으므로 손으로 고친 것이 남는다.
 - 파일은 다음 수집이 커밋 · push한다.
   같은 기기의 두 프로세스(화면 · 수집)가 동시에 고치지 않게 잠근다.
 """
 
 import fcntl
+import logging
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
@@ -23,10 +27,24 @@ from context_holder.classify import StructuredLlm
 from context_holder.index import normalize_topic
 from context_holder.wiki import Wiki
 
+log = logging.getLogger(__name__)
+
 TOPICS_FILE = "decisions/topics.yaml"
 BATCH = 200  # Claude 한 번에 보낼 사례 수
 PROBLEM_CHARS = 120
 NAME_CHARS = 40
+QUESTION_CHARS = 120
+AREAS = (
+    "백엔드",
+    "인프라",
+    "데이터",
+    "프론트엔드",
+    "모바일",
+    "AI 엔지니어링",
+    "보안",
+    "개발 생산성",
+    "조직 · 프로세스",
+)
 
 SYSTEM = (
     "너는 빅테크 기술 블로그의 기술 결정 사례를 넓은 주제로 분류한다. "
@@ -213,7 +231,71 @@ def _count(topics: TopicMap) -> int:
     return sum(len(g.topics) for g in topics.groups)
 
 
-# ---------- 버튼: Claude로 정리 ----------
+# ---------- 화면: 손으로 옮기기 · 고치기 (Claude 없음) ----------
+
+
+def _clean(value: str, limit: int) -> str:
+    return " ".join(value.split())[:limit]
+
+
+def move(wiki: Wiki, topic: str, to: str, area: str | None = None, question: str = "") -> str:
+    """원래 주제 topic을 넓은 주제 to로 옮긴다. area를 주면 to를 새 주제로 만든다.
+
+    옮긴 넓은 주제 이름을 준다. 사례가 모두 빠진 주제는 지도에서 사라진다.
+    """
+    name = _clean(to, NAME_CHARS)
+    if not name:
+        raise ValueError("옮길 주제를 골라 주세요.")
+    with locked(wiki):
+        topics = load(wiki)
+        current = topics.group_of(topic)
+        if current is None:
+            raise ValueError("이미 옮겼거나 없는 사례예요.")
+        target = topics.group(name)
+        if area is not None:
+            if target is not None:
+                raise ValueError("이미 있는 주제예요. 기존 주제에서 골라 주세요.")
+            if area not in AREAS:
+                raise ValueError("새 주제의 분야를 골라 주세요.")
+            target = Group(name, area, _clean(question, QUESTION_CHARS))
+        elif target is None:
+            raise ValueError("없는 주제예요. 화면을 새로 고쳐 주세요.")
+        if target.name == current:
+            return current
+        key = normalize_topic(topic)
+        rest = TopicMap(
+            tuple(
+                replace(g, topics=tuple(t for t in g.topics if normalize_topic(t) != key))
+                for g in topics.groups
+            )
+        )
+        save(wiki, rest.add({target.name: [topic]}, (target,)))
+        return target.name
+
+
+def edit(wiki: Wiki, name: str, new_name: str, area: str, question: str) -> str:
+    """넓은 주제 name의 이름 · 분야 · 질문을 고친다. 고친 이름을 준다."""
+    new_name = _clean(new_name, NAME_CHARS)
+    if not new_name:
+        raise ValueError("주제 이름을 적어 주세요.")
+    if area not in AREAS:
+        raise ValueError("분야를 골라 주세요.")
+    with locked(wiki):
+        topics = load(wiki)
+        group = topics.group(name)
+        if group is None:
+            raise ValueError("없는 주제예요. 화면을 새로 고쳐 주세요.")
+        other = topics.group(new_name)
+        if other is not None and other is not group:
+            raise ValueError("이미 있는 주제예요. 다른 이름을 적어 주세요.")
+        changed = replace(
+            group, name=new_name, area=area, question=_clean(question, QUESTION_CHARS)
+        )
+        save(wiki, TopicMap(tuple(changed if g is group else g for g in topics.groups)))
+        return new_name
+
+
+# ---------- 수집 끝: Claude로 정리 ----------
 
 
 def regroup(
@@ -241,6 +323,22 @@ def regroup(
     return RegroupResult(len(topics.groups), len(todo) - left, left, cost)
 
 
+def settle(wiki: Wiki, llm: StructuredLlm) -> float:
+    """수집 · 글 추가 끝에 남은 사례를 묶는다. 쓴 비용.
+
+    남은 사례가 없으면 Claude를 부르지 않는다. 실패해도 예외를 올리지 않는다
+    (묶지 못한 사례는 다음 수집 때 다시 묶는다).
+    """
+    try:
+        result = regroup(wiki, llm)
+    except Exception as e:
+        log.warning("결정 주제를 정리하지 못했다: %s", e)
+        return 0.0
+    if result.assigned:
+        log.info("결정 사례 %d건을 주제 %d개로 정리했다", result.assigned, result.groups)
+    return result.cost_usd
+
+
 def _prompt(batch: Sequence[Case], topics: TopicMap) -> str:
     lines = [f"{i}. {c.topic} — {c.problem[:PROBLEM_CHARS]}" for i, c in enumerate(batch, 1)]
     if topics.groups:
@@ -260,8 +358,7 @@ def _prompt(batch: Sequence[Case], topics: TopicMap) -> str:
     rules = (
         "규칙: 모든 사례 번호를 정확히 한 주제에 넣는다. "
         f"name은 {NAME_CHARS}자 이내 한국어 명사구, "
-        "area는 '백엔드', '인프라', '데이터', '프론트엔드', '모바일', 'AI 엔지니어링', '보안', "
-        "'개발 생산성', '조직 · 프로세스' 중 하나, "
+        "area는 " + ", ".join(f"'{a}'" for a in AREAS) + " 중 하나, "
         "question은 이 주제가 답하려는 질문 한 문장"
         "(예: 'DB 변경과 메시지 발행을 어떻게 함께 보장할까')."
     )

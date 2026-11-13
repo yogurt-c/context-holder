@@ -2,10 +2,7 @@
 {% block title %}Decisions · Context Holder{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/decisions.css">{% endblock %}
 {% block content %}
-    <div class="toolbar"><span class="title">Decisions</span>
-      <div class="spacer"></div>
-      {% include "_regroup.html" %}
-    </div>
+    <div class="toolbar"><span class="title">Decisions</span></div>
     <div id="decisions-body" class="decisions-body">{% include "decisions_body.html" %}</div>
     {# 주제를 바꾸는 동안 비교표 자리에 넣는 자리표시와, 받지 못했을 때의 안내 (app.js) #}
     <template id="decisions-loading">
@@ -21,5 +18,13 @@
         <p class="note">앱 연결이 끊겼을 수 있어요.</p>
         <button type="button" class="btn sm" data-decisions-retry>다시 시도</button>
       </div>
+    </template>
+    {# 사례 옮기기 창. 내용은 /decisions/move가 채운다 (app.js) #}
+    <dialog id="move-modal" class="modal move-modal" aria-labelledby="move-title"><div id="move-body" class="modal-card"></div></dialog>
+    <template id="move-loading"><p class="note move-wait" role="status">사례를 불러오는 중이에요…</p></template>
+    <template id="move-failed">
+      <header class="article-head"><h2 id="move-title">사례 옮기기</h2><button type="button" class="btn ghost sm" data-move-close>닫기</button></header>
+      <p class="failed-head" role="alert">사례를 불러오지 못했어요</p>
+      <p class="note">앱 연결이 끊겼을 수 있어요. 창을 닫고 다시 열어 주세요.</p>
     </template>
 {% endblock %}

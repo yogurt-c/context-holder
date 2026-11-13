@@ -94,14 +94,14 @@ def test_setup_page_walks_the_required_steps(flow, tmp_path):  # noqa: F811
     assert 'href="/setup?step=mcp"' not in page  # 위키 검색은 에이전트 연결 안에 있다
     assert 'id="ob-title">GitHub 연결' in page  # 지금 할 단계를 연다
     assert "약 570MB" in c.get("/setup?step=first_sync").text
-    assert "첫 수집이 끝나면 할 수 있어요" in c.get("/setup?step=topics").text
+    assert "첫 수집이 끝날 때 자동으로 해요" in c.get("/setup?step=topics").text
 
     appsettings.update(flow.settings_path, setup_done=True, daily_at="07:40")
     add(screen_wiki(tmp_path), "https://d2.naver.com/a", "첫 글")
     start = c.get("/setup?step=start").text
     assert "매일 07:40에 수집해요" in start and 'name="hour"' not in start
     page = c.get("/setup").text  # 남은 주제 정리로 넘어가 있다
-    assert 'href="/decisions">Decisions에서 주제 정리' in page
+    assert "다음 수집이 끝나면 Claude로 다시 묶어요" in page
     assert "다 마쳤어요" not in page
 
 

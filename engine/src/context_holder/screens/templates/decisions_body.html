@@ -1,11 +1,12 @@
 {# Decisions 본문: 왼쪽 분야 탭 · 주제 목록, 오른쪽 비교표 #}
 {% from "_macros.html" import more_button %}
 {% from "_topic.html" import topic_link %}
+{% import "_icons.html" as icons %}
 {% if not view.group_total %}
 <div class="empty-center"><div class="empty-box">
-  <h2 class="empty-title">주제를 아직 정리하지 않았어요</h2>
-  <p class="empty-body">결정 사례 {{ view.case_total }}건을 넓은 주제로 묶으면 같은 문제에서 회사마다 무엇을 골랐는지 나란히 볼 수 있어요.</p>
-  <p class="empty-body note">위의 "주제 정리"를 누르세요. 결정 사례의 주제와 문제 한 줄만 {{ agent_name() }}에 보내고, 원문은 보내지 않아요.</p>
+  <h2 class="empty-title">주제를 아직 묶지 않았어요</h2>
+  <p class="empty-body">결정 사례{% if view.case_total %} {{ view.case_total }}건{% endif %}을 넓은 주제로 묶으면 같은 문제에서 회사마다 무엇을 골랐는지 나란히 볼 수 있어요.</p>
+  <p class="empty-body note">다음 수집이 끝나면 자동으로 묶여요. 결정 사례의 주제와 문제 한 줄만 {{ agent_name() }}에 보내고, 원문은 보내지 않아요.</p>
 </div></div>
 {% else %}
 <div class="panes">
@@ -37,21 +38,31 @@
     {% endfor %}
     </div>
     {% if view.after %}{{ more_button(view.more_url(view.after), "topic-list") }}{% endif %}
-    {% if view.unassigned %}<div class="topics-foot"><p>아직 분류하지 않은 사례 {{ view.unassigned }}건 · "주제 정리"로 묶어요</p></div>{% endif %}
+    {% if view.unassigned %}<div class="topics-foot"><p>주제에 묶지 못한 사례 {{ view.unassigned }}건 · 다음 수집 때 다시 묶어요</p></div>{% endif %}
   </nav>
 
   <section class="main" aria-labelledby="topic-title">
     {% set g = view.selected %}
     {% if g %}
+    {# 머리: 분야 · 이름 · 질문은 보던 자리에서 바로 고친다 (누르면 입력, 칸을 벗어나면 저장) #}
     <div class="head-row">
-      <div>
-        <p class="topic-meta">{{ g.area or "기타" }} · {{ view.columns | length }}개 사례 · {{ view.columns | map(attribute="company") | unique | list | length }}개 회사</p>
-        <h1 id="topic-title">{{ g.name }}</h1>
-        {% if g.question %}<p class="lede">{{ g.question }}</p>{% endif %}
-      </div>
+      <form class="topic-inline" hx-post="/decisions/edit" hx-target="#decisions-body" hx-trigger="change" data-topic-form>
+        <input type="hidden" name="sel" value="{{ g.name }}">
+        <p class="topic-meta">
+          <label class="sr-only" for="edit-area">분야</label>
+          <select id="edit-area" name="area" class="area-select" title="분야 바꾸기" data-fit>{% for a in view.area_choices %}<option{% if a == g.area %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+          <span>{{ view.columns | length }}개 사례 · {{ view.columns | map(attribute="company") | unique | list | length }}개 회사</span>
+        </p>
+        <h1 id="topic-title"><label class="sr-only" for="edit-name">주제 이름</label><textarea id="edit-name" class="inline-edit inline-title" name="name" rows="1" maxlength="40" required spellcheck="false" title="눌러서 이름 고치기" data-autosize>{{ g.name }}</textarea></h1>
+        <label class="sr-only" for="edit-question">이 주제가 답하려는 질문</label>
+        <textarea id="edit-question" class="inline-edit inline-lede" name="question" rows="1" maxlength="120" spellcheck="false" placeholder="질문 추가… 이 주제가 답하려는 질문 한 줄" title="눌러서 질문 고치기" data-autosize>{{ g.question }}</textarea>
+        <p class="form-error" data-form-error role="alert" hidden></p>
+      </form>
       <div class="head-actions">
+        {% if saved %}<span class="saved-note" role="status">{{ icons.glyph("check", 12) }}{{ saved.message }}{% if saved.undo %}<button type="button" class="link-btn" hx-post="/decisions/edit" hx-vals='{{ saved.undo | tojson }}' hx-target="#decisions-body">되돌리기</button>{% endif %}</span>{% endif %}
         <template id="compare-md">{{ view.markdown }}</template>
-        <button type="button" class="btn decision" data-copy="compare-md">비교표 복사</button>
+        <button type="button" class="icon-btn copy-btn" data-copy="compare-md" data-copy-icon aria-label="비교표 복사" title="비교표 복사"><span class="ic-copy">{{ icons.glyph("copy", 15) }}</span><span class="ic-done">{{ icons.glyph("check", 15) }}</span></button>
+        <button type="button" class="btn sm move-open" hx-get="/decisions/move?{{ {'sel': g.name} | urlencode }}" hx-target="#move-body">사례 옮기기</button>
       </div>
     </div>
 

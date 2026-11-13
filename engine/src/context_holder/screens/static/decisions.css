@@ -37,7 +37,62 @@
 .topic-meta { font-size: 12px; color: var(--ink-faint); }
 .main h1 { font-family: var(--display); font-size: 32px; font-weight: 600; letter-spacing: var(--track-head); margin: var(--sp-1) 0 var(--sp-2); color: var(--ink); }
 .main .lede { font-size: var(--fs-read); color: var(--ink-soft); max-width: 72ch; }
-.head-actions { display: flex; gap: var(--sp-2); flex: none; }
+.head-actions { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
+.head-actions .move-open { margin-left: var(--sp-2); }
+/* 비교표 복사: 복사하면 잠깐 체크로 바뀐다 */
+.copy-btn .ic-done { display: none; color: var(--ok); }
+.copy-btn.is-copied .ic-copy { display: none; }
+.copy-btn.is-copied .ic-done { display: inline-grid; }
+.copy-btn > span { display: inline-grid; place-items: center; }
+
+/* 머리를 그 자리에서 고친다 (Linear · Notion처럼): 평소에는 글처럼 보이고, 올리면 옅은 바탕, 누르면 입력칸 */
+/* 머리: 버튼은 분야 줄 오른쪽 위에 두고, 이름 · 질문은 본문 너비를 다 쓴다 */
+.head-row:has(.topic-inline) { position: relative; display: block; }
+.head-row:has(.topic-inline) .head-actions { position: absolute; top: -4px; right: 0; }
+.topic-inline { min-width: 0; }
+.topic-inline .topic-meta { display: flex; align-items: center; gap: var(--sp-2); min-height: 24px; padding-right: 280px; }
+.topic-inline .inline-lede { max-width: 72ch; }
+.area-select {
+  appearance: none; margin-left: calc(-1 * var(--sp-2)); padding: 2px 20px 2px var(--sp-2); border: 1px solid transparent; border-radius: var(--r-control);
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center;
+  color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease);
+}
+.area-select:hover { background-color: var(--paper-deep); }
+.area-select:focus-visible { outline: 0; border-color: var(--decision); background-color: var(--surface); }
+.topic-inline h1 { margin: var(--sp-1) 0 var(--sp-1); }
+.inline-edit {
+  display: block; width: calc(100% + 2 * var(--sp-2)); margin-left: calc(-1 * var(--sp-2)); padding: 2px var(--sp-2);
+  border: 1px solid transparent; border-radius: var(--r-control); background: transparent; color: inherit;
+  font: inherit; letter-spacing: inherit; resize: none; overflow: hidden; outline: 0; cursor: text;
+  transition: background-color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
+}
+.inline-edit:hover { background: var(--paper-deep); }
+.inline-edit:focus { background: var(--surface); border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
+.inline-title { font-family: var(--display); font-size: 32px; font-weight: 600; line-height: 1.25; letter-spacing: var(--track-head); color: var(--ink); }
+.inline-lede { font-size: var(--fs-read); line-height: 1.5; color: var(--ink-soft); }
+.inline-lede::placeholder { color: var(--ink-faint); font-style: italic; }
+.topic-inline .form-error { margin-top: var(--sp-2); }
+.form-error { font-size: 12px; color: var(--error); }
+.form-error[hidden] { display: none; }
+/* 고친 뒤 잠깐: 무엇을 바꿨는지와 되돌리기 */
+.saved-note {
+  display: inline-flex; align-items: center; gap: var(--sp-1); margin-right: var(--sp-2); font-size: 12px; color: var(--ok);
+  animation: saved-note 8s var(--ease) forwards;
+}
+.saved-note .link-btn { margin-left: var(--sp-1); font-weight: 600; }
+@keyframes saved-note { 0% { opacity: 0; } 4%, 85% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .saved-note { animation: none; } }
+.edit-grid { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: var(--sp-2) var(--sp-3); }
+.edit-grid label { font-size: 12px; font-weight: 500; color: var(--ink-faint); }
+.edit-grid input, .edit-grid select {
+  width: 100%; min-height: 32px; padding: 0 var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-control);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 13px;
+  transition: border-color var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
+}
+.edit-grid input:focus, .edit-grid select:focus { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
+.edit-grid select { width: auto; min-width: 160px; padding-right: var(--sp-2); }
+
 
 .table-scroll { overflow-x: auto; padding-bottom: var(--sp-2); scroll-behavior: smooth; }
 /* 오른쪽에 더 있으면 끝을 흐리게 한다 */
@@ -75,9 +130,64 @@
 .matrix .weak { color: var(--ink-faint); font-style: italic; }
 .footnote { margin-top: var(--sp-4); display: flex; justify-content: space-between; gap: var(--sp-4); font-size: var(--fs-micro); color: var(--ink-faint); }
 
-/* ---------- 정리 ---------- */
-.regroup { display: flex; align-items: center; gap: var(--sp-2); font-size: 12px; color: var(--ink-soft); }
-.regroup-done { color: var(--ok); font-weight: 600; }
+/* ---------- 사례 옮기기 창 ---------- */
+.move-modal { width: min(560px, calc(100vw - 48px)); }
+.move-modal h2 { font-size: 18px; }
+.move-from { margin-top: 2px; font-size: 12px; color: var(--ink-faint); }
+.move-from::before { content: "지금 주제 · "; }
+.move-wait { padding: var(--sp-6) 0; text-align: center; }
+.move-step { border: 0; margin: var(--sp-5) 0 0; padding: 0; min-width: 0; }
+.move-step legend { display: flex; align-items: center; gap: var(--sp-2); padding: 0; margin-bottom: var(--sp-2); font-size: 13px; font-weight: 600; color: var(--ink); }
+.step-no { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: var(--on-ink); font-size: 11px; font-weight: 700; }
+.move-cases { display: grid; gap: var(--sp-1); max-height: 260px; overflow-y: auto; padding: 2px; }
+.move-case {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--sp-3); row-gap: 2px; align-items: baseline;
+  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--rule-soft); border-radius: var(--r-control); cursor: pointer;
+  transition: border-color var(--dur-micro) var(--ease), background-color var(--dur-micro) var(--ease);
+}
+.move-case:hover { border-color: var(--rule-strong); background: var(--surface-hover); }
+.move-case:has(input:checked) { border-color: var(--decision); background: var(--decision-tint); }
+.move-case:has(input:focus-visible) { outline: 2px solid var(--decision); outline-offset: 1px; }
+.move-case input { grid-row: span 3; margin: 0; accent-color: var(--decision); align-self: center; }
+.case-co { font-size: 12px; font-weight: 600; color: var(--ink); }
+.case-co .date { margin-left: var(--sp-2); font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--ink-faint); }
+.case-title { font-family: var(--display); font-size: 13.5px; color: var(--ink-body); line-height: 1.4; }
+.case-topic { font-size: 11.5px; color: var(--ink-faint); }
+.move-dest { display: grid; gap: var(--sp-2); }
+.move-mode { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+.move-mode input { margin: 0; accent-color: var(--decision); }
+.move-mode:has(input:checked) { color: var(--ink); font-weight: 600; }
+.move-mode:has(input:disabled) { cursor: default; opacity: 0.5; }
+.move-pane { margin-left: 22px; transition: opacity var(--dur-micro) var(--ease); }
+.move-pane select { min-height: 32px; min-width: 260px; max-width: 100%; padding: 0 var(--sp-2); border: 1px solid var(--rule); border-radius: var(--r-control); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+.move-pane select:focus { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
+/* 고르지 않은 쪽은 흐리게 (눌러서 고를 수 있다) */
+.move-dest:has(input[value="existing"]:checked) .move-pane[data-mode="new"],
+.move-dest:has(input[value="new"]:checked) .move-pane[data-mode="existing"] { opacity: 0.45; }
+/* 기존 주제 찾기: Search처럼 입력할 때만 아래에 맞는 주제가 뜬다 */
+.topic-picker[hidden] { display: none; }
+.topic-find { min-width: 0; }
+.topic-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); }
+.topic-find:focus-within { border-color: var(--decision); }
+.move-suggest { max-height: 240px; }
+.move-suggest[hidden], .move-suggest li[hidden], .move-suggest .suggest-head[hidden] { display: none; }
+.move-suggest .suggest-item { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: var(--sp-2); border-radius: var(--r-control); cursor: pointer; transition: background var(--dur-micro) var(--ease); }
+.move-suggest .suggest-item:hover { background: var(--decision-tint); }
+.move-suggest .suggest-item:focus-visible { outline: 2px solid var(--decision); outline-offset: -2px; background: var(--decision-tint); }
+.move-suggest .suggest-text b { font-weight: 600; color: var(--ink); }
+.t-meta { margin-left: var(--sp-2); font-size: 11px; color: var(--ink-faint); }
+/* 고른 주제: 검색칸 자리에 칩으로 */
+.picked { display: flex; align-items: center; gap: var(--sp-2); min-height: 32px; padding: 0 var(--sp-1) 0 var(--sp-3); border: 1px solid var(--decision); border-radius: var(--r-control); background: var(--decision-tint); }
+.picked[hidden] { display: none; }
+.picked-name { font-size: 13px; font-weight: 600; color: var(--decision-ink); }
+.picked-meta { font-size: 11px; color: var(--ink-faint); }
+.picked .btn { margin-left: auto; }
+.move-none { padding: var(--sp-3) var(--sp-2); font-size: 12px; color: var(--ink-faint); }
+.move-none[hidden] { display: none; }
+.link-btn { all: unset; color: var(--decision-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.link-btn:focus-visible { outline: 2px solid var(--decision); outline-offset: 2px; border-radius: 2px; }
+.topic-move .actions .form-error { margin-right: auto; }
+.topic-move .actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-6); }
 
 @media (max-width: 1000px) {
   .panes { grid-template-columns: 1fr; }

@@ -1,4 +1,4 @@
-"""Decisions 화면: 주제 목록 · 비교표 · 주제 정리 버튼, MCP의 넓은 주제."""
+"""Decisions 화면: 주제 목록 · 비교표 · 주제 편집 · 사례 옮기기, MCP의 넓은 주제."""
 
 from datetime import timedelta
 from pathlib import Path
@@ -7,10 +7,8 @@ from fastapi.testclient import TestClient
 
 from context_holder import topics
 from context_holder.index import Index
-from context_holder.llm import ErrorKind, LlmError
 from context_holder.screens.app import COOKIE, create_app
 from context_holder.screens.decisionsview import (
-    RegroupJob,
     TopicItem,
     build_decisions,
     decisions_more,
@@ -153,43 +151,6 @@ def test_view_skips_cases_gone_from_wiki_and_other_area(tmp_path):
     assert view.areas == ["기타"] and view.columns == []
 
 
-def test_regroup_job_runs_once_and_reports(tmp_path):
-    wiki = make_wiki(tmp_path)
-    seed(wiki)
-    ran = []
-    job = RegroupJob(
-        wiki,
-        lambda: FakeLlm(
-            [
-                {
-                    "groups": [
-                        {"name": "AI 평가", "area": "AI 엔지니어링", "question": "", "cases": [1]}
-                    ]
-                }
-            ]
-        ),
-        background=ran.append,
-    )
-    assert not job.start(busy=True) and job.state == "error" and "수집이 끝난 뒤" in job.message
-    assert job.start(busy=False) and job.state == "running"
-    assert not job.start(busy=False)  # 이미 돌고 있다
-    ran[0]()
-    # 위키에 없는 주제만 있던 "이상한 분야"는 빠지고 새 주제가 더해진다
-    assert job.state == "done" and "사례 1건을 주제 3개로" in job.message
-
-
-def test_regroup_job_explains_claude_problems(tmp_path):
-    wiki = make_wiki(tmp_path)
-    add(wiki, "https://t/1", "글", topic="캐시")
-    for kind, text in ((ErrorKind.AUTH, "로그인이 필요해요"), (ErrorKind.FAILED, "다시 시도해")):
-        job = RegroupJob(wiki, lambda k=kind: FakeLlm([LlmError(k, "x")]), background=lambda w: w())
-        job.start(busy=False)
-        assert job.state == "error" and text in job.message
-    job = RegroupJob(wiki, lambda: FakeLlm([{"groups": []}]), background=lambda w: w())
-    job.start(busy=False)
-    assert "1건은 다음에 다시" in job.message
-
-
 # ---------- 화면 ----------
 
 
@@ -208,7 +169,7 @@ def test_decisions_page_and_partials(tmp_path):
     c = client(tmp_path, wiki, FakeLlm([]))
     page = c.get("/decisions").text
     assert "서비스 메시 운영" in page and "비교표 복사" in page and 'aria-current="page"' in page
-    assert "아직 분류하지 않은 사례 1건" in page and "더 보기" not in page
+    assert "주제에 묶지 못한 사례 1건 · 다음 수집 때 다시 묶어요" in page and "더 보기" not in page
     assert '<a class="chip on" href="/decisions?area=' in page  # 분야 탭
     assert 'hx-get="/article/' in page and "SidecarSet" in page
     assert page.count("data-article=") == 2 * 7  # 사례 2건, 머리줄 + 6줄: 열 어디를 눌러도 상세
@@ -235,24 +196,108 @@ def test_search_start_links_broad_topics_by_area(tmp_path):
     assert 'href="/decisions?sel=%EC%84%9C%EB%B9%84%EC%8A%A4' in page  # 서비스 메시 운영 비교표
 
 
-def test_decisions_empty_before_first_regroup_then_runs(tmp_path):
+def test_decisions_empty_says_the_next_sync_groups(tmp_path):
     wiki = make_wiki(tmp_path)
     add(wiki, "https://t/1", "글", topic="캐시 무효화")
-    llm = FakeLlm(
-        [{"groups": [{"name": "캐시 전략", "area": "백엔드", "question": "", "cases": [1]}]}]
+    page = client(tmp_path, wiki, FakeLlm([])).get("/decisions").text
+    assert "주제를 아직 묶지 않았어요" in page and "다음 수집이 끝나면 자동으로 묶여요" in page
+    assert "원문은 보내지 않아요" in page and "/decisions/regroup" not in page
+
+
+def test_decisions_head_edits_in_place_and_moves_last(tmp_path):
+    wiki = make_wiki(tmp_path)
+    seed(wiki)
+    page = client(tmp_path, wiki, FakeLlm([])).get("/decisions").text
+    head = page[page.index('class="topic-inline"') : page.index('class="head-actions"')]
+    assert 'hx-post="/decisions/edit"' in head
+    assert 'hx-trigger="change"' in head  # 칸을 벗어나면 저장
+    assert "<option selected>인프라</option>" in head
+    assert 'name="name" rows="1" maxlength="40"' in head and ">서비스 메시 운영</textarea>" in head
+    assert ">사이드카를 어떻게 운영할까</textarea>" in head
+    actions = page[page.index('class="head-actions"') : page.index('class="scroll-bar"')]
+    assert "주제 편집" not in actions and "saved-note" not in actions  # 편집 모드 없이 바로 고친다
+    assert actions.index('aria-label="비교표 복사"') < actions.index("사례 옮기기")
+
+
+def test_decisions_edit_renames_says_what_changed_and_undoes(tmp_path):
+    import json
+
+    wiki = make_wiki(tmp_path)
+    seed(wiki)
+    c = client(tmp_path, wiki, FakeLlm([]))
+    form = {"sel": "서비스 메시 운영", "name": "모노레포 운영", "area": "인프라", "question": ""}
+    taken = c.post("/decisions/edit", data=form, headers=HTMX)
+    assert taken.status_code == 422 and "이미 있는 주제" in taken.text
+    renamed = c.post(
+        "/decisions/edit",
+        data={**form, "name": "서비스 메시", "question": "사이드카를 어떻게 운영할까"},
+        headers=HTMX,
     )
-    c = client(tmp_path, wiki, llm)
-    page = c.get("/decisions").text
-    assert "주제를 아직 정리하지 않았어요" in page and "원문은 보내지 않아요" in page
-    started = c.post("/decisions/regroup", headers=HTMX).text
-    assert "주제를" in started
-    for _ in range(100):  # 백그라운드 스레드가 끝나기를 기다린다
-        poll = c.get("/decisions/regroup")
-        if poll.headers.get("HX-Refresh"):
-            break
-    assert poll.headers["HX-Refresh"] == "true" and "정리했어요" in poll.text
-    assert "캐시 전략" in c.get("/decisions").text
-    assert "HX-Refresh" not in c.get("/decisions/regroup").headers
+    assert renamed.status_code == 200 and "<html" not in renamed.text
+    assert renamed.headers["HX-Push-Url"].startswith("/decisions?area=")
+    assert ">서비스 메시</textarea>" in renamed.text and "이름을 바꿨어요" in renamed.text
+    group = topics.load(wiki).group("서비스 메시")
+    assert group.area == "인프라" and group.topics == ("사이드카 버전 관리", "서비스 메시 도입")
+
+    vals = renamed.text.split("hx-vals='")[1].split("'")[0]
+    undo = c.post("/decisions/edit", data=json.loads(vals), headers=HTMX)
+    assert "되돌렸어요" in undo.text and "hx-vals=" not in undo.text
+    assert topics.load(wiki).group("서비스 메시 운영") is not None
+
+
+def test_edit_note_names_the_change():
+    from context_holder.screens.decisionsview import edit_note
+
+    before = Group("캐시", "백엔드", "어디에 둘까", ("a",))
+    assert edit_note(before, before, False) is None  # 바꾼 게 없으면 알리지 않는다
+    area = edit_note(before, Group("캐시", "인프라", "어디에 둘까"), False)
+    assert area.message == "분야를 바꿨어요"
+    assert edit_note(before, Group("캐시", "백엔드", "뭘 쓸까"), False).message == "질문을 바꿨어요"
+    both = edit_note(before, Group("캐시 전략", "인프라", "어디에 둘까"), False)
+    assert both.message == "주제를 바꿨어요"
+    assert both.undo == {
+        "sel": "캐시 전략",
+        "name": "캐시",
+        "area": "백엔드",
+        "question": "어디에 둘까",
+        "undo": "true",
+    }
+
+
+def test_decisions_move_window_moves_a_case(tmp_path):
+    wiki = make_wiki(tmp_path)
+    seed(wiki)
+    c = client(tmp_path, wiki, FakeLlm([]))
+    window = c.get("/decisions/move?sel=서비스 메시 운영", headers=HTMX).text
+    assert 'id="move-title">사례 옮기기' in window
+    assert 'value="사이드카 버전 관리"' in window and 'value="서비스 메시 도입"' in window
+    assert "data-topic-find" in window and '<select name="to"' not in window  # 찾아서 고른다
+    assert 'data-find="모노레포 운영  개발 생산성"' in window and "개발 생산성 · 1건" in window
+    assert 'name="to" value="서비스 메시 운영"' not in window  # 지금 주제로는 옮기지 않는다
+    assert c.get("/decisions/move?sel=없는 주제").status_code == 404
+
+    base = {"sel": "서비스 메시 운영", "topic": "사이드카 버전 관리"}
+    none = c.post("/decisions/move", data={"sel": "서비스 메시 운영"}, headers=HTMX)
+    assert none.status_code == 422 and "옮길 사례를 골라" in none.text
+    moved = c.post("/decisions/move", data={**base, "to": "모노레포 운영"}, headers=HTMX)
+    assert moved.headers["HX-Retarget"] == "#decisions-body"
+    assert moved.headers["HX-Trigger"] == "topic-moved"
+    assert ">서비스 메시 운영</textarea>" in moved.text  # 사례가 남아 그대로 본다
+    assert topics.load(wiki).group_of("사이드카 버전 관리") == "모노레포 운영"
+
+    new = {"sel": "서비스 메시 운영", "topic": "서비스 메시 도입", "mode": "new"}
+    bad = c.post(
+        "/decisions/move", data={**new, "name": "모노레포 운영", "area": "인프라"}, headers=HTMX
+    )
+    assert bad.status_code == 422 and "이미 있는 주제" in bad.text
+    made = c.post(
+        "/decisions/move",
+        data={**new, "name": "메시 도입", "area": "인프라", "question": "메시를 들일까"},
+        headers=HTMX,
+    )
+    # 마지막 사례가 빠진 주제는 사라지고 옮긴 주제를 연다
+    assert ">메시 도입</textarea>" in made.text
+    assert topics.load(wiki).group("서비스 메시 운영") is None
 
 
 # ---------- MCP ----------
@@ -276,21 +321,3 @@ def test_mcp_lists_and_finds_by_broad_topic(tmp_path):
         "사이드카 버전 관리",
         "서비스 메시 도입",
     }
-
-
-def test_regroup_job_names_the_chosen_agent(tmp_path):
-    wiki = make_wiki(tmp_path)
-    add(wiki, "https://t/1", "글", topic="캐시")
-    for kind, text in (
-        (ErrorKind.AUTH, "Codex 로그인이 필요해요"),
-        (ErrorKind.NOT_INSTALLED, "Codex CLI가 없어요"),
-        (ErrorKind.FAILED, "Codex가 답하지 않았어요"),
-    ):
-        job = RegroupJob(
-            wiki,
-            lambda k=kind: FakeLlm([LlmError(k, "x")]),
-            background=lambda w: w(),
-            agent=lambda: "codex",
-        )
-        job.start(busy=False)
-        assert text in job.message

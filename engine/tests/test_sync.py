@@ -345,3 +345,20 @@ def test_role_blog_is_collected_only_after_its_role_is_chosen(make_client, tmp_p
     requested.clear()
     run_sync(wiki, make_client(handler), ScriptedLlm([]), now=NOW, days=7)
     assert sorted(requested) == sorted([FEED, ml_feed])
+
+
+def test_sync_groups_leftover_cases_at_the_end_unless_stopped(make_client, tmp_path, monkeypatch):
+    from context_holder import sync
+
+    wiki = setup_wiki(tmp_path)
+    settled = []
+    monkeypatch.setattr(sync, "settle", lambda w, llm: settled.append(w) or 0.5)
+    links = ["https://blog.example.com/a"]
+    report = run_sync(wiki, feed_client(make_client, links), ScriptedLlm([0.9]), now=NOW, days=7)
+    assert settled == [wiki] and report.cost_usd == 0.01 + 0.02 + 0.5
+
+    settled.clear()
+    stopped = ScriptedLlm([0.9], [LlmError(ErrorKind.LIMIT, "한도")])
+    links = ["https://blog.example.com/b"]
+    run_sync(wiki, feed_client(make_client, links), stopped, now=NOW, days=7)
+    assert settled == []  # 한도에 걸린 날은 부르지 않는다
