@@ -389,22 +389,7 @@ const autosize = (field) => {
   field.style.height = "auto";
   field.style.height = `${field.scrollHeight}px`;
 };
-// 분야 선택칸은 고른 분야 글 길이만큼만 넓힌다 (기본은 가장 긴 선택지 너비라 화살표가 멀어진다).
-const SELECT_ARROW_PX = 30;
-const measure = document.createElement("canvas").getContext("2d");
-const fitSelect = (select) => {
-  const style = getComputedStyle(select);
-  measure.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  const text = select.options[select.selectedIndex]?.text || "";
-  select.style.width = `${Math.ceil(measure.measureText(text).width) + SELECT_ARROW_PX}px`;
-};
-const autosizeAll = (root) => {
-  root.querySelectorAll?.("[data-autosize]").forEach(autosize);
-  root.querySelectorAll?.("[data-fit]").forEach(fitSelect);
-};
-document.addEventListener("change", (event) => {
-  if (event.target.matches?.("[data-fit]")) fitSelect(event.target);
-});
+const autosizeAll = (root) => root.querySelectorAll?.("[data-autosize]").forEach(autosize);
 autosizeAll(document);
 document.addEventListener("htmx:afterSettle", (event) => autosizeAll(event.target));  // 자리를 잡은 뒤에 잰다
 document.addEventListener("input", (event) => {
@@ -447,13 +432,16 @@ document.addEventListener("click", (event) => {
   if (event.target === modal || event.target.closest("[data-move-close]")) modal.close();
 });
 document.addEventListener("topic-moved", () => moveModal()?.close());
-// 새 주제 칸을 누르면 "새 주제"를, 기존 주제 목록을 누르면 "기존 주제"를 고른다.
-document.addEventListener("focusin", (event) => {
+// 새 주제 칸을 누르거나 들어가면 "새 주제"를, 기존 주제 쪽이면 "기존 주제"를 고른다.
+// (Safari는 버튼을 눌러도 포커스를 주지 않아 누르기도 본다)
+const pickMode = (event) => {
   const pane = event.target.closest?.(".topic-move .move-pane");
   if (!pane) return;
   const radio = pane.closest("form").querySelector(`input[name="mode"][value="${pane.dataset.mode}"]`);
   if (radio && !radio.disabled) radio.checked = true;
-});
+};
+document.addEventListener("focusin", pickMode);
+document.addEventListener("pointerdown", pickMode);
 
 // 사례 옮기기 · 기존 주제 찾기: 입력할 때만 아래에 맞는 주제가 뜬다 (이름 · 질문 · 분야, 띄어쓰기 · 가운뎃점 무시).
 const findKey = (text) => text.toLowerCase().replace(/[\s·・]/g, "");

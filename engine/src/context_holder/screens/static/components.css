@@ -96,6 +96,43 @@ h1, h2, h3 { text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
 .search-field .q { flex: 1; }
 .search-field .caret { display: inline-block; width: 1.5px; height: 18px; background: var(--decision); vertical-align: middle; margin-left: 1px; }
 
+/* ---------- 선택칸 (dropdown.js): OS 기본 목록 대신 앱의 떠 있는 목록 ---------- */
+.dd { position: relative; display: inline-flex; vertical-align: middle; }
+.dd-native { position: absolute; inset: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dd-btn {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: var(--sp-2); width: 100%; min-height: 32px;
+  padding: 0 var(--sp-2) 0 var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-control);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer;
+  transition: border-color var(--dur-micro) var(--ease), background-color var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
+}
+.dd-btn:hover { border-color: var(--rule-strong); }
+.dd-btn:focus-visible, .dd-btn[aria-expanded="true"] { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
+.dd-btn:disabled { cursor: default; opacity: 0.5; }
+.dd-chev { flex: none; color: var(--ink-faint); transition: transform var(--dur-micro) var(--ease); }
+.dd-btn[aria-expanded="true"] .dd-chev { transform: rotate(180deg); }
+.dd-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; min-width: max(100%, 120px); max-height: 320px; overflow-y: auto;
+  margin: 0; padding: var(--sp-1); list-style: none; background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-card); box-shadow: var(--shadow-panel); animation: dd-in var(--dur-micro) var(--ease);
+}
+.dd-list[hidden] { display: none; }
+.dd.dd-up .dd-list { top: auto; bottom: calc(100% + 4px); }
+/* 목록이 놓인 자리(설정의 줄 목록 등)의 li 스타일을 받지 않게 한 단계 더 좁혀 둔다 */
+.dd .dd-list .dd-opt {
+  display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-2); margin: 0; min-height: 0;
+  padding: 6px var(--sp-3) 6px var(--sp-2); border: 0; border-radius: var(--r-control); background: none;
+  font-size: 13px; font-weight: 400; color: var(--ink-body); white-space: nowrap; cursor: pointer;
+}
+.dd .dd-list .dd-opt.is-active { background: var(--decision-tint); color: var(--ink); }
+.dd .dd-list .dd-opt[aria-selected="true"] { font-weight: 600; color: var(--decision-ink); }
+.dd .dd-list .dd-opt[aria-disabled="true"] { cursor: default; opacity: 0.45; }
+.dd-check { flex: none; visibility: hidden; }
+.dd-opt[aria-selected="true"] .dd-check { visibility: visible; }
+@keyframes dd-in { from { opacity: 0; transform: translateY(-3px); } }
+.dd.dd-up .dd-list { animation-name: dd-in-up; }
+@keyframes dd-in-up { from { opacity: 0; transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .dd-list { animation: none; } .dd-chev { transition: none; } }
+
 /* ---------- 검색창 추천 (_suggest.html) ---------- */
 .suggest-anchor { position: relative; display: flex; flex: 1; min-width: 0; }
 .suggest-anchor > .search-field { flex: 1; }

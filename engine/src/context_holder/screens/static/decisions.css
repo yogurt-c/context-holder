@@ -22,11 +22,11 @@
 .topic:focus-visible { outline: 2px solid var(--decision); outline-offset: 1px; }
 .topic.sel { background: var(--decision); color: var(--on-ink); font-weight: 600; }
 .topics-none { padding: var(--sp-2); }
-/* 분야 탭: 고른 분야의 주제만 목록에 보인다 */
-.area-tabs { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-bottom: var(--sp-3); }
-.area-tabs .chip { text-decoration: none; transition: background var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease); }
-.area-tabs .chip:not(.on):hover { color: var(--ink); border-color: var(--rule-strong); background: var(--decision-tint); }
-.area-tabs .chip:focus-visible { outline: 2px solid var(--decision); outline-offset: 1px; }
+/* 분야 선택칸: 고른 분야의 주제만 목록에 보인다 */
+.area-pick { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.area-pick label { flex: none; font-size: 12px; font-weight: 500; color: var(--ink-faint); }
+.area-pick .dd { flex: 1; min-width: 0; }
+.area-pick .dd-btn { font-weight: 600; }
 .topics .more-row { margin-top: var(--sp-2); }
 .topics .more-btn { min-height: 28px; font-size: 12px; }
 .topics-foot { margin-top: var(--sp-4); padding: var(--sp-3) var(--sp-2) 0; border-top: 1px dashed var(--rule); font-size: 12px; color: var(--ink-faint); display: grid; gap: var(--sp-2); }
@@ -52,14 +52,14 @@
 .topic-inline { min-width: 0; }
 .topic-inline .topic-meta { display: flex; align-items: center; gap: var(--sp-2); min-height: 24px; padding-right: 280px; }
 .topic-inline .inline-lede { max-width: 72ch; }
-.area-select {
-  appearance: none; margin-left: calc(-1 * var(--sp-2)); padding: 2px 20px 2px var(--sp-2); border: 1px solid transparent; border-radius: var(--r-control);
-  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center;
-  color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: background-color var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease);
+/* 분야: 메타 줄 글처럼 보이다가 올리면 바탕이 깔리는 선택칸 */
+.topic-meta .dd { margin-left: calc(-1 * var(--sp-2)); }
+.dd-btn.area-select {
+  min-height: 24px; padding: 2px 6px 2px var(--sp-2); gap: var(--sp-1); border-color: transparent; background: transparent;
+  color: var(--ink-soft); font-size: 12px; font-weight: 600;
 }
-.area-select:hover { background-color: var(--paper-deep); }
-.area-select:focus-visible { outline: 0; border-color: var(--decision); background-color: var(--surface); }
+.dd-btn.area-select:hover { background: var(--paper-deep); border-color: transparent; }
+.dd-btn.area-select:focus-visible, .dd-btn.area-select[aria-expanded="true"] { background: var(--surface); border-color: var(--decision); }
 .topic-inline h1 { margin: var(--sp-1) 0 var(--sp-1); }
 .inline-edit {
   display: block; width: calc(100% + 2 * var(--sp-2)); margin-left: calc(-1 * var(--sp-2)); padding: 2px var(--sp-2);
@@ -85,13 +85,13 @@
 @media (prefers-reduced-motion: reduce) { .saved-note { animation: none; } }
 .edit-grid { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: var(--sp-2) var(--sp-3); }
 .edit-grid label { font-size: 12px; font-weight: 500; color: var(--ink-faint); }
-.edit-grid input, .edit-grid select {
+.edit-grid .dd { justify-self: start; min-width: 180px; }
+.edit-grid input {
   width: 100%; min-height: 32px; padding: 0 var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-control);
   background: var(--surface); color: var(--ink); font: inherit; font-size: 13px;
   transition: border-color var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
 }
-.edit-grid input:focus, .edit-grid select:focus { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
-.edit-grid select { width: auto; min-width: 160px; padding-right: var(--sp-2); }
+.edit-grid input:focus { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
 
 
 .table-scroll { overflow-x: auto; padding-bottom: var(--sp-2); scroll-behavior: smooth; }
@@ -159,11 +159,10 @@
 .move-mode:has(input:checked) { color: var(--ink); font-weight: 600; }
 .move-mode:has(input:disabled) { cursor: default; opacity: 0.5; }
 .move-pane { margin-left: 22px; transition: opacity var(--dur-micro) var(--ease); }
-.move-pane select { min-height: 32px; min-width: 260px; max-width: 100%; padding: 0 var(--sp-2); border: 1px solid var(--rule); border-radius: var(--r-control); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
-.move-pane select:focus { outline: 0; border-color: var(--decision); box-shadow: 0 0 0 3px var(--decision-tint); }
 /* 고르지 않은 쪽은 흐리게 (눌러서 고를 수 있다) */
 .move-dest:has(input[value="existing"]:checked) .move-pane[data-mode="new"],
 .move-dest:has(input[value="new"]:checked) .move-pane[data-mode="existing"] { opacity: 0.45; }
+.move-pane:has(.dd-btn[aria-expanded="true"]) { opacity: 1; }
 /* 기존 주제 찾기: Search처럼 입력할 때만 아래에 맞는 주제가 뜬다 */
 .topic-picker[hidden] { display: none; }
 .topic-find { min-width: 0; }

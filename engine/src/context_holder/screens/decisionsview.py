@@ -1,6 +1,6 @@
 """Decisions 화면 (plan 7장, docs/ui/decisions.html). 넓은 주제마다 회사별 선택을 나란히 비교한다.
 
-왼쪽은 분야 탭과 그 분야의 주제 목록, 오른쪽은 고른 주제의 비교표
+왼쪽은 분야 선택칸과 그 분야의 주제 목록, 오른쪽은 고른 주제의 비교표
 (문제 · 결정 · 트레이드오프 · 결과 · 신뢰도 · 출처).
 주제 목록은 사례가 많은 순으로 TOPIC_PAGE개씩 커서("더 보기")로 붙인다. 커서는 마지막 주제 이름이다.
 주제 찾기(q)는 분야를 가리지 않고 모든 주제에서 찾는다.
@@ -56,8 +56,8 @@ class Column:
 @dataclass(frozen=True)
 class DecisionsView:
     q: str = ""
-    area: str = ""  # 고른 분야 탭. 주제 찾기 중이면 비운다
-    areas: list[str] = field(default_factory=list)  # 주제가 있는 분야 (탭)
+    area: str = ""  # 고른 분야. 주제 찾기 중이면 비운다 ("모든 분야")
+    areas: list[str] = field(default_factory=list)  # 주제가 있는 분야 (선택칸)
     topics: list[TopicItem] = field(default_factory=list)  # 주제 목록 첫 쪽
     after: str | None = None  # 다음 쪽 커서
     selected: topicmod.Group | None = None

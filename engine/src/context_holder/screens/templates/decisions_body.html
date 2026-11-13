@@ -27,9 +27,14 @@
       </div>
     </form>
     {% if view.areas %}
-    <div class="area-tabs" aria-label="분야">
-      {% for a in view.areas %}<a class="chip{% if a == view.area %} on{% endif %}" href="{{ view.url(area=a, sel='', q='') }}" hx-get="{{ view.url(area=a, sel='', q='') }}" hx-target="#decisions-body" hx-push-url="true"{% if a == view.area %} aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}
-    </div>
+    {# 분야: 고르면 그 분야의 주제만 목록에 보인다. 주제를 찾는 중이면 "모든 분야" #}
+    <form class="area-pick" hx-get="/decisions" hx-target="#decisions-body" hx-trigger="change" hx-push-url="true">
+      <label for="area-pick">분야</label>
+      <select id="area-pick" name="area">
+        {% if view.q %}<option value="" selected>모든 분야</option>{% endif %}
+        {% for a in view.areas %}<option value="{{ a }}"{% if a == view.area %} selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    </form>
     {% endif %}
     {% if view.q %}<h3>찾은 주제: {{ view.q }}</h3>{% endif %}
     <div id="topic-list" class="topic-list">
@@ -50,7 +55,7 @@
         <input type="hidden" name="sel" value="{{ g.name }}">
         <p class="topic-meta">
           <label class="sr-only" for="edit-area">분야</label>
-          <select id="edit-area" name="area" class="area-select" title="분야 바꾸기" data-fit>{% for a in view.area_choices %}<option{% if a == g.area %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+          <select id="edit-area" name="area" class="area-select" title="분야 바꾸기">{% for a in view.area_choices %}<option{% if a == g.area %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
           <span>{{ view.columns | length }}개 사례 · {{ view.columns | map(attribute="company") | unique | list | length }}개 회사</span>
         </p>
         <h1 id="topic-title"><label class="sr-only" for="edit-name">주제 이름</label><textarea id="edit-name" class="inline-edit inline-title" name="name" rows="1" maxlength="40" required spellcheck="false" title="눌러서 이름 고치기" data-autosize>{{ g.name }}</textarea></h1>

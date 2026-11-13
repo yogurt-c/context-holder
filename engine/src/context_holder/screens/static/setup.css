@@ -101,8 +101,8 @@
 .roles-pick + form { margin-top: var(--sp-4); }
 .warn-note { color: var(--busy-ink); }
 .time-select { margin-left: auto; display: inline-flex; gap: var(--sp-1); }
-.time-select select { font: inherit; font-size: 13px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-control); min-height: 32px; padding: 0 var(--sp-2); cursor: pointer; }
-.time-select select:hover { border-color: var(--rule-strong); }
+.time-select .dd-btn { min-width: 76px; background: var(--paper); font-variant-numeric: tabular-nums; }
+.time-select .dd-list { max-height: 220px; font-variant-numeric: tabular-nums; }
 
 /* ---------- 설정: 앱 업데이트 ---------- */
 .us-row { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }

@@ -170,7 +170,9 @@ def test_decisions_page_and_partials(tmp_path):
     page = c.get("/decisions").text
     assert "서비스 메시 운영" in page and "비교표 복사" in page and 'aria-current="page"' in page
     assert "주제에 묶지 못한 사례 1건 · 다음 수집 때 다시 묶어요" in page and "더 보기" not in page
-    assert '<a class="chip on" href="/decisions?area=' in page  # 분야 탭
+    assert '<option value="인프라" selected>인프라</option>' in page  # 분야 선택칸
+    assert 'hx-get="/decisions" hx-target="#decisions-body" hx-trigger="change"' in page
+    assert "모든 분야" not in page
     assert 'hx-get="/article/' in page and "SidecarSet" in page
     assert page.count("data-article=") == 2 * 7  # 사례 2건, 머리줄 + 6줄: 열 어디를 눌러도 상세
     assert 'class="col-open" aria-label="Toss 글 상세 열기"' in page
@@ -183,7 +185,8 @@ def test_decisions_page_and_partials(tmp_path):
     assert "<html" not in body and '<span class="name">모노레포 운영</span>' in body
     assert '<span class="name">서비스 메시 운영</span>' not in body
     assert "맞는 주제가 없어요" in c.get("/decisions?q=zzz").text
-    assert "찾은 주제: 운영" in c.get("/decisions?q=운영").text
+    found = c.get("/decisions?q=운영").text
+    assert "찾은 주제: 운영" in found and '<option value="" selected>모든 분야</option>' in found
     more = c.get("/decisions/more?area=인프라&after=서비스 메시 운영").text
     assert '<div hx-swap-oob="beforeend:#topic-list">' in more and "topic-list-more" not in more
 
@@ -207,7 +210,8 @@ def test_decisions_empty_says_the_next_sync_groups(tmp_path):
 def test_decisions_head_edits_in_place_and_moves_last(tmp_path):
     wiki = make_wiki(tmp_path)
     seed(wiki)
-    page = client(tmp_path, wiki, FakeLlm([])).get("/decisions").text
+    c = client(tmp_path, wiki, FakeLlm([]))
+    page = c.get("/decisions").text
     head = page[page.index('class="topic-inline"') : page.index('class="head-actions"')]
     assert 'hx-post="/decisions/edit"' in head
     assert 'hx-trigger="change"' in head  # 칸을 벗어나면 저장
@@ -217,6 +221,9 @@ def test_decisions_head_edits_in_place_and_moves_last(tmp_path):
     actions = page[page.index('class="head-actions"') : page.index('class="scroll-bar"')]
     assert "주제 편집" not in actions and "saved-note" not in actions  # 편집 모드 없이 바로 고친다
     assert actions.index('aria-label="비교표 복사"') < actions.index("사례 옮기기")
+    # 선택칸은 앱 디자인의 목록으로 바꿔 띄운다 (값과 change는 숨긴 <select>가 그대로 맡는다)
+    assert '<script src="/static/dropdown.js" defer></script>' in page
+    assert c.get("/static/dropdown.js").status_code == 200
 
 
 def test_decisions_edit_renames_says_what_changed_and_undoes(tmp_path):
