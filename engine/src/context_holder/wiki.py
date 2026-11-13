@@ -20,12 +20,13 @@ from urllib.parse import unquote, urlsplit
 import numpy as np
 import yaml
 
+from context_holder import sourcesedit
 from context_holder.classify import Bucket, Decision, Profile, ProfileError, load_profile
 from context_holder.collect import Article
 from context_holder.embed import DEFAULT_MODEL
 from context_holder.enrich import DecisionRecord, Enrichment
 from context_holder.roles import with_roles
-from context_holder.sources import Source, active, load_sources
+from context_holder.sources import Region, Source, SourceConfigError, active, load_sources
 
 FOLDER = {Bucket.SAVE: "wiki", Bucket.INBOX: "inbox"}
 SLUG_MAX = 60
@@ -137,6 +138,50 @@ class Wiki:
 
     def sources(self) -> tuple[Source, ...]:
         return load_sources(self.root / "config/sources.yaml")
+
+    def add_source(self, name: str, region: Region, feed_url: str) -> Source:
+        """수집할 소스를 sources.yaml에 넣는다. 다음 수집이 커밋 · push한다.
+
+        같은 feed가 이미 있으면 SourceConfigError. 수집 대상에서 뺀 소스면 include_source를 쓴다.
+        """
+        path = self.root / "config/sources.yaml"
+        text = path.read_text(encoding="utf-8")
+        current = sourcesedit.checked(text, str(path))
+        existing = sourcesedit.find_by_feed(current, feed_url)
+        if existing:
+            raise SourceConfigError(f"이미 있는 소스예요: {existing.name}")
+        source_id = sourcesedit.new_id(feed_url, {s.id for s in current})
+        updated = sourcesedit.with_source(text, source_id, name, region, feed_url)
+        added = next(
+            (s for s in sourcesedit.checked(updated, str(path)) if s.id == source_id), None
+        )
+        if added is None or added.feed_url != feed_url or added.excluded:
+            raise SourceConfigError(f"{path}: 소스를 넣지 못했다")
+        path.write_text(updated, encoding="utf-8")
+        return added
+
+    def exclude_source(self, source_id: str) -> None:
+        """소스를 수집 대상에서 뺀다. 이미 모은 글과 소스 정보(이름)는 그대로 둔다."""
+        self._set_excluded(source_id, True)
+
+    def include_source(self, source_id: str) -> None:
+        """수집 대상에서 뺀 소스를 다시 수집한다."""
+        self._set_excluded(source_id, False)
+
+    def _set_excluded(self, source_id: str, excluded: bool) -> None:
+        path = self.root / "config/sources.yaml"
+        text = path.read_text(encoding="utf-8")
+        current = sourcesedit.checked(text, str(path))
+        if source_id not in {s.id for s in current}:
+            raise SourceConfigError(f"없는 소스예요: {source_id}")
+        ids = {s.id for s in current if s.excluded} - {source_id}
+        if excluded:
+            ids.add(source_id)
+        updated = sourcesedit.with_excluded(text, ids)
+        after = {s.id for s in sourcesedit.checked(updated, str(path)) if s.excluded}
+        if after != ids:  # excluded를 손으로 여러 줄 목록으로 고친 파일 등
+            raise SourceConfigError(f"{path}: excluded 목록을 고치지 못했다")
+        path.write_text(updated, encoding="utf-8")
 
     def profile(self) -> Profile:
         return load_profile(self.root / "config/profile.yaml")

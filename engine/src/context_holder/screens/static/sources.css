@@ -26,3 +26,32 @@ td .msg { color: var(--error); font-size: 12px; white-space: normal; }
 .suggest .why { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
 .suggest code { font-family: var(--mono); font-size: 11.5px; }
 .suggest a { color: var(--decision); }
+
+/* 줄마다 "제외": 줄에 올리거나 포커스가 있을 때만 보인다 */
+td.act { width: 1%; text-align: right; }
+.exclude-btn { opacity: 0; transition: opacity var(--dur-short) var(--ease); }
+tbody tr:hover .exclude-btn, .exclude-btn:focus-visible { opacity: 1; }
+td.act .confirm-card { white-space: normal; text-align: left; }
+
+/* 소스 추가 창 (글 추가 창 .add-modal 위에 얹는다) */
+.source-modal .bar { margin-top: var(--sp-3); }
+.source-url { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.source-url span { font-family: inherit; color: var(--ink-faint); margin-right: var(--sp-1); }
+.source-step { color: var(--ink); }
+.source-found { margin-top: var(--sp-4); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--ok-line); border-radius: var(--r-paper); background: var(--ok-tint); }
+.source-found p:first-child { margin-top: 0; }
+.source-found p { margin-top: var(--sp-2); }
+.source-ok { display: flex; align-items: center; gap: var(--sp-2); font-weight: 600; color: var(--ink); }
+.source-recent { margin-top: var(--sp-2); padding: 0; font-size: 12.5px; }
+.source-recent li { list-style: none; display: flex; gap: var(--sp-3); padding: 3px 0; border-top: 1px dashed var(--ok-line); }
+.source-recent .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.source-recent .d { color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.source-warn { font-size: 12.5px; color: var(--ink-soft); }
+.source-warn::before { content: "! "; font-weight: 700; color: var(--busy-ink); }
+.source-form label[for] { margin-top: var(--sp-3); }
+.source-region { border: 0; padding: 0; margin: var(--sp-4) 0 0; display: flex; align-items: center; gap: var(--sp-4); }
+.source-region legend { float: left; margin-right: var(--sp-2); font-size: 13px; color: var(--ink-soft); }
+.source-modal .source-region label { display: inline-flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+.source-modal .source-region input { width: auto; padding: 0; margin: 0; accent-color: var(--decision); }
+.source-region label:has(input:checked) { color: var(--ink); font-weight: 600; }
+.source-modal [role="alert"] { color: var(--error); }

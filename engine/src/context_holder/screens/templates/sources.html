@@ -13,12 +13,29 @@
   <td><span class="spark" role="img" aria-label="6일 단위 새 글 추이">{% for h in r.spark %}<i style="height:{{ h }}px"></i>{% endfor %}</span></td>
   <td>{% if r.pass_rate is not none %}<div class="pass"><span class="bar"><i style="width:{{ r.pass_rate }}%"></i></span><span>{{ r.pass_rate }}%</span></div>{% else %}<span class="none">–</span>{% endif %}</td>
   {% endif %}
+  <td class="act">{{ exclude_button(r.source) }}</td>
 </tr>
 {% endfor %}
 {%- endmacro %}
+{# 수집 대상에서 빼기: 줄마다 확인 팝업을 둔다 (app.js data-confirm-open) #}
+{% macro exclude_button(source) -%}
+{% set dialog = "exclude-" ~ source.id %}
+<button type="button" class="btn sm ghost exclude-btn" data-confirm-open="{{ dialog }}" aria-label="{{ source.name }} 수집 대상에서 빼기">제외</button>
+<dialog id="{{ dialog }}" class="modal confirm-modal" aria-labelledby="{{ dialog }}-title" aria-describedby="{{ dialog }}-body">
+  <div class="modal-card confirm-card">
+    <h3 id="{{ dialog }}-title">수집 대상에서 뺄까요?</h3>
+    <p id="{{ dialog }}-body"><b>{{ source.name }}</b>의 새 글을 더는 모으지 않아요. 이미 모은 글은 위키에 그대로 남고, 같은 블로그를 다시 추가하면 이어서 모아요.</p>
+    <p class="confirm-error" role="alert" data-confirm-error hidden></p>
+    <div class="confirm-actions">
+      <button type="button" class="btn ghost" data-confirm-close autofocus>취소</button>
+      <button type="button" class="btn danger" hx-post="/sources/{{ source.id }}/exclude" hx-swap="none" hx-disabled-elt="this" data-exclude-source>제외</button>
+    </div>
+  </div>
+</dialog>
+{%- endmacro %}
 {% block content %}
     {% set total = view.domestic | length + view.overseas | length %}
-    <div class="toolbar"><span class="title">Sources</span><span class="sub"><span>{{ total }}곳</span><span>국내 {{ view.domestic | length }}</span><span>해외 {{ view.overseas | length }}</span></span></div>
+    <div class="toolbar"><span class="title">Sources</span><span class="sub"><span>{{ total }}곳</span><span>국내 {{ view.domestic | length }}</span><span>해외 {{ view.overseas | length }}</span></span><div class="spacer"></div><button type="button" class="btn sm primary" data-source-open hx-get="/sources/add?new=1" hx-target="#source-body">+ 소스 추가</button></div>
     <div class="scroll"><div class="sources-page stack-narrow">
       <section>
         {% if alerts %}<div class="alerts">{{ alert_banners(alerts, side.sync) }}</div>{% endif %}
@@ -30,10 +47,10 @@
         {% endif %}
         {% if not view.has_records %}<p class="note records-note">다음 수집부터 소스별 확인 시각, 새 글 수, 통과율이 쌓여요.</p>{% endif %}
         <div class="table-scroll"><table aria-label="소스 목록">
-          <thead><tr><th>회사</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th></tr></thead>
+          <thead><tr><th>회사</th><th>마지막 확인</th><th class="r">30일 신규</th><th>추이</th><th>통과율</th><th><span class="sr-only">관리</span></th></tr></thead>
           <tbody>
-            {% if view.domestic %}<tr class="group"><td colspan="5">국내</td></tr>{{ rows(view.domestic, not view.has_records) }}{% endif %}
-            {% if view.overseas %}<tr class="group"><td colspan="5">해외</td></tr>{{ rows(view.overseas, not view.has_records) }}{% endif %}
+            {% if view.domestic %}<tr class="group"><td colspan="6">국내</td></tr>{{ rows(view.domestic, not view.has_records) }}{% endif %}
+            {% if view.overseas %}<tr class="group"><td colspan="6">해외</td></tr>{{ rows(view.overseas, not view.has_records) }}{% endif %}
           </tbody>
         </table></div>
         <p class="note table-note">통과율은 30일 동안 새로 모은 글 중 저장한 비율이에요.</p>
@@ -57,4 +74,5 @@
         </section>
       </aside>
     </div></div>
+    <dialog id="source-modal" class="modal add-modal source-modal" aria-label="소스 추가"><div class="modal-card"><header class="article-head"><h2>소스 추가</h2><button type="button" class="btn ghost sm" data-source-close>닫기</button></header><div id="source-body"></div></div></dialog>
 {% endblock %}

@@ -1,4 +1,4 @@
-"""Sources 화면 (plan 7장). 읽기 전용: 소스 편집은 엔진이 설정을 맡는 뒤 커밋에서 연다.
+"""Sources 화면 (plan 7장). 소스를 추가하고(addsource), 수집 대상에서 뺀다.
 
 수집 기록(state/runs)의 소스별 결과(result.by_source)를 30일치 읽어 계산한다.
 - 통과율 = 30일 동안 저장한 글 / 새로 모은 글
@@ -72,15 +72,16 @@ def build_sources(wiki: Wiki, mcp_log: Path, now: datetime) -> SourcesView:
     records = [(d, r) for d, r in run_records(wiki) if (r.get("result") or {}).get("by_source")]
     window = [(d, r) for d, r in records if d >= since]
     sources = configured_sources(wiki)
-    rows = [_row(s, records, window, today) for s in sources]
-    names = {s.id: s.name for s in sources}
+    collected = [s for s in sources if not s.excluded]  # 뺀 소스는 목록에 보이지 않는다
+    rows = [_row(s, records, window, today) for s in collected]
+    names = {s.id: s.name for s in collected}
     failures = []
     if records:
         _, last = records[-1]
         failures = [
             (names.get(sid, sid), entry["error"])
             for sid, entry in last["result"]["by_source"].items()
-            if entry.get("error")
+            if entry.get("error") and sid in names
         ]
     return SourcesView(
         [r for r in rows if r.source.region == "domestic"],

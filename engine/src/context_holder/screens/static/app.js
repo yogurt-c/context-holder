@@ -501,3 +501,54 @@ document.addEventListener("click", (event) => {
   showPicks(box, false);
   name.focus();
 });
+
+// Sources: 소스 추가. 확인은 서버에서 계속하고, 창은 상태만 조회한다.
+document.addEventListener("click", (event) => {
+  const modal = document.getElementById("source-modal");
+  if (!modal) return;
+  if (event.target.closest("[data-source-open]")) {
+    document.getElementById("source-body").replaceChildren(document.getElementById("add-loading").content.cloneNode(true));
+    if (!modal.open) modal.showModal();
+  }
+  if (event.target === modal || event.target.closest("[data-source-close]")) modal.close();
+});
+// 창을 닫으면 끝난 결과를 비운다. 확인 중이면 서버가 그대로 둔다.
+document.getElementById("source-modal")?.addEventListener("close", () => {
+  htmx.ajax("POST", "/sources/add/dismiss", { swap: "none" });
+});
+// 확인 중 조회: 단계가 그대로면 다시 그리지 않는다 (로딩바가 처음부터 돌지 않게).
+document.addEventListener("htmx:beforeSwap", (event) => {
+  if (event.detail.target?.id !== "source-body" || !event.detail.xhr) return;
+  const current = event.detail.target.querySelector("#source-state");
+  const next = new DOMParser().parseFromString(event.detail.serverResponse, "text/html")
+    .querySelector("#source-state");
+  if (current && next && current.dataset.key === next.dataset.key) event.detail.shouldSwap = false;
+});
+document.addEventListener("htmx:afterSwap", (event) => {
+  if (event.target.id !== "source-body") return;
+  htmx.process(event.target);
+  // 확인 중에는 조회할 때마다 포커스를 옮기지 않는다
+  if (!event.target.querySelector("[hx-trigger^='every']")) {
+    event.target.querySelector("form input:not([type=radio])")?.focus();
+  }
+});
+document.addEventListener("htmx:afterRequest", (event) => {
+  if (event.detail.target?.id !== "source-body" || event.detail.successful) return;
+  const note = document.getElementById("source-body").querySelector(".add-network-error");
+  if (note) note.hidden = false;
+});
+
+// Sources: 수집 대상에서 빼기. 뺐으면 목록을 새로 그리고, 못 뺐으면 팝업에 이유를 보인다.
+document.addEventListener("htmx:afterRequest", (event) => {
+  const button = event.detail.elt;
+  if (!button.matches?.("[data-exclude-source]")) return;
+  const dialog = button.closest(".confirm-modal");
+  if (event.detail.successful) {
+    dialog.close();
+    location.reload();
+    return;
+  }
+  const error = dialog.querySelector("[data-confirm-error]");
+  error.textContent = event.detail.xhr?.responseText || "빼지 못했어요. 다시 시도해 주세요.";
+  error.hidden = false;
+});

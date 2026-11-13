@@ -1,0 +1,46 @@
+{# 소스 추가 창의 내용. 확인하는 동안은 이 조각을 1초마다 다시 받는다 (단계 문구가 같으면 app.js가 그대로 둔다) #}
+<div id="source-state" data-key="{{ job.state }}|{{ job.message }}|{{ job.form_error }}">
+{% if job.state == "checking" %}
+  <div hx-get="/sources/add" hx-trigger="every 1s" hx-target="#source-body" hx-swap="innerHTML">
+    <p class="source-url">{{ job.url }}</p>
+    <p role="status" class="source-step">{{ job.message }}</p>
+    <div class="bar busy indeterminate" role="progressbar" aria-label="소스 확인 진행"><i style="width:30%"></i></div>
+    <p class="note">사이트에 1초 간격으로 요청해서 10초쯤 걸릴 수 있어요.</p>
+  </div>
+  <div class="actions"><button type="button" class="btn ghost" data-source-close>닫기</button></div>
+{% elif job.state == "ready" %}
+  {% set p = job.probe %}
+  <div class="source-found">
+    <p class="source-ok" role="status"><span class="dot ok" aria-hidden="true"></span>{% if job.restore %}예전에 수집 대상에서 뺀 소스예요. 다시 수집할 수 있어요.{% else %}이 블로그는 수집할 수 있어요.{% endif %}</p>
+    <p class="source-url"><span>피드</span> {{ p.feed_url }}</p>
+    <ul class="source-recent" aria-label="최근 글">
+      {% for e in p.recent %}<li><span class="t">{{ e.title or e.url }}</span>{% if e.published %}<span class="d">{{ short_day(e.published.astimezone().date()) }}</span>{% endif %}</li>{% endfor %}
+    </ul>
+    {% for w in p.warnings %}<p class="source-warn">{{ w }}</p>{% endfor %}
+  </div>
+  <form hx-post="/sources/add" hx-target="#source-body" class="source-form">
+    {% if job.restore %}
+    <p class="note">다음 수집부터 <b>{{ job.restore.name }}</b>의 최근 7일 글을 다시 모아요.</p>
+    {% else %}
+    <label for="source-name">이름</label>
+    <input id="source-name" name="name" required maxlength="60" value="{{ p.title }}" autocomplete="off">
+    <fieldset class="source-region">
+      <legend>지역</legend>
+      {% for value, label in (("domestic", "국내"), ("overseas", "해외")) %}<label><input type="radio" name="region" value="{{ value }}"{% if p.region == value %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+    </fieldset>
+    <p class="note">다음 수집부터 최근 7일 글을 모아요.</p>
+    {% endif %}
+    {% if job.form_error %}<p role="alert">{{ job.form_error }}</p>{% endif %}
+    <p class="note add-network-error" hidden>연결하지 못했어요. 다시 시도해 주세요.</p>
+    <div class="actions"><button type="button" class="btn ghost" hx-get="/sources/add?new=1" hx-target="#source-body">다른 주소</button><button type="submit" class="btn primary">{{ '다시 수집' if job.restore else '추가' }}</button></div>
+  </form>
+{% else %}
+  <form hx-post="/sources/add/check" hx-target="#source-body">
+    <label for="source-url">블로그나 피드 주소를 입력하세요.</label>
+    <input id="source-url" name="url" type="url" required placeholder="https://…" value="{{ job.url if job.state == 'error' else '' }}" autocomplete="off">
+    {% if job.state == "error" %}<p role="alert">{{ job.message }}</p>{% else %}<p class="note">RSS · Atom 피드를 찾아서 최근 글의 본문을 가져올 수 있는지 확인해요.</p>{% endif %}
+    <p class="note add-network-error" hidden>연결하지 못했어요. 다시 시도해 주세요.</p>
+    <div class="actions"><button type="button" class="btn ghost" data-source-close>취소</button><button type="submit" class="btn primary">{{ '다시 확인' if job.state == 'error' else '확인' }}</button></div>
+  </form>
+{% endif %}
+</div>

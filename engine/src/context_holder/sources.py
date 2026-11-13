@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from importlib import resources
 from pathlib import Path
@@ -68,9 +68,12 @@ class Source:
     date_pattern: str = ""  # 원문 화면에서 게시일을 찾는 정규식 (연 · 월 · 일 그룹)
     weight: float = 1.0  # Today 순위의 회사 가중치
     roles: tuple[str, ...] = ()  # 이 직군을 골랐을 때만 수집한다. 비어 있으면 늘 수집
+    excluded: bool = False  # Sources 화면에서 수집 대상에서 뺐다. 이미 모은 글은 그대로 둔다
 
     def collects_for(self, roles: Sequence[str]) -> bool:
         """roles: 고른 직군. 비어 있으면(직군을 고르지 않은 예전 위키) 모두 수집한다."""
+        if self.excluded:
+            return False
         return not self.roles or not roles or bool(set(self.roles) & set(roles))
 
     def excludes(self, title: str) -> bool:
@@ -78,7 +81,7 @@ class Source:
 
 
 def active(sources: Iterable[Source], roles: Sequence[str]) -> tuple[Source, ...]:
-    """고른 직군으로 수집할 소스만 남긴다."""
+    """고른 직군으로 수집할 소스만 남긴다. 수집 대상에서 뺀 소스는 빠진다."""
     return tuple(s for s in sources if s.collects_for(roles))
 
 
@@ -103,7 +106,17 @@ def parse_sources(data: Any, origin: str) -> tuple[Source, ...]:
     duplicates = sorted({i for i in ids if ids.count(i) > 1})
     if duplicates:
         raise SourceConfigError(f"{origin}: 중복된 id {', '.join(duplicates)}")
-    return parsed
+    excluded = _parse_excluded(data.get("excluded", []), origin)
+    return tuple(replace(s, excluded=True) if s.id in excluded else s for s in parsed)
+
+
+def _parse_excluded(raw: Any, origin: str) -> frozenset[str]:
+    """수집 대상에서 뺀 소스 id. 없는 id(다른 기기가 지운 소스)는 무시한다."""
+    if raw is None:
+        return frozenset()
+    if not isinstance(raw, list) or not all(isinstance(i, str) for i in raw):
+        raise SourceConfigError(f"{origin}: excluded는 소스 id 목록")
+    return frozenset(raw)
 
 
 def _parse_one(item: Any, origin: str, index: int) -> Source:

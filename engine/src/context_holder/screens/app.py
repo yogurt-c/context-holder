@@ -34,6 +34,7 @@ from context_holder.llm import AGENT_TOOLS, AGENTS, ClaudeCli
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     addarticle,
+    addsource,
     articleview,
     bookmarksview,
     decisionsview,
@@ -46,6 +47,7 @@ from context_holder.screens import (
 )
 from context_holder.screens.runs import alerts
 from context_holder.screens.suggestions import Suggester, Suggestion
+from context_holder.sources import SourceConfigError
 from context_holder.wiki import Wiki
 
 COOKIE = "ch_token"
@@ -111,6 +113,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     write_lock = threading.Lock()  # Inbox 파일 이동이 겹치지 않게
 
     addition = addarticle.AddArticleJob(ctx, write_lock, search_lock, lambda: agent())
+    source_job = addsource.AddSourceJob(ctx, write_lock)
     if ctx.scheduler is not None:
         ready = getattr(ctx.scheduler, "ready", lambda: True)
         ctx.scheduler.ready = lambda: addition.state != "running" and ready()
@@ -446,6 +449,47 @@ def create_app(ctx: ScreenContext) -> FastAPI:
     def sources(request: Request) -> HTMLResponse:
         view = sourcesview.build_sources(ctx.wiki, ctx.mcp_log, ctx.clock())
         return page(request, "sources.html", "sources", view=view, alerts=current_alerts())
+
+    @app.get("/sources/add", response_class=HTMLResponse)
+    def source_form(request: Request, new: bool = False) -> HTMLResponse:
+        """소스 추가 창의 내용. 확인하는 동안 창이 이 주소를 조회한다."""
+        if new:
+            source_job.dismiss()
+        return templates.TemplateResponse(request, "_add_source.html", {"job": source_job})
+
+    @app.post("/sources/add/check", response_class=HTMLResponse)
+    def source_check(request: Request, url: str = Form("")) -> HTMLResponse:
+        source_job.check(url)
+        return source_form(request)
+
+    @app.post("/sources/add", response_class=HTMLResponse)
+    def source_add(request: Request, name: str = Form(""), region: str = Form("")) -> HTMLResponse:
+        """넣었으면 Sources를 새로 그려 새 줄을 보인다. 못 넣었으면 창에 이유를 보인다."""
+        added = source_job.add(name, region, busy=busy())
+        response = source_form(request)
+        if added is not None:
+            response.headers["HX-Refresh"] = "true"
+        return response
+
+    @app.post("/sources/add/dismiss")
+    def source_dismiss() -> Response:
+        source_job.dismiss()
+        return Response(status_code=204)
+
+    @app.post("/sources/{source_id}/exclude")
+    def source_exclude(source_id: str) -> Response:
+        """수집 대상에서 뺀다. 이미 모은 글은 그대로 둔다. 못 빼면 이유를 글로 준다 (app.js)."""
+        if busy():
+            return PlainTextResponse(addsource.BUSY, status_code=409)
+        try:
+            with write_lock:
+                ctx.wiki.exclude_source(source_id)
+        except SourceConfigError as e:
+            return PlainTextResponse(str(e), status_code=422)
+        except OSError:
+            log.exception("소스 제외 실패 (%s)", source_id)
+            return PlainTextResponse("설정 파일에 쓰지 못했어요.", status_code=500)
+        return Response(status_code=204)
 
     def sync_card(request: Request) -> HTMLResponse:
         side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)

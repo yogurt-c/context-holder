@@ -31,20 +31,30 @@ log = logging.getLogger(__name__)
 
 
 def normalize_url(value: str) -> str:
+    message = "게시글의 http(s) URL을 입력해 주세요."
     try:
-        parts = urlsplit(value.strip())
+        return canonical_url(checked_url(value, message))
+    except ValueError:
+        raise ValueError(message) from None
+
+
+def checked_url(value: str, message: str) -> str:
+    """http(s) 주소인지 확인한다. 아니면 message로 ValueError."""
+    url = value.strip()
+    try:
+        parts = urlsplit(url)
         if (
             parts.scheme not in ("https", "http")
             or not parts.hostname
             or parts.username
             or parts.password
-            or any(c.isspace() for c in value.strip())
+            or any(c.isspace() for c in url)
         ):
             raise ValueError
         _ = parts.port
-        return canonical_url(value)
     except ValueError:
-        raise ValueError("게시글의 http(s) URL을 입력해 주세요.") from None
+        raise ValueError(message) from None
+    return url
 
 
 def source_for(wiki: Wiki, url: str) -> Source:

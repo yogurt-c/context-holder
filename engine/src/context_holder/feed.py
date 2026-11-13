@@ -30,6 +30,10 @@ class FetchError(RuntimeError):
     """feed나 페이지를 가져오지 못했다."""
 
 
+class RobotsBlocked(FetchError):
+    """robots.txt가 막는 주소다."""
+
+
 @dataclass(frozen=True)
 class FeedEntry:
     source_id: str
@@ -37,6 +41,13 @@ class FeedEntry:
     title: str
     published: datetime | None
     html: str  # content가 있으면 content, 없으면 summary
+
+
+@dataclass(frozen=True)
+class ParsedFeed:
+    title: str  # feed 제목 (블로그 이름)
+    link: str  # 블로그 주소
+    entries: tuple[FeedEntry, ...]
 
 
 @dataclass(frozen=True)
@@ -49,7 +60,7 @@ class FeedFetch:
 def get(client: httpx.Client, url: str, headers: dict[str, str] | None = None) -> httpx.Response:
     """GET 요청. robots.txt를 지키고, 5xx와 네트워크 오류는 잠깐 쉬고 다시 시도한다."""
     if RESPECT_ROBOTS and not _allowed(client, url):
-        raise FetchError(f"{url}: robots.txt가 막는 주소다")
+        raise RobotsBlocked(f"{url}: robots.txt가 막는 주소다")
     for attempt in range(1, ATTEMPTS + 1):
         _wait_turn(url)
         try:
@@ -107,14 +118,30 @@ def fetch_feed(client: httpx.Client, source: Source, etag: str | None) -> FeedFe
         return FeedFetch(entries=(), etag=etag, not_modified=True)
     if response.status_code != 200:
         raise FetchError(f"{source.feed_url}: HTTP {response.status_code}")
-    parsed = feedparser.parse(response.content)
+    parsed = parse_feed(response.content, source.id)
+    if parsed is None:
+        raise FetchError(
+            f"{source.feed_url}: feed 형식이 아니다 ({_not_feed_reason(response.content)})"
+        )
+    return FeedFetch(entries=parsed.entries, etag=response.headers.get("etag"), not_modified=False)
+
+
+def parse_feed(content: bytes, source_id: str) -> ParsedFeed | None:
+    """RSS/Atom이면 글 목록으로 바꾼다. feed가 아니면(HTML 페이지 등) None."""
+    parsed = feedparser.parse(content)
     if not parsed.version and not parsed.entries:
-        reason = parsed.get("bozo_exception", "RSS/Atom 아님")
-        raise FetchError(f"{source.feed_url}: feed 형식이 아니다 ({reason})")
+        return None
     entries = tuple(
-        entry for raw in parsed.entries if (entry := _to_entry(source.id, raw)) is not None
+        entry for raw in parsed.entries if (entry := _to_entry(source_id, raw)) is not None
     )
-    return FeedFetch(entries=entries, etag=response.headers.get("etag"), not_modified=False)
+    meta = parsed.get("feed") or {}
+    return ParsedFeed(
+        title=(meta.get("title") or "").strip(), link=meta.get("link") or "", entries=entries
+    )
+
+
+def _not_feed_reason(content: bytes) -> str:
+    return str(feedparser.parse(content).get("bozo_exception", "RSS/Atom 아님"))
 
 
 def _to_entry(source_id: str, raw: Any) -> FeedEntry | None:
