@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from context_holder.appsettings import Settings
 from context_holder.classify import Bucket
 from context_holder.index import Index
 from context_holder.scheduler import Progress
@@ -40,11 +41,10 @@ def test_menu_before_first_run_today(setup, index):  # noqa: F811
     event = status_event(scheduler, index)
     assert event["icon"] == "normal"
     assert labels(event)[:2] == ["오늘 아직 수집 전", "평일 09:30, Mac을 켜거나 깨울 때 수집해요"]
-    assert item(event, "지금 수집") == {"label": "지금 수집", "enabled": True, "cmd": "sync_now"}
-    pause = item(event, "수집 일시정지")
-    assert [c["cmd"] for c in pause["children"]] == ["pause 1h", "pause today", "pause forever"]
+    assert labels(event)[2:] == ["—", "Context Holder 열기", "—", "설정", "Context Holder 종료"]
+    assert item(event, "Context Holder 열기")["open"] == "/today"
     assert event["items"][-1] == {"label": "Context Holder 종료", "enabled": True, "quit": True}
-    assert item(event, "Inbox")["open"] == "/inbox" and item(event, "설정")["open"] == "/settings"
+    assert item(event, "설정")["open"] == "/settings"
     assert all(not i.get("label", "").startswith("요약 대기") for i in event["items"])
 
 
@@ -77,9 +77,9 @@ def test_menu_after_done_shows_lead_counts_and_next_run(setup, index):  # noqa: 
     head, sub = labels(event)[:2]
     assert head == "오늘 08:00 수집 완료, 신규 5건 · 소스 2곳 실패"
     assert sub == "이 기기에서 수집 · 다음 수집 월요일 09:30"
-    assert item(event, "Today 열기")["open"] == "/today"
-    assert item(event, "오늘 수집 완료")["enabled"] is False
-    assert item(event, "Inbox 열기 (1)")["open"] == "/inbox"
+    assert not any(
+        i.get("label", "").startswith(("Today", "Inbox", "오늘 수집")) for i in event["items"]
+    )
     assert item(event, "요약 대기 1건")["enabled"] is False
 
 
@@ -108,7 +108,6 @@ def test_menu_while_running_shows_progress(setup, index):  # noqa: F811
     (event,) = seen
     assert event["icon"] == "busy"
     assert labels(event)[:2] == ["수집 중 · 소스 7/13", "이 기기에서 08:00에 시작"]
-    assert item(event, "수집 중…")["enabled"] is False
 
 
 def test_menu_when_other_device_runs_paused_stopped_or_failed(setup, index):  # noqa: F811
@@ -116,7 +115,7 @@ def test_menu_when_other_device_runs_paused_stopped_or_failed(setup, index):  # 
     record(wiki, clock.now, status="running", device="studio", heartbeat_at=clock.now.isoformat())
     event = status_event(scheduler, index)
     assert event["icon"] == "busy" and labels(event)[0] == "studio가 수집 중"
-    assert item(event, "지금 수집")["enabled"] is False
+    assert "수집 다시 켜기" not in labels(event)
 
     record(wiki, clock.now, status="stopped")
     scheduler.pause("1h")
@@ -157,6 +156,20 @@ def test_next_run_skips_weekends(setup, index, day, expected):  # noqa: F811
     clock.now = day
     record(wiki, clock.now, status="done", device="air", finished_at=day.isoformat())
     assert labels(status_event(scheduler, index))[1].endswith(expected)
+
+
+def test_menu_follows_chosen_time_and_weekends(setup, index):  # noqa: F811
+    """다음 수집 시각은 설정한 시각이다 (예전에는 09:30으로 고정돼 보였다)."""
+    scheduler, wiki, clock, *_ = setup
+    scheduler.settings = lambda: Settings(daily_at="09:50")
+    assert labels(status_event(scheduler, index))[1].startswith("평일 09:50")
+
+    clock.now = FRIDAY_8
+    record(wiki, clock.now, status="done", device="air", finished_at=clock.now.isoformat())
+    assert labels(status_event(scheduler, index))[1].endswith("다음 수집 월요일 09:50")
+
+    scheduler.settings = lambda: Settings(daily_at="07:05", weekends=True)
+    assert labels(status_event(scheduler, index))[1].endswith("다음 수집 내일 07:05")
 
 
 # ---------- 알림 ----------

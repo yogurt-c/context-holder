@@ -52,24 +52,14 @@ def status_event(
     record = scheduler.today_record()
     paused = scheduler.paused_until()
     head, sub, icon = _headline(scheduler, record, paused, now)
-    inbox = len(index.select("WHERE bucket = ?", (Bucket.INBOX.value,)))
     pending = len(index.select("WHERE status = ?", ("pending",)))
     items: list[dict[str, Any]] = [{"label": head, "enabled": False}]
     if sub:
         items.append({"label": sub, "enabled": False})
     items.append({"separator": True})
-    items += [
-        {"label": "Today 열기", "enabled": True, "open": "/today"},
-        {"label": "Search 열기", "enabled": True, "open": "/search"},
-        {
-            "label": f"Inbox 열기 ({inbox})" if inbox else "Inbox 열기",
-            "enabled": True,
-            "open": "/inbox",
-        },
-        {"separator": True},
-        _sync_item(scheduler, record),
-        _pause_item(paused),
-    ]
+    items.append({"label": "Context Holder 열기", "enabled": True, "open": "/today"})
+    if paused:  # 일시정지는 더 걸 수 없지만, 예전에 건 것은 풀 수 있어야 한다
+        items.append({"label": "수집 다시 켜기", "enabled": True, "cmd": "resume"})
     if pending:
         items.append({"label": f"요약 대기 {pending}건", "enabled": False})
     update = updates.menu_item(scheduler.running) if updates else None
@@ -186,31 +176,17 @@ def _headline(
         head = f"오늘 {finished} 수집 완료, 신규 {new}건"
         if failed:
             head += f" · 소스 {failed}곳 실패"
-        return head, f"{where} · 다음 수집 {_next_day(now)}", icon
+        return head, f"{where} · 다음 수집 {_next_run(now, scheduler.settings())}", icon
     if record and record.get("status") == "stopped":
         agent = AGENTS[scheduler.settings().agent]
         return "수집이 멈췄어요", f"{agent} 연결 문제예요. 다음 수집 때 이어서 해요", "error"
     if scheduler.last and scheduler.last.ok is False:
         at = scheduler.last.at.astimezone().strftime("%H:%M")
         return "수집하지 못했어요", f"{at}에 실패 · 30분 뒤 다시 해요", "error"
-    return "오늘 아직 수집 전", "평일 09:30, Mac을 켜거나 깨울 때 수집해요", "normal"
-
-
-def _sync_item(scheduler: Scheduler, record: dict[str, Any] | None) -> dict[str, Any]:
-    if scheduler.running:
-        return {"label": "수집 중…", "enabled": False}
-    if record and record.get("status") == "done":
-        return {"label": "오늘 수집 완료", "enabled": False}
-    return {"label": "지금 수집", "enabled": scheduler.can_run_now(), "cmd": "sync_now"}
-
-
-def _pause_item(paused) -> dict[str, Any]:
-    if paused:
-        return {"label": "수집 다시 켜기", "enabled": True, "cmd": "resume"}
-    children = [
-        {"label": label, "enabled": True, "cmd": f"pause {key}"} for key, label in PAUSES.items()
-    ]
-    return {"label": "수집 일시정지", "enabled": True, "children": children}
+    chosen = scheduler.settings()
+    days = "매일" if chosen.weekends else "평일"
+    when = f"{days} {chosen.daily_time:%H:%M}"
+    return "오늘 아직 수집 전", f"{when}, Mac을 켜거나 깨울 때 수집해요", "normal"
 
 
 def _today_ranked(wiki: Wiki, index: Index, now: datetime):
@@ -244,12 +220,15 @@ def _until(until: datetime, now: datetime) -> str:
     return f"{short_day(local.date())} {local:%H:%M}까지"
 
 
-def _next_day(now: datetime) -> str:
+def _next_run(now: datetime, chosen: Settings) -> str:
+    """오늘 수집을 끝낸 뒤의 다음 수집: 설정한 시각, 주말 수집을 끄면 다음 평일."""
     local = now.astimezone().date()
-    days = 3 if local.weekday() == 4 else 2 if local.weekday() == 5 else 1
+    days = 1
+    if not chosen.weekends:
+        days = 3 if local.weekday() == 4 else 2 if local.weekday() == 5 else 1
     nxt = date.fromordinal(local.toordinal() + days)
     head = "내일" if days == 1 else f"{WEEKDAYS[nxt.weekday()]}요일"
-    return f"{head} 09:30"
+    return f"{head} {chosen.daily_time:%H:%M}"
 
 
 def _clock(value: str | None) -> str:
