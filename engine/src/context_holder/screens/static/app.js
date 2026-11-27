@@ -387,10 +387,14 @@ document.addEventListener("htmx:afterSettle", () => {
 // Decisions 머리의 이름 · 질문: 글 길이만큼 칸을 늘린다. 줄바꿈 대신 칸을 벗어나 저장한다 (폼의 change).
 const autosize = (field) => {
   field.style.height = "auto";
-  field.style.height = `${field.scrollHeight}px`;
+  // scrollHeight에는 테두리가 빠져 있다 (box-sizing: border-box라 더하지 않으면 2px 잘린다)
+  field.style.height = `${field.scrollHeight + field.offsetHeight - field.clientHeight}px`;
 };
 const autosizeAll = (root) => root.querySelectorAll?.("[data-autosize]").forEach(autosize);
 autosizeAll(document);
+// WebKit은 스타일시트를 적용하기 전에 이 스크립트를 돌릴 때가 있다. 스타일 · 글꼴이 다 들어오면 다시 잰다
+window.addEventListener("load", () => autosizeAll(document));
+document.fonts?.ready.then(() => autosizeAll(document));
 document.addEventListener("htmx:afterSettle", (event) => autosizeAll(event.target));  // 자리를 잡은 뒤에 잰다
 document.addEventListener("input", (event) => {
   if (event.target.matches?.("[data-autosize]")) autosize(event.target);
@@ -551,4 +555,32 @@ document.addEventListener("htmx:afterRequest", (event) => {
   const error = dialog.querySelector("[data-confirm-error]");
   error.textContent = event.detail.xhr?.responseText || "빼지 못했어요. 다시 시도해 주세요.";
   error.hidden = false;
+});
+
+// Onboarding: 기다리는 동안(승인 · 설치 · 수집) 2초마다 패널을 받아 바뀐 조각(data-live)만 바꿔 끼운다.
+// 패널을 통째로 바꾸면 고르던 수집 시각 · 체크박스가 저장된 값으로 돌아가고 열린 선택칸이 닫힌다.
+// 다른 단계로 넘어가는 등 모양(data-shape)이 바뀌었을 때만 패널을 통째로 바꾼다.
+document.addEventListener("htmx:afterRequest", (event) => {
+  const poll = event.detail.elt;
+  if (!poll.matches?.("[data-setup-poll]") || !event.detail.successful) return;
+  const panel = document.getElementById("setup-panel");
+  if (!panel?.contains(poll)) return;  // 그사이 단계를 눌러 패널이 바뀌었다
+  const html = event.detail.xhr.responseText;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const next = template.content.getElementById("setup-panel");
+  if (!next) return;
+  const parts = [...next.querySelectorAll("[data-live]")];
+  const same = panel.dataset.shape === next.dataset.shape
+    && parts.length === panel.querySelectorAll("[data-live]").length
+    && parts.every((part) => panel.querySelector(`#${CSS.escape(part.id)}[data-live]`));
+  if (!same) {
+    htmx.swap(panel, html, { swapStyle: "outerHTML" });
+    return;
+  }
+  parts.forEach((part) => {
+    const current = panel.querySelector(`#${CSS.escape(part.id)}`);
+    if (current.outerHTML !== part.outerHTML) htmx.swap(current, part.outerHTML, { swapStyle: "outerHTML" });
+  });
+  if (!next.querySelector("[data-setup-poll]")) poll.remove();  // 기다릴 일이 끝났다
 });

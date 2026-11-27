@@ -341,6 +341,12 @@ def test_setup_buttons(flow, tmp_path, monkeypatch):
     flow.background = lambda work: None
     panel = c.post("/setup/github", headers=HTMX).text
     assert "WDJB-MJHT" in panel and 'hx-trigger="every 2s"' in panel and "<html" not in panel
+    # 기다리는 동안은 패널을 통째로 바꾸지 않고 바뀐 조각(data-live)만 바꿔 끼운다 (app.js)
+    assert 'data-setup-poll hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="none"' in panel
+    assert 'id="ob-live" data-live' in panel and 'data-shape="github|' in panel
+    start = c.get("/setup/panel", headers={**HTMX, "X-Setup-Step": "start"}).text
+    assert 'id="ob-live" class="go" data-live' in start  # 시작하기 버튼만 다시 그린다
+    assert start.index('name="hour"') < start.index('id="ob-live"')  # 수집 시각은 조각 밖에 있다
     c.post("/setup/github/open", headers=HTMX)
     assert flow.events["opened"]
     assert "승인 기다리는 중" in c.get("/setup/panel").text
