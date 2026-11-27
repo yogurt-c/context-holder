@@ -186,7 +186,7 @@ def _headline(
     chosen = scheduler.settings()
     days = "매일" if chosen.weekends else "평일"
     when = f"{days} {chosen.daily_time:%H:%M}"
-    return "오늘 아직 수집 전", f"{when}, Mac을 켜거나 깨울 때 수집해요", "normal"
+    return "오늘 아직 수집 전", f"{when}에 수집해요 · 그때 Mac이 꺼져 있었으면 켤 때 해요", "normal"
 
 
 def _today_ranked(wiki: Wiki, index: Index, now: datetime):

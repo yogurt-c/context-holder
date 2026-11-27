@@ -16,7 +16,7 @@
             {% for value, label in [("system", "시스템"), ("light", "라이트"), ("dark", "다크")] %}<label class="radio"><input type="radio" name="theme" value="{{ value }}" data-theme-choice{% if st.theme == value %} checked{% endif %}> {{ label }}</label>{% endfor %}
           </li>
         </ul>
-        <p class="note settings-note">Mac이 꺼져 있었다면 켜거나 깨울 때 수집해요. 하루 한 번만, 먼저 맡은 기기가 수집해요.</p>
+        <p class="note settings-note">그 시각에 Mac이 꺼져 있었다면 켜거나 깨울 때 수집해요. 하루 한 번만, 먼저 맡은 기기가 수집해요.</p>
       </form>
 
       <section class="panel settings-group" aria-labelledby="roles-head">

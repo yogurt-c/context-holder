@@ -40,7 +40,8 @@ def test_menu_before_first_run_today(setup, index):  # noqa: F811
     scheduler, *_ = setup
     event = status_event(scheduler, index)
     assert event["icon"] == "normal"
-    assert labels(event)[:2] == ["오늘 아직 수집 전", "평일 09:30, Mac을 켜거나 깨울 때 수집해요"]
+    when = "평일 09:30에 수집해요 · 그때 Mac이 꺼져 있었으면 켤 때 해요"
+    assert labels(event)[:2] == ["오늘 아직 수집 전", when]
     assert labels(event)[2:] == ["—", "Context Holder 열기", "—", "설정", "Context Holder 종료"]
     assert item(event, "Context Holder 열기")["open"] == "/today"
     assert event["items"][-1] == {"label": "Context Holder 종료", "enabled": True, "quit": True}
