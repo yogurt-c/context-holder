@@ -1,9 +1,11 @@
 {# Onboarding: 왼쪽은 단계 이름, 오른쪽은 고른 단계의 할 일.
    고른 단계는 X-Setup-Step 헤더로 다시 보낸다 (없으면 지금 할 단계를 따라가다 끝나면 다음으로 넘어간다).
-   기다리는 일(승인 · 설치 · 수집)이 있으면 2초마다 다시 그린다 #}
+   기다리는 일(승인 · 설치 · 수집)이 있으면 2초마다 패널을 받아 data-live 조각 중 바뀐 것만 바꿔 끼운다 (app.js).
+   고르던 직군 · 수집 시각 · 체크박스는 다시 그리지 않는다. data-shape가 바뀌면(다른 단계로 넘어감 등) 패널을 통째로 바꾼다 #}
 {% set gh = s.github %}{% set cl = s.status %}{% set job = s.job %}{% set st = s.settings %}{% set j = s.journey %}
-<section id="setup-panel" class="ob-grid"{% if s.chosen %} hx-headers='{"X-Setup-Step": "{{ s.chosen }}"}'{% endif %}{% if s.busy %} hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
-  <nav class="ob-steps" aria-label="Onboarding 단계">
+<section id="setup-panel" class="ob-grid" data-shape="{{ s.selected }}|{{ st.setup_done }}|{{ j.complete }}"{% if s.chosen %} hx-headers='{"X-Setup-Step": "{{ s.chosen }}"}'{% endif %}>
+  {% if s.busy %}<span hidden data-setup-poll hx-get="/setup/panel" hx-trigger="every 2s" hx-swap="none"></span>{% endif %}
+  <nav id="ob-steps" class="ob-steps" aria-label="Onboarding 단계" data-live>
     {% macro step_link(t) -%}
     <a href="/setup?step={{ t.key }}" class="{{ t.state }}{% if t.on %} on{% endif %}"{% if t.on %} aria-current="step"{% endif %}
        hx-get="/setup/panel" hx-target="#setup-panel" hx-swap="outerHTML" hx-headers='{"X-Setup-Step": "{{ '' if t.key == s.current else t.key }}"}'>
@@ -18,6 +20,7 @@
   {% if s.selected == "github" %}
     <p class="eyebrow">1 / 5</p>
     <h2 id="ob-title">GitHub 연결</h2>
+    <div id="ob-live" data-live>
     {% if s.github_done %}
       <p class="lede">{% if gh.connected %}{{ gh.connected.login }} 계정 · context-wiki {{ "새로 만듦" if gh.connected.created else "찾음" }}{% else %}연결됨{% endif %}{% if s.token_source == "gh" %} · GitHub CLI 로그인을 써요{% endif %}</p>
       {% if gh.state == "error" %}<p class="error-line" role="alert">{{ gh.message }}</p>{% endif %}
@@ -35,11 +38,13 @@
         <span class="tiny">{% if s.token_source == "gh" %}GitHub CLI에 로그인된 계정을 써요{% else %}토큰은 macOS 키체인에만 저장해요{% endif %}</span>
       </div>
     {% endif %}
+    </div>
 
   {% elif s.selected == "agent" %}
     <p class="eyebrow">2 / 5</p>
     <h2 id="ob-title">에이전트 연결</h2>
     <p class="lede">글을 요약하고 분류할 에이전트예요. 구독으로 동작해서 API 키는 필요 없어요.</p>
+    <div id="ob-live" data-live>
     <form class="seg" hx-post="/setup/agent" hx-trigger="change" hx-target="#setup-panel" hx-swap="outerHTML" role="radiogroup" aria-label="에이전트">
       {% for value, label in s.agents.items() %}<label><input type="radio" name="agent" value="{{ value }}"{% if s.agent == value %} checked{% endif %}{% if s.busy %} disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
     </form>
@@ -66,9 +71,9 @@
       {% if cl.outdated %}<p class="tiny">{{ s.agent_tool }} {{ cl.outdated }}은 너무 오래돼 요약에 쓸 수 없어요. 공식 설치 프로그램으로 업데이트해요: <code>{{ s.install_preview }}</code></p>
       {% elif not cl.installed %}<p class="tiny">{{ s.agent_tool }}가 없어요. 공식 설치 프로그램을 실행해요: <code>{{ s.install_preview }}</code></p>{% endif %}
     {% endif %}
+    </div>
 
-
-    <section class="ob-extra" aria-labelledby="ob-mcp">
+    <section id="ob-live-mcp" class="ob-extra" aria-labelledby="ob-mcp" data-live>
       <h3 id="ob-mcp">{{ s.mcp_host }}에서 위키 검색 <small>선택</small></h3>
       {% if s.mcp_ok %}
         <p class="ok-line">연결됨. 새로 연 {{ s.mcp_host }} 세션부터 {{ s.mcp_host }}가 기술 결정 전에 이 위키를 찾아봐요.</p>
@@ -101,7 +106,7 @@
         <li><label><input type="checkbox" name="autostart" value="true"{% if st.autostart %} checked{% endif %}> 로그인할 때 자동 실행</label></li>
         <li><label><input type="checkbox" name="notify" value="true"{% if st.notify %} checked{% endif %}> 수집 완료 알림</label></li>
       </ul>
-      <div class="go">
+      <div id="ob-live" class="go" data-live>
         <button class="btn primary"{% if not s.can_finish %} disabled{% endif %}>시작하기</button>
         {% if not s.can_finish %}<span class="tiny">GitHub와 {{ s.agent_name }}를 연결하면 시작할 수 있어요.</span>{% endif %}
       </div>
@@ -112,6 +117,7 @@
     {% set collected = j.is_done("first_sync") %}{% set sy = s.sync %}{% set running = st.setup_done and sy and sy.running %}
     <p class="eyebrow">4 / 5</p>
     <h2 id="ob-title">첫 수집</h2>
+    <div id="ob-live" data-live>
     {% if collected %}
       <p class="ok-line">끝났어요. <a href="/today">Today</a>에서 모은 글을 볼 수 있어요.</p>
     {% elif running %}
@@ -124,10 +130,12 @@
       <p class="lede">수집 설정을 마치면 소스마다 최근 글을 가져와 위키를 채워요. 몇십 분 걸려요.</p>
       <p class="tiny">의미 검색 모델(약 570MB)도 이때 내려받아요. 다른 기기에서 쓰던 위키면 받아서 바로 써요.</p>
     {% endif %}
+    </div>
 
   {% elif s.selected == "topics" %}
     <p class="eyebrow">5 / 5</p>
     <h2 id="ob-title">주제 정리</h2>
+    <div id="ob-live" data-live>
     {% if j.is_done("topics") %}
       <p class="ok-line"><a href="/decisions">Decisions</a>에서 회사별 결정을 주제마다 비교할 수 있어요.</p>
     {% elif j.is_done("first_sync") %}
@@ -135,13 +143,14 @@
     {% else %}
       <p class="lede">모은 결정 사례를 넓은 주제로 묶어요. 첫 수집이 끝날 때 자동으로 해요.</p>
     {% endif %}
+    </div>
 
   {% endif %}
 
   {% set order = ["github", "agent", "start", "first_sync", "topics"] %}
   {% if s.selected in order %}{% set i = order.index(s.selected) %}{% if i < 4 %}
     {% set nxt = s.steps[i + 1] %}
-    <p class="next">다음 <a href="/setup?step={{ nxt.key }}" hx-get="/setup/panel" hx-target="#setup-panel" hx-swap="outerHTML" hx-headers='{"X-Setup-Step": "{{ '' if nxt.key == s.current else nxt.key }}"}'>{{ nxt.title }}</a>{{ {"agent": ": 글을 요약할 에이전트를 연결해요.", "start": ": 모을 글과 수집 시각을 골라요.", "first_sync": ": 최근 글을 가져와 위키를 채워요.", "topics": ": 결정 사례를 주제로 묶어요."}[nxt.key] }}</p>
+    <p id="ob-next" class="next" data-live>다음 <a href="/setup?step={{ nxt.key }}" hx-get="/setup/panel" hx-target="#setup-panel" hx-swap="outerHTML" hx-headers='{"X-Setup-Step": "{{ '' if nxt.key == s.current else nxt.key }}"}'>{{ nxt.title }}</a>{{ {"agent": ": 글을 요약할 에이전트를 연결해요.", "start": ": 모을 글과 수집 시각을 골라요.", "first_sync": ": 최근 글을 가져와 위키를 채워요.", "topics": ": 결정 사례를 주제로 묶어요."}[nxt.key] }}</p>
   {% endif %}{% endif %}
   </article>
 
