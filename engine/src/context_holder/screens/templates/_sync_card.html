@@ -1,6 +1,8 @@
-{# 사이드바 수집 카드. 수집 중이면 3초마다 다시 그리고, 끝나면 화면을 새로 고친다 #}
+{# 사이드바 수집 카드. 수집 중이면 3초마다 다시 그리고, 끝나면 화면을 새로 고친다.
+   쉬는 동안에도 30초마다 묻는다: 정해진 시각에 수집이 시작됐거나 날짜 · 다른 기기 수집으로 상태가 바뀌었으면
+   카드를 바꾸고, 그대로면 서버가 204로 답해 다시 그리지 않는다 (펼친 숫자가 접히지 않게) #}
 {% set st = side.status %}{% set sync = side.sync %}
-<div class="sync-card" aria-label="수집 현황" id="sync-card"{% if sync and sync.running %} hx-get="/sync-card" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+<div class="sync-card" aria-label="수집 현황" id="sync-card"{% if sync and sync.running %} hx-get="/sync-card" hx-trigger="every 3s" hx-swap="outerHTML"{% else %} hx-get="/sync-card?key={{ side.key }}" hx-trigger="every 30s" hx-swap="outerHTML"{% endif %}>
   {% if sync and sync.running %}
   <div class="head"><span class="dot busy"></span>이 기기가 수집 중</div>
   <div class="progress-line">{{ sync.progress or "준비 중" }}</div>
