@@ -584,3 +584,206 @@ document.addEventListener("htmx:afterRequest", (event) => {
   });
   if (!next.querySelector("[data-setup-poll]")) poll.remove();  // 기다릴 일이 끝났다
 });
+
+// 글 상세 대화: 그 글을 두고 설정한 에이전트에게 묻는다. 대화 기록은 이 칸이 들고 있다가 매번 함께 보내고,
+// 모달을 닫거나 다른 글로 바뀌면 버린다. 답은 줄 단위 JSON({"text"} · {"error"} · {"done"})으로 흘러온다.
+let chatAbort = null;
+const stopChat = () => {
+  if (chatAbort) chatAbort.abort();
+  chatAbort = null;
+};
+const articleModal = () => document.getElementById("article-modal");
+// 대화 창: 모달을 넓히고 오른쪽에 붙인다. 글과 대화는 따로 스크롤하고, 글을 보던 자리는 그대로 둔다.
+const setChatOpen = (open) => {
+  const modal = articleModal();
+  const body = document.getElementById("modal-body");
+  const article = body?.querySelector(".article-detail");
+  if (!modal || !article || modal.classList.contains("chat-open") === open) return;
+  const top = open ? body.scrollTop : article.scrollTop;
+  modal.classList.toggle("chat-open", open);
+  if (open) article.scrollTop = top;
+  else body.scrollTop = top;
+  body.querySelectorAll("[data-chat-open][aria-expanded]").forEach((b) => b.setAttribute("aria-expanded", String(open)));
+  if (open) body.querySelector("[data-chat-form] textarea")?.focus({ preventScroll: true });
+};
+articleModal()?.addEventListener("close", () => {
+  stopChat();
+  articleModal().classList.remove("chat-open");
+});
+document.addEventListener("htmx:beforeRequest", (event) => {
+  if (!isModalRequest(event)) return;
+  stopChat();
+  articleModal()?.classList.remove("chat-open");
+});
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-chat-close]")) {
+    setChatOpen(false);
+    return;
+  }
+  const opener = event.target.closest("[data-chat-open]");
+  if (!opener) return;
+  const modal = articleModal();
+  setChatOpen(!(opener.hasAttribute("aria-expanded") && modal.classList.contains("chat-open")));
+});
+
+const escapeHtml = (text) => text.replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+// 답에 쓰는 마크다운은 목록 · `코드` · **강조** 정도라 그것만 그린다. 먼저 이스케이프해서 HTML은 글자로 남는다.
+// 코드 조각은 먼저 떼어 두고 강조 · 기울임 · 링크를 그린 뒤 되돌린다 (코드 안의 * 와 주소는 그대로).
+const inlineMd = (text) => {
+  const codes = [];
+  return escapeHtml(text)
+    .replace(/`([^`\n]+)`/g, (_, code) => `\u0000${codes.push(code) - 1}\u0000`)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, "$1<em>$2</em>")
+    .replace(/https?:\/\/[^\s<>"'()]+[^\s<>"'().,;:!?]/g, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`)
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+};
+const renderMd = (text) => {
+  // 목록은 두 단계까지: 들여쓴 항목은 바로 위 항목 안의 목록이 된다
+  const out = [];
+  let list = null;
+  for (const line of text.split("\n")) {
+    const item = line.match(/^(\s*)(?:[-*]|\d+\.)\s+(.*)$/);
+    if (item) {
+      if (!list) { list = []; out.push(list); }
+      const last = list[list.length - 1];
+      if (item[1].length >= 2 && last) last.children.push(inlineMd(item[2]));
+      else list.push({ html: inlineMd(item[2]), children: [] });
+      continue;
+    }
+    list = null;
+    if (line.trim()) out.push(`<p>${inlineMd(line)}</p>`);
+  }
+  const li = (it) => `<li>${it.html}${it.children.length ? `<ul>${it.children.map((c) => `<li>${c}</li>`).join("")}</ul>` : ""}</li>`;
+  return out.map((part) => (Array.isArray(part) ? `<ul>${part.map(li).join("")}</ul>` : part)).join("");
+};
+
+const chatBubble = (log, role, text = "") => {
+  const li = document.createElement("li");
+  li.className = `chat-msg ${role}`;
+  if (role === "user") li.textContent = text;
+  log.append(li);
+  return li;
+};
+const nearBottom = (box) => box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+
+async function askChat(section, question) {
+  const log = section.querySelector("[data-chat-log]");
+  const form = section.querySelector("[data-chat-form]");
+  const field = form.elements.question;
+  const send = section.querySelector("[data-chat-send]");
+  const scroller = section.querySelector("[data-chat-scroll]");
+  const history = section.chatHistory || (section.chatHistory = []);
+
+  section.querySelector("[data-chat-starters]")?.remove();
+  chatBubble(log, "user", question);
+  const answer = chatBubble(log, "assistant");
+  // 답 글자는 body에, 진행 상태(생각 중 · 원문 읽는 중 …)는 그 아래 한 줄에 둔다
+  answer.innerHTML = '<div class="chat-body"></div><p class="chat-status" role="status"><span class="chat-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="chat-status-text"></span></p>';
+  const answerBody = answer.querySelector(".chat-body");
+  const status = answer.querySelector(".chat-status");
+  const setStatus = (label) => {
+    status.querySelector(".chat-status-text").textContent = label;
+    status.hidden = !label;
+  };
+  setStatus(`${section.dataset.agent}가 생각하는 중`);
+  const used = new Set();
+  scroller.scrollTop = scroller.scrollHeight;
+  field.value = "";
+  field.style.height = "";
+  field.disabled = true;
+  send.disabled = true;
+
+  stopChat();
+  const controller = new AbortController();
+  chatAbort = controller;
+  let text = "";
+  let failed = "";
+  try {
+    const response = await fetch(section.dataset.chat, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "HX-Request": "true" },
+      body: JSON.stringify({ question, history }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.error) failed = event.error;
+        const follow = nearBottom(scroller);
+        if (event.status) {
+          if (event.used) used.add(event.used);
+          setStatus(`${event.status}…`);
+        } else if (event.text) {
+          text += event.text;
+          answerBody.innerHTML = renderMd(text);
+          setStatus("");
+        } else continue;
+        if (follow) scroller.scrollTop = scroller.scrollHeight;
+      }
+    }
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    failed = "연결하지 못했어요. 다시 물어봐 주세요.";
+  } finally {
+    if (chatAbort === controller) chatAbort = null;
+    field.disabled = false;
+    send.disabled = false;
+  }
+  status.remove();
+  if (used.size && text) {
+    const note = document.createElement("p");
+    note.className = "chat-used";
+    note.textContent = `참고: ${[...used].join(" · ")}`;
+    answer.append(note);
+  }
+  if (failed) {
+    const note = document.createElement("p");
+    note.className = "chat-error";
+    note.setAttribute("role", "alert");
+    note.textContent = failed;
+    answer.append(note);
+  }
+  if (text) history.push({ role: "user", text: question }, { role: "assistant", text });
+  if (section.isConnected) field.focus();
+}
+
+document.addEventListener("submit", (event) => {
+  const form = event.target.closest("[data-chat-form]");
+  if (!form) return;
+  event.preventDefault();
+  const question = form.elements.question.value.trim();
+  if (question && !form.elements.question.disabled) askChat(form.closest("[data-chat]"), question);
+});
+document.addEventListener("keydown", (event) => {
+  const field = event.target.closest?.("[data-chat-form] textarea");
+  if (!field || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  field.form.requestSubmit();
+});
+document.addEventListener("input", (event) => {
+  const field = event.target.closest?.("[data-chat-form] textarea");
+  if (!field) return;
+  field.style.height = "";
+  field.style.height = `${Math.min(field.scrollHeight, 160)}px`;
+});
+document.addEventListener("click", (event) => {
+  const starter = event.target.closest("[data-chat-starter]");
+  if (!starter) return;
+  const section = document.querySelector("#modal-body [data-chat]");
+  if (!section || section.querySelector("[data-chat-form] textarea").disabled) return;
+  setChatOpen(true);
+  askChat(section, starter.textContent.trim());
+});

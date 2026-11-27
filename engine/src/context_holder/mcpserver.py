@@ -3,9 +3,16 @@
 stdout은 MCP 프로토콜이 쓴다. 로그는 stderr로만 보낸다.
 """
 
+from collections.abc import Callable
+
+import httpx
 from mcp.server.mcpserver import MCPServer
 
+from context_holder.extract import html_to_markdown
+from context_holder.feed import FetchError, get
 from context_holder.mcptools import WikiTools
+
+ORIGINAL_CHARS = 20_000  # 원문이 길면 앞부분만 넘긴다
 
 INSTRUCTIONS = """빅테크 기술 블로그에서 모은 기술 결정 사례 위키다.
 기술 선택, 아키텍처 결정, 트레이드오프 비교를 하기 전에 먼저 찾는다.
@@ -14,8 +21,41 @@ INSTRUCTIONS = """빅테크 기술 블로그에서 모은 기술 결정 사례 �
 답할 때는 사례의 원문 URL을 함께 밝힌다."""
 
 
-def build_server(tools: WikiTools) -> MCPServer:
+def read_original(url: str, client: Callable[[], httpx.Client] = httpx.Client) -> str:
+    """원문 페이지를 받아 본문만 Markdown으로. 수집과 같이 robots.txt를 지킨다."""
+    try:
+        with client() as http:
+            response = get(http, url)
+    except FetchError as e:
+        return f"원문을 읽지 못했다: {e}"
+    if response.status_code >= 400:
+        return f"원문을 읽지 못했다: HTTP {response.status_code}"
+    text = html_to_markdown(response.text, url)
+    if not text.strip():
+        return "원문에서 본문을 찾지 못했다."
+    if len(text) > ORIGINAL_CHARS:
+        text = text[:ORIGINAL_CHARS] + f"\n\n(원문이 길어 앞 {ORIGINAL_CHARS:,}자만 보냈다)"
+    return f"원문: {url}\n\n{text}"
+
+
+def build_server(tools: WikiTools, original: Callable[[str], str] | None = None) -> MCPServer:
+    """original을 주면 글 원문 읽기 도구(read_original)도 연다 (글 상세 대화용)."""
     server = MCPServer("context-holder", instructions=INSTRUCTIONS)
+
+    if original is not None:
+
+        @server.tool(
+            description=(
+                "위키 글 id로 원문 본문을 읽는다. 요약에 없는 세부(코드, 수치, 구현, 인용)가"
+                " 필요할 때만 쓴다."
+            ),
+            structured_output=False,
+        )
+        def read_original(id: str) -> str:
+            article = tools.index.get(id)
+            if article is None:
+                return f"위키에 없는 글이다: {id}"
+            return original(article.url)
 
     @server.tool(
         description=(

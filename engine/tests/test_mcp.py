@@ -354,17 +354,81 @@ def test_ctx_mcp_starts_stdio_server(tmp_path, monkeypatch):
         def run(self, transport):
             started["transport"] = transport
 
-    def fake_build(tools):
+    def fake_build(tools, original=None):
         started["model"] = tools.embedder().model_id
+        started["original"] = original is not None
         return FakeServer()
 
     monkeypatch.setattr(cli, "build_server", fake_build)
     result = CliRunner().invoke(cli.app, ["mcp", "--wiki", str(tmp_path / "wiki")])
 
     assert result.exit_code == 0, result.output
-    assert started == {"transport": "stdio", "model": "bge-m3"}
+    assert started == {"transport": "stdio", "model": "bge-m3", "original": False}
     assert result.output == ""  # stdout은 MCP 프로토콜 전용
+
+    CliRunner().invoke(cli.app, ["mcp", "--wiki", str(tmp_path / "wiki"), "--original"])
+    assert started["original"]  # 글 상세 대화는 원문 읽기 도구를 연다
 
 
 def test_wiki_read_of_missing_file(tmp_path):
     assert Wiki(tmp_path).read(tmp_path / "nope.md") is None
+
+
+def test_read_original_tool_only_when_asked(wiki, tmp_path):
+    write(wiki, "https://t/o", "Outbox 도입기", ("CDC",), topic="이벤트 발행")
+    asked = []
+    plain = build_server(make_tools(wiki, tmp_path))
+    chat = build_server(make_tools(wiki, tmp_path), lambda url: asked.append(url) or "본문")
+
+    async def run():
+        names = [t.name for t in await plain.list_tools()]
+        hit = await chat.call_tool("read_original", {"id": article_id("https://t/o")})
+        miss = await chat.call_tool("read_original", {"id": "none"})
+        return names, hit, miss
+
+    names, hit, miss = anyio.run(run)
+    assert "read_original" not in names
+    assert hit.content[0].text == "본문" and asked == ["https://t/o"]
+    assert "위키에 없는 글" in miss.content[0].text
+
+
+def test_read_original_extracts_body_and_handles_failures():
+    import httpx
+
+    from context_holder import mcpserver
+
+    page = "<html><body><article><h1>제목</h1>" + "<p>본문 문단입니다.</p>" * 3
+    page += "</article></body></html>"
+
+    def client(handler):
+        return lambda: httpx.Client(transport=httpx.MockTransport(handler))
+
+    ok = mcpserver.read_original("https://t/a", client(lambda r: httpx.Response(200, text=page)))
+    assert ok.startswith("원문: https://t/a") and "본문 문단입니다." in ok
+
+    gone = mcpserver.read_original("https://t/a", client(lambda r: httpx.Response(404)))
+    assert "HTTP 404" in gone
+    empty = mcpserver.read_original("https://t/a", client(lambda r: httpx.Response(200, text="")))
+    assert "본문을 찾지 못했다" in empty
+
+    def broken(request):
+        raise httpx.ConnectError("끊김")
+
+    import context_holder.feed as feed
+
+    old = feed.RETRY_DELAY_SEC
+    feed.RETRY_DELAY_SEC = 0
+    try:
+        assert "읽지 못했다" in mcpserver.read_original("https://t/b", client(broken))
+    finally:
+        feed.RETRY_DELAY_SEC = old
+
+    long = "<html><body><article>" + "<p>" + "가" * 300 + "</p>" * 1 + "</article></body></html>"
+    mcpserver.ORIGINAL_CHARS, saved = 50, mcpserver.ORIGINAL_CHARS
+    try:
+        cut = mcpserver.read_original(
+            "https://t/c", client(lambda r: httpx.Response(200, text=long))
+        )
+    finally:
+        mcpserver.ORIGINAL_CHARS = saved
+    assert "앞 50자만" in cut

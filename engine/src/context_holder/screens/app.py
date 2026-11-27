@@ -20,17 +20,23 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from context_holder import appsettings, onboarding
+from context_holder import appsettings, chat, onboarding
 from context_holder import topics as topicmod
 from context_holder.embed import Embedder
 from context_holder.feedback import Kind, record_feedback
 from context_holder.index import Index
-from context_holder.llm import AGENT_TOOLS, AGENTS, ClaudeCli
+from context_holder.llm import AGENT_TOOLS, AGENTS, ClaudeCli, LlmError
 from context_holder.mcptools import WikiTools
 from context_holder.screens import (
     addarticle,
@@ -85,6 +91,7 @@ class ScreenContext:
     on_settings: Callable[[Any], None] = field(default=lambda settings: None)
     updates: Any = None  # updates.Updates: 앱이 띄웠을 때만
     regroup_llm: Callable[[], Any] = field(default=lambda: ClaudeCli())  # 글 추가 · 주제 묶기
+    chat_llm: Callable[[], Any] = field(default=lambda: chat.ClaudeChat())  # 글 상세 대화
 
 
 def new_token() -> str:
@@ -160,6 +167,7 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return appsettings.load(ctx.settings_path).agent if ctx.settings_path else "claude"
 
     templates.env.globals["agent_name"] = lambda: AGENTS[agent()]
+    templates.env.globals["agent_key"] = agent
 
     # 수집 카드에서 다시 로그인하고, 승인되면 바로 다시 수집한다 ({"agent": …} · {"error": …})
     login_retry: dict[str, str] = {}
@@ -297,6 +305,46 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         if view is None:
             return PlainTextResponse("없는 글", status_code=404)
         return templates.TemplateResponse(request, "_article.html", {"a": view})
+
+    @app.post("/article/{article_id}/chat")
+    async def article_chat(request: Request, article_id: str) -> Response:
+        """글 상세 대화. 화면이 들고 있는 지난 대화와 질문을 받아 답을 줄 단위 JSON으로 흘린다.
+
+        {"text": …}가 이어서 오고, 도구를 쓰는 동안 {"status": …, "used": …},
+        실패하면 {"error": …}, 끝나면 {"done": true}.
+        """
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        question = body.get("question") if isinstance(body, dict) else None
+        if not isinstance(question, str) or not question.strip():
+            return PlainTextResponse("질문이 비어 있어요.", status_code=400)
+        with search_lock:
+            view = articleview.build_article(tools, ctx.wiki, ctx.index, article_id, names())
+        if view is None:
+            return PlainTextResponse("없는 글", status_code=404)
+        llm = ctx.chat_llm()
+        system = chat.system_prompt(view.stored, view.company, getattr(llm, "tools", False))
+        prompt = chat.conversation_prompt(
+            chat.parse_history(body.get("history")), question.strip()[: chat.MAX_CHARS]
+        )
+
+        def lines():
+            try:
+                for event in llm.stream(system, prompt):
+                    if event.kind == "status":
+                        line = {"status": event.text, "used": event.used}
+                    else:
+                        line = {"text": event.text}
+                    yield json.dumps(line, ensure_ascii=False) + "\n"
+            except LlmError as e:
+                log.warning("글 대화 실패 (%s): %s", article_id, e)
+                yield json.dumps({"error": chat.error_message(e)}, ensure_ascii=False) + "\n"
+                return
+            yield json.dumps({"done": True}) + "\n"
+
+        return StreamingResponse(lines(), media_type="application/x-ndjson")
 
     @app.post("/article/{article_id}/remove")
     def article_remove(article_id: str) -> Response:
