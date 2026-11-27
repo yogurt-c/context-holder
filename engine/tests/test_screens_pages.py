@@ -710,6 +710,31 @@ def test_sync_now_button_starts_collection_and_card_polls(wiki, tmp_path):
     assert c.get("/sync-card").headers["HX-Refresh"] == "true"  # 끝났다: 화면을 새로 고친다
 
 
+def test_idle_card_redraws_only_when_state_changes(wiki, tmp_path):
+    """쉬는 카드도 30초마다 묻는다. 그대로면 204라 다시 그리지 않는다."""
+    import re
+
+    scheduler = FakeScheduler()
+    c = app_client(wiki, tmp_path, scheduler)
+    page = c.get("/today").text
+    key = re.search(r'hx-get="/sync-card\?key=(\w+)" hx-trigger="every 30s"', page).group(1)
+    assert c.get(f"/sync-card?key={key}").status_code == 204  # 그대로다
+
+    run_file(wiki, TODAY, {"status": "done", "device": "air", "finished_at": NOW.isoformat()})
+    done = c.get(f"/sync-card?key={key}")  # 묻는 사이에 수집이 시작해 끝났다
+    assert done.status_code == 200 and "수집 완료" in done.text
+    assert done.headers["HX-Refresh"] == "true"  # 새 글을 보이게 화면을 새로 고친다
+    key = re.search(r"key=(\w+)", done.text).group(1)
+    assert c.get(f"/sync-card?key={key}").status_code == 204
+
+    run_file(wiki, TODAY + timedelta(days=1), {"status": "done"})  # 쓰이지 않는 날의 기록
+    assert c.get(f"/sync-card?key={key}").status_code == 204
+    scheduler.run_now()  # 정해진 시각에 수집이 시작됐다
+    started = c.get(f"/sync-card?key={key}")
+    assert "이 기기가 수집 중" in started.text and 'hx-trigger="every 3s"' in started.text
+    assert "HX-Refresh" not in started.headers
+
+
 def test_sync_card_shows_pause_and_hides_button_when_done(wiki, tmp_path):
     from datetime import timedelta as td
 

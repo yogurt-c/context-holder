@@ -4,6 +4,7 @@ Today 순위 = 관련도 * 신선도 * 회사 가중치.
 신선도는 게시일(없으면 수집일)에서 7일이 지날 때마다 절반이 된다.
 """
 
+import hashlib
 import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
@@ -271,11 +272,19 @@ def sidebar(
     """모든 화면의 사이드바: 오늘 수집 현황과 Inbox 건수. 앱이 띄웠으면 스케줄러 상태도."""
     today = clock().astimezone().date()
     inbox = index.select("WHERE bucket = ?", (Bucket.INBOX.value,))
+    status = run_status(wiki, today, device, True)
+    sync = sync_state(scheduler) if scheduler is not None else None
     return {
-        "status": run_status(wiki, today, device, True),
+        "status": status,
         "inbox_total": len(inbox),
-        "sync": sync_state(scheduler) if scheduler is not None else None,
+        "sync": sync,
+        "key": card_key(status, sync),
     }
+
+
+def card_key(status: RunStatus, sync: dict[str, Any] | None) -> str:
+    """수집 카드에 보이는 상태의 지문. 쉬는 동안 카드는 이 값이 바뀔 때만 다시 그린다."""
+    return hashlib.sha1(repr((status, sync)).encode()).hexdigest()[:12]
 
 
 def sync_state(scheduler: Any) -> dict[str, Any]:

@@ -496,7 +496,21 @@ def create_app(ctx: ScreenContext) -> FastAPI:
         return templates.TemplateResponse(request, "_sync_card.html", {"side": side})
 
     @app.get("/sync-card", response_class=HTMLResponse)
-    def sync_card_poll(request: Request) -> HTMLResponse:
+    def sync_card_poll(request: Request, key: str | None = None) -> Response:
+        """key가 있으면 쉬는 카드가 묻는 것이다.
+
+        상태가 그대로면 204, 바뀌었으면 (수집 시작 포함) 카드.
+        묻는 사이(30초)에 수집이 시작해 끝났으면 화면을 새로 고친다 (짧은 수집은 1분도 안 걸린다).
+        key가 없으면 수집 중인 카드가 묻는 것이다: 끝났으면 화면을 새로 고친다."""
+        if key is not None:
+            side = views.sidebar(ctx.wiki, ctx.index, ctx.device, ctx.clock, ctx.scheduler)
+            if side["key"] == key:
+                return Response(status_code=204)
+            response = templates.TemplateResponse(request, "_sync_card.html", {"side": side})
+            running = side["sync"] and side["sync"]["running"]
+            if not running and side["status"].state in ("done", "stopped"):
+                response.headers["HX-Refresh"] = "true"  # 새 글을 보이게 화면을 새로 고친다
+            return response
         response = sync_card(request)
         if ctx.scheduler is None or not ctx.scheduler.running:
             response.headers["HX-Refresh"] = (
