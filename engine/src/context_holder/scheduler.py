@@ -1,7 +1,8 @@
 """앱이 띄운 엔진(`ctx serve --app`)의 매일 수집 스케줄러 (plan 3장).
 
-계기: 앱 시작, 잠자기 해제, 설정한 시각(기본 평일 09:30) 이후. 계기가 오면 오늘 수집이
-안 됐을 때만 `ctx sync`를 자식 프로세스로 띄운다 (첫 수집 전이면 `ctx init`).
+계기: 앱 시작, 잠자기 해제, 1분마다 확인. 어느 계기든 설정한 시각(기본 평일 09:30)이 지났고
+오늘 수집이 안 됐을 때만 `ctx sync`를 자식 프로세스로 띄운다 (첫 수집 전이면 `ctx init`).
+그 시각에 Mac이 꺼져 있었으면 켜거나 깨운 뒤 첫 확인에서 수집한다. 시각 전에 깨우면 기다린다.
 잠금 · pull · push는 그 명령이 맡는다.
 
 - 오늘 기록이 done이거나 다른 기기가 수집 중이면 띄우지 않는다.
@@ -141,6 +142,13 @@ class Scheduler:
         until = datetime.fromisoformat(value)
         return until if until > self.clock() else None
 
+    def due(self) -> bool:
+        """설정한 시각이 지났나 (주말 수집을 끄면 평일만). 자동 계기는 이때만 수집한다."""
+        local = self.clock().astimezone()
+        chosen = self.settings()
+        workday = local.weekday() < 5 or chosen.weekends
+        return workday and local.time() >= chosen.daily_time
+
     def can_run_now(self) -> bool:
         """ "지금 수집"을 누를 수 있나. 일시정지와 재시도 간격은 무시한다."""
         if self.running or self.done_today() or self.other_device_running():
@@ -150,15 +158,14 @@ class Scheduler:
     # ---------- 계기 ----------
 
     def tick(self) -> None:
-        """1분마다 부른다. 잠자기 해제나 평일 09:30 이후면 수집을 시도한다."""
+        """1분마다 부른다. 설정한 시각이 지났으면 수집을 시도한다.
+
+        잠자기 해제는 기록에 남길 이유일 뿐이다. 시각 전에 깨우면 수집하지 않는다.
+        """
         now = self.clock()
         woke = self._last_tick is not None and now - self._last_tick > WAKE_GAP
         self._last_tick = now
-        local = now.astimezone()
-        chosen = self.settings()
-        workday = local.weekday() < 5 or chosen.weekends
-        daily = workday and local.time() >= chosen.daily_time
-        if (woke or daily) and self.trigger("wake" if woke else "daily"):
+        if self.due() and self.trigger("wake" if woke else "daily"):
             return
         self.on_change()  # 띄우지 않았어도 시각이 들어간 메뉴 문구를 새로 그린다
 
@@ -261,8 +268,11 @@ class Scheduler:
 def run_forever(
     scheduler: Scheduler, stop: threading.Event, every: Callable[[], None] = lambda: None
 ) -> None:  # pragma: no cover - 실제 스레드에서 1분마다 돈다
-    """앱 시작을 첫 계기로 두고 1분마다 tick한다. every는 tick마다 함께 부른다 (알림 확인)."""
-    if not scheduler.trigger("start"):
+    """앱 시작을 첫 계기로 두고 1분마다 tick한다. every는 tick마다 함께 부른다 (알림 확인).
+
+    앱 시작도 설정한 시각이 지났을 때만 수집한다.
+    """
+    if not (scheduler.due() and scheduler.trigger("start")):
         scheduler.on_change()  # 첫 메뉴를 그린다 (오늘 수집이 이미 끝났어도)
     every()
     while not stop.wait(TICK_SECONDS):

@@ -145,7 +145,7 @@ def test_broken_record_reads_as_none(setup):
     assert scheduler.today_record() is None
 
 
-def test_tick_triggers_on_weekday_after_0930_and_on_wake(setup):
+def test_tick_triggers_on_weekday_after_0930_and_on_wake(setup, caplog):
     scheduler, _, clock, children, spawned, changes, _ = setup
     children += [FakeChild(code=1), FakeChild(code=1)]
     scheduler.tick()  # 08:00: 계기 아님, 메뉴 문구만 새로
@@ -153,16 +153,49 @@ def test_tick_triggers_on_weekday_after_0930_and_on_wake(setup):
     clock.now += timedelta(minutes=1)
     scheduler.tick()
     assert spawned == []
-    clock.now += timedelta(minutes=10)  # 잠들었다 깼다
-    scheduler.tick()
-    assert spawned == [clock.now]
     clock.now = MONDAY_8 + timedelta(hours=2)  # 10:00
     scheduler._last_tick = clock.now - timedelta(minutes=1)
     scheduler.tick()
-    assert len(spawned) == 2  # 평일 09:30 이후 (재시도 간격도 지났다)
+    assert len(spawned) == 1  # 평일 09:30 이후
+    clock.now += RETRY_AFTER + timedelta(minutes=10)  # 실패한 뒤 잠들었다 깼다
+    with caplog.at_level("INFO", logger="context_holder.scheduler"):
+        scheduler.tick()
+    assert len(spawned) == 2 and "수집 시작 (wake)" in caplog.text
 
 
-def test_weekend_morning_waits_for_start_or_wake(setup):
+def test_wake_before_settings_time_waits(setup):
+    """잠자기 해제는 놓친 시각을 따라잡을 뿐이다. 자정 넘어 깨워도 09:30까지 기다린다."""
+    scheduler, _, clock, _, spawned, _, _ = setup
+    clock.now = datetime(2026, 11, 8, 15, 5, tzinfo=UTC)  # 월요일 00:05 (서울)
+    scheduler._last_tick = clock.now - timedelta(hours=2)  # 밤새 잠들었다 깼다
+    scheduler.tick()
+    assert spawned == [] and not scheduler.due()
+    clock.now = MONDAY_8 + timedelta(minutes=29)  # 08:29에 다시 깼다
+    scheduler._last_tick = clock.now - timedelta(minutes=30)
+    scheduler.tick()
+    assert spawned == []
+    clock.now = MONDAY_8 + timedelta(hours=1, minutes=30)  # 09:30
+    scheduler.tick()
+    assert len(spawned) == 1
+
+
+def test_app_start_waits_for_settings_time(setup):
+    from context_holder.scheduler import run_forever
+
+    scheduler, _, clock, _, spawned, changes, _ = setup
+
+    class Stop:
+        def wait(self, _seconds):
+            return True
+
+    run_forever(scheduler, Stop())  # 08:00에 앱을 켰다
+    assert spawned == [] and changes == [1]  # 첫 메뉴만 그린다
+    clock.now = MONDAY_8 + timedelta(hours=2)  # 10:00에 앱을 켰다
+    run_forever(scheduler, Stop())
+    assert len(spawned) == 1
+
+
+def test_weekend_morning_waits(setup):
     scheduler, _, clock, _, spawned, _, _ = setup
     clock.now = datetime(2026, 11, 14, 2, tzinfo=UTC)  # 토요일 11:00
     scheduler.tick()
