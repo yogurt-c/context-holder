@@ -16,6 +16,7 @@ import typer
 from context_holder import __version__, appsettings
 from context_holder.agentaccounts import command_prefix
 from context_holder.auth import TokenMissing, github_token
+from context_holder.chat import ChatLlm, make_chat
 from context_holder.classify import (
     Bucket,
     ClassifyResult,
@@ -26,6 +27,7 @@ from context_holder.classify import (
     load_default_profile,
     load_profile,
 )
+from context_holder.claudesetup import engine_command
 from context_holder.collect import Article, CollectResult, SourceReport, collect
 from context_holder.collectrun import Checkpoint, LockedRun, Work, run_locked
 from context_holder.connect import ConnectError, connect_wiki
@@ -46,7 +48,7 @@ from context_holder.init import (
 )
 from context_holder.llm import AGENTS, StructuredLlm, make_llm
 from context_holder.mcpeval import evaluate_mcp, load_decision_queries
-from context_holder.mcpserver import build_server
+from context_holder.mcpserver import build_server, read_original
 from context_holder.mcptools import WikiTools
 from context_holder.paths import default_wiki, etag_cache, home
 from context_holder.reembed import run_reembed
@@ -74,6 +76,14 @@ AGENT_OPTION = typer.Option(
     None, help="요약 · 분류에 쓸 에이전트 (claude | codex). 없으면 앱 설정."
 )
 MODEL_OPTION = typer.Option(None, help="에이전트 모델. 없으면 에이전트 기본값 (Claude는 sonnet).")
+
+
+def _chat_llm() -> ChatLlm:
+    """글 상세 대화: 설정에서 고른 에이전트 · 계정."""
+    settings = appsettings.load(home() / "app-state.json")
+    chosen = settings.agent
+    prefix = command_prefix(chosen, settings.account(chosen))
+    return make_chat(chosen, prefix, mcp_command=[*engine_command(), "--original"])
 
 
 def _llm(agent: str | None, model: str | None) -> StructuredLlm:
@@ -666,6 +676,9 @@ def feedback_command(
 @app.command("mcp")
 def mcp_command(
     wiki_path: Path | None = typer.Option(None, "--wiki", help="위키 레포 폴더."),
+    original: bool = typer.Option(
+        False, "--original", help="글 원문 읽기 도구(read_original)도 연다 (글 상세 대화용)."
+    ),
 ) -> None:
     """Claude Code용 MCP 서버를 stdio로 띄운다 (claude mcp add context-holder -- ctx mcp)."""
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)  # stdout은 MCP 프로토콜 전용
@@ -678,7 +691,8 @@ def mcp_command(
         log_path=home() / "mcp-queries.jsonl",
         clock=lambda: datetime.now(UTC),
     )
-    build_server(tools).run("stdio")  # pragma: no cover - stdio를 붙잡는다
+    server = build_server(tools, read_original if original else None)
+    server.run("stdio")  # pragma: no cover - stdio를 붙잡는다
 
 
 def make_embedder(model_id: str, local_only: bool = False) -> Embedder:
@@ -731,6 +745,7 @@ def serve_command(
             on_settings=bridge.apply_settings if bridge else lambda settings: None,
             updates=bridge.updates if bridge else None,
             regroup_llm=lambda: _llm(None, None),
+            chat_llm=_chat_llm,
         )
 
     serve(

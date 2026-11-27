@@ -1,10 +1,14 @@
 {% from "_macros.html" import bookmark_toggle, remove_article, decision_card %}
+{% import "_icons.html" as icons %}
 {# 글 상세 모달의 내용 (#modal-body에 들어간다) #}
 {% set s = a.stored %}
+{% set starters = ["이 결정의 트레이드오프를 정리해 줘", "우리 팀에 적용하려면 뭘 먼저 봐야 해?", "비슷한 상황에서 다른 선택지는 뭐가 있었을까?"] if s.decision else ["이 글의 핵심을 세 줄로 설명해 줘", "실무에 적용할 만한 포인트가 뭐야?", "이 글에서 더 확인해 봐야 할 점은?"] %}
+<div class="article-shell" data-article-shell>
 <article class="article-detail" aria-labelledby="article-title">
   <header class="article-head">
     <div class="kicker"><span class="co-brand">{{ a.company }}</span>{% if s.published %}<span class="score">{{ s.published.strftime("%Y.%m.%d") }}</span>{% endif %}{% if s.decision %}<span class="badge decision">결정 사례</span>{% endif %}</div>
     <div class="head-tools">
+      <button type="button" class="icon-btn chat-toggle" data-chat-open aria-controls="article-chat" aria-expanded="false" aria-label="{{ agent_name() }}에게 묻기" title="{{ agent_name() }}에게 묻기">{{ icons.agent(agent_key(), 15) }}</button>
       {{ bookmark_toggle(s.id, a.bookmarked) }}
       <button type="button" class="btn ghost sm modal-close" data-close aria-label="닫기">닫기</button>
     </div>
@@ -23,6 +27,10 @@
     {% if s.decision %}<button type="button" class="btn decision" data-copy="modal-decision-md">결정 기록 복사</button>{% endif %}
     {{ remove_article(s.id) }}
   </div>
+  <section class="chat-entry" aria-label="{{ agent_name() }}에게 이 글 묻기">
+    <button type="button" class="chat-entry-bar" data-chat-open>{{ icons.agent(agent_key()) }}<span>{{ agent_name() }}에게 이 글에 대해 물어보세요</span><kbd>질문하기</kbd></button>
+    <div class="chat-starters">{% for q in starters[:2] %}<button type="button" class="chat-starter" data-chat-starter>{{ q }}</button>{% endfor %}</div>
+  </section>
   {% if a.related %}
   <section class="related">
     <h3>비슷한 결정</h3>
@@ -30,3 +38,25 @@
   </section>
   {% endif %}
 </article>
+<aside class="article-chat" id="article-chat" aria-labelledby="chat-title" data-chat="/article/{{ s.id }}/chat" data-agent="{{ agent_name() }}">
+  <header class="chat-head">
+    <button type="button" class="btn ghost sm chat-back" data-chat-close>← 글로</button>
+    <h3 id="chat-title" class="chat-title">{{ icons.agent(agent_key()) }}<span>{{ agent_name() }}</span><span class="chat-subject">{{ s.title }}</span></h3>
+    <button type="button" class="btn ghost sm chat-collapse" data-chat-close aria-label="대화 창 접기" title="대화 창 접기 (대화는 남아요)">접기</button>
+  </header>
+  <div class="chat-scroll" data-chat-scroll>
+    <div class="chat-empty" data-chat-starters>
+      <p>이 글의 요약 · 핵심 내용{% if s.decision %} · 결정 기록{% endif %}을 바탕으로 답해요.</p>
+      <div class="chat-starters stacked">{% for q in starters %}<button type="button" class="chat-starter" data-chat-starter>{{ q }}</button>{% endfor %}</div>
+    </div>
+    <ol class="chat-log" aria-live="polite" data-chat-log></ol>
+  </div>
+  <div class="chat-compose">
+    <form class="chat-form" data-chat-form>
+      <textarea name="question" rows="1" maxlength="4000" placeholder="이 글에 대해 물어보세요" aria-label="질문" required></textarea>
+      <button type="submit" class="btn primary sm" data-chat-send>보내기</button>
+    </form>
+    <p class="chat-hint">Enter 보내기 · Shift+Enter 줄바꿈 · 상세 창을 닫으면 대화가 지워져요</p>
+  </div>
+</aside>
+</div>
